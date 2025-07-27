@@ -1,0 +1,136 @@
+<view class="container">
+  <!-- 字幕滚动区域 -->
+  <scroll-view 
+    class="subtitle-container" 
+    scroll-y 
+    scroll-into-view="{{currentSubtitleId}}"
+    scroll-with-animation="{{true}}"
+  >
+    <view class="subtitle-list">
+      <!-- 顶部占位 -->
+      <view class="subtitle-spacer"></view>
+      
+      <!-- 字幕内容 -->
+      <view 
+        wx:for="{{subtitles}}" 
+        wx:key="index"
+        id="subtitle-{{index}}"
+        class="subtitle-item {{currentIndex === index ? 'active' : ''}}"
+        data-index="{{index}}"
+        bindtap="onSubtitleTap"
+      >
+        <view class="subtitle-time">{{item.timeText}}</view>
+        <view class="subtitle-english">{{item.english}}</view>
+        <view class="subtitle-chinese" wx:if="{{showChinese}}">{{item.chinese}}</view>
+      </view>
+      
+      <!-- 底部占位 -->
+      <view class="subtitle-spacer"></view>
+    </view>
+  </scroll-view>
+
+  <!-- 底部控制栏 -->
+  <view class="control-bar">
+    <!-- 进度条 -->
+    <view class="progress-container">
+      <slider 
+        class="progress-slider"
+        min="0"
+        max="{{duration}}"
+        value="{{currentTime}}"
+        activeColor="#FFFFFF"
+        backgroundColor="rgba(255,255,255,0.3)"
+        block-size="16"
+        bindchange="onProgressChange"
+        bindchanging="onProgressChanging"
+      />
+    </view>
+    
+    <!-- 控制按钮 -->
+    <view class="controls">
+      <!-- 上一句 -->
+      <view class="control-btn" bindtap="onPrevious">
+        <image class="control-icon" src="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjQiIGhlaWdodD0iMjQiIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHBhdGggZD0iTTYgNkg0VjE4SDZWNlpNOSAxOEwxOSAxMkw5IDZWMThaIiBmaWxsPSJ3aGl0ZSIvPgo8L3N2Zz4K" mode="aspectFit"></image>
+      </view>
+      
+      <!-- 播放/暂停 -->
+      <view class="control-btn play-btn" bindtap="onPlayPause">
+        <image 
+          class="control-icon play-icon" 
+          src="{{isPlaying ? pauseIcon : playIcon}}" 
+          mode="aspectFit"
+        ></image>
+      </view>
+      
+      <!-- 下一句 -->
+      <view class="control-btn" bindtap="onNext">
+        <image class="control-icon" src="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjQiIGhlaWdodD0iMjQiIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHBhdGggZD0iTTYgMThMMTYgMTJMNiA2VjE4Wk0xOCA2VjE4SDIwVjZIMThaIiBmaWxsPSJ3aGl0ZSIvPgo8L3N2Zz4K" mode="aspectFit"></image>
+      </view>
+      
+      <!-- 收藏 -->
+      <view class="control-btn" bindtap="onFavorite">
+        <image 
+          class="control-icon" 
+          src="{{isFavorited ? favoriteActiveIcon : favoriteIcon}}" 
+          mode="aspectFit"
+        ></image>
+      </view>
+      
+      <!-- 设置 -->
+      <view class="control-btn" bindtap="onSettings">
+        <image class="control-icon" src="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjQiIGhlaWdodD0iMjQiIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHBhdGggZD0iTTE5LjE0IDEyLjk0QzE5LjE4IDEyLjY0IDE5LjIgMTIuMzMgMTkuMiAxMkMxOS4yIDExLjY3IDE5LjE4IDExLjM2IDE5LjE0IDExLjA2TDIxLjI1IDkuNDhDMjEuNDMgOS4zNCAyMS40OSA5LjA3IDIxLjM1IDguODVMMTkuNDIgNS42QzE5LjI4IDUuMzggMTkuMDIgNS4zIDE4Ljc4IDUuNEwxNi41IDYuMThDMTUuOTYgNS44MSAxNS4zOCA1LjUgMTQuNzYgNS4zMkwxNC40IDIuODFDMTQuMzYgMi41NCAxNC4xNCAyLjMzIDEzLjg2IDIuMzNIMTAuMTRDOS44NiAyLjMzIDkuNjQgMi41NCA5LjYgMi44MUw5LjI0IDUuMzJDOC42MiA1LjUgOC4wNCA1LjgxIDcuNSA2LjE4TDUuMjIgNS40QzQuOTggNS4zIDQuNzIgNS4zOCA0LjU4IDUuNkwyLjY1IDguODVDMi41MSA5LjA3IDIuNTcgOS4zNCAyLjc1IDkuNDhMNC44NiAxMS4wNkM0LjgyIDExLjM2IDQuOCAxMS42NyA0LjggMTJDNC44IDEyLjMzIDQuODIgMTIuNjQgNC44NiAxMi45NEwyLjc1IDE0LjUyQzIuNTcgMTQuNjYgMi41MSAxNC45MyAyLjY1IDE1LjE1TDQuNTggMTguNEM0LjcyIDE4LjYyIDQuOTggMTguNyA1LjIyIDE4LjZMNy41IDE3LjgyQzguMDQgMTguMTkgOC42MiAxOC41IDkuMjQgMTguNjhMOS42IDIxLjE5QzkuNjQgMjEuNDYgOS44NiAyMS42NyAxMC4xNCAyMS42N0gxMy44NkMxNC4xNCAyMS42NyAxNC4zNiAyMS40NiAxNC40IDIxLjE5TDE0Ljc2IDE4LjY4QzE1LjM4IDE4LjUgMTUuOTYgMTguMTkgMTYuNSAxNy44MkwxOC43OCAxOC42QzE5LjAyIDE4LjcgMTkuMjggMTguNjIgMTkuNDIgMTguNEwyMS4zNSAxNS4xNUMyMS40OSAxNC45MyAyMS40MyAxNC42NiAyMS4yNSAxNC41MkwxOS4xNCAxMi45NFpNMTIgMTUuNkM5LjkgMTUuNiA4LjIgMTMuOSA4LjIgMTJDOC4yIDEwLjEgOS45IDguNDIgMTIgOC40MkMxNC4xIDguNDEgMTUuOCAxMC4xIDE1LjggMTJDMTUuOCAxMy45IDE0LjEgMTUuNiAxMiAxNS42WiIgZmlsbD0id2hpdGUiLz4KPC9zdmc+Cg==" mode="aspectFit"></image>
+      </view>
+    </view>
+  </view>
+
+  <!-- 设置弹窗 -->
+  <view class="modal-overlay {{showSettings ? 'show' : ''}}" bindtap="onCloseSettings">
+    <view class="settings-modal" catchtap="stopPropagation">
+      <view class="modal-header">
+        <text class="modal-title">播放设置</text>
+        <view class="close-btn" bindtap="onCloseSettings">
+          <image class="close-icon" src="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjQiIGhlaWdodD0iMjQiIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHBhdGggZD0iTTE5IDYuNDE4MjZMMTcuNTgxNyA1TDEyIDEwLjU4MTdMNi40MTgzNiA1TDUgNi40MTgyNkwxMC41ODE3IDEyTDUgMTcuNTgxN0w2LjQxODM2IDE5TDEyIDEzLjQxODNMMTcuNTgxNyAxOUwxOSAxNy41ODE3TDEzLjQxODMgMTJMMTkgNi40MTgyNloiIGZpbGw9IiM5OTkiLz4KPC9zdmc+Cg==" mode="aspectFit"></image>
+        </view>
+      </view>
+      
+      <view class="modal-content">
+        <!-- 播放速度 -->
+        <view class="setting-item">
+          <text class="setting-label">播放速度</text>
+          <view class="speed-options">
+            <view 
+              wx:for="{{speedOptions}}" 
+              wx:key="*this"
+              class="speed-btn {{playSpeed === item ? 'active' : ''}}"
+              data-speed="{{item}}"
+              bindtap="onSpeedChange"
+            >
+              {{item}}x
+            </view>
+          </view>
+        </view>
+        
+        <!-- 字幕显示 -->
+        <view class="setting-item">
+          <text class="setting-label">字幕显示</text>
+          <view class="subtitle-options">
+            <view 
+              class="subtitle-btn {{showChinese ? '' : 'active'}}"
+              bindtap="onSubtitleModeChange"
+              data-mode="en"
+            >
+              仅英语
+            </view>
+            <view 
+              class="subtitle-btn {{showChinese ? 'active' : ''}}"
+              bindtap="onSubtitleModeChange"
+              data-mode="both"
+            >
+              双语
+            </view>
+          </view>
+        </view>
+      </view>
+    </view>
+  </view>
+</view> 

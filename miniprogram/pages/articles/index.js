@@ -133,15 +133,9 @@ Page({
     // 点击文章卡片
     onArticleClick(e) {
         const articleId = e.currentTarget.dataset.id;
-        wx.showToast({
-            title: '正在进入文章',
-            icon: 'loading',
-            duration: 1000
+        wx.navigateTo({
+            url: `/pages/article-detail/index?id=${articleId}`
         });
-        // 这里可以跳转到文章详情页
-        // wx.navigateTo({
-        //   url: `/pages/article-detail/index?id=${articleId}`
-        // });
     },
 
     // 底部导航切换

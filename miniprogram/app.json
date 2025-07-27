@@ -2,7 +2,8 @@
   "pages": [
     "pages/articles/index",
     "pages/index/index",
-    "pages/example/index"
+    "pages/example/index",
+    "pages/article-detail/index"
   ],
   "window": {
     "backgroundColor": "#F6F6F6",
