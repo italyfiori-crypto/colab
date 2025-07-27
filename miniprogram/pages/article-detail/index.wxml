@@ -7,9 +7,6 @@
     scroll-with-animation="{{true}}"
   >
     <view class="subtitle-list">
-      <!-- 顶部占位 -->
-      <view class="subtitle-spacer"></view>
-      
       <!-- 字幕内容 -->
       <view 
         wx:for="{{subtitles}}" 
@@ -19,12 +16,10 @@
         data-index="{{index}}"
         bindtap="onSubtitleTap"
       >
+        <view class="subtitle-time" style="display: none;">{{item.timeText}}</view>
         <view class="subtitle-english">{{item.english}}</view>
         <view class="subtitle-chinese" wx:if="{{showChinese}}">{{item.chinese}}</view>
       </view>
-      
-      <!-- 底部占位 -->
-      <view class="subtitle-spacer"></view>
     </view>
   </scroll-view>
 
@@ -49,7 +44,7 @@
     <view class="controls">
       <!-- 上一句 -->
       <view class="control-btn" bindtap="onPrevious">
-        <image class="control-icon" src="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjQiIGhlaWdodD0iMjQiIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHBhdGggZD0iTTE4IDZIMjBWMThIMThWNlpNNSAxOEwxNSAxMkw1IDZWMThaIiBmaWxsPSJ3aGl0ZSIvPgo8L3N2Zz4K" mode="aspectFit"></image>
+        <image class="control-icon" src="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjQiIGhlaWdodD0iMjQiIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHBhdGggZD0iTTE4IDE4TDE1IDE4TDE1IDZMMTggNkwxOCA2Wk05IDZMMTkgMTJMOSAxOEw5IDZaIiBmaWxsPSJ3aGl0ZSIvPgo8L3N2Zz4K" mode="aspectFit"></image>
       </view>
       
       <!-- 播放/暂停 -->
@@ -77,7 +72,7 @@
       
       <!-- 设置 -->
       <view class="control-btn" bindtap="onSettings">
-        <image class="control-icon" src="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjQiIGhlaWdodD0iMjQiIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHBhdGggZD0iTTE5LjE0IDEyLjk0QzE5LjE4IDEyLjY0IDE5LjIgMTIuMzMgMTkuMiAxMkMxOS4yIDExLjY3IDE5LjE4IDExLjM2IDE5LjE0IDExLjA2TDIxLjI1IDkuNDhDMjEuNDMgOS4zNCAyMS40OSA5LjA3IDIxLjM1IDguODVMMTkuNDIgNS42QzE5LjI4IDUuMzggMTkuMDIgNS4zIDE4Ljc4IDUuNEwxNi41IDYuMThDMTUuOTYgNS44MSAxNS4zOCA1LjUgMTQuNzYgNS4zMkwxNC40IDIuODFDMTQuMzYgMi41NCAxNC4xNCAyLjMzIDEzLjg2IDIuMzNIMTAuMTRDOS44NiAyLjMzIDkuNjQgMi41NCA5LjYgMi44MUw5LjI0IDUuMzJDOC42MiA1LjUgOC4wNCA1LjgxIDcuNSA2LjE4TDUuMjIgNS40QzQuOTggNS4zIDQuNzIgNS4zOCA0LjU4IDUuNkwyLjY1IDguODVDMi41MSA5LjA3IDIuNTcgOS4zNCAyLjc1IDkuNDhMNC44NiAxMS4wNkM0LjgyIDExLjM2IDQuOCAxMS42NyA0LjggMTJDNC44IDEyLjMzIDQuODIgMTIuNjQgNC44NiAxMi45NEwyLjc1IDE0LjUyQzIuNTcgMTQuNjYgMi41MSAxNC45MyAyLjY1IDE1LjE1TDQuNTggMTguNEM0LjcyIDE4LjYyIDQuOTggMTguNyA5LjIyIDE4LjZMNy41IDE3LjgyQzguMDQgMTguMTkgOC42MiAxOC41IDkuMjQgMTguNjhMOS42IDIxLjE5QzkuNjQgMjEuNDYgOS44NiAyMS42NyAxMC4xNCAyMS42N0gxMy44NkMxNC4xNCAyMS42NyAxNC4zNiAyMS40NiAxNC40IDIxLjE5TDE0Ljc2IDE4LjY4QzE1LjM4IDE4LjUgMTUuOTYgMTguMTkgMTYuNSAxNy44MkwxOC43OCAxOC42QzE5LjAyIDE4LjcgMTkuMjggMTguNjIgMTkuNDIgMTguNEwyMS4zNSAxNS4xNUMyMS40OSAxNC45MyAyMS40MyAxNC42NiAyMS4yNSAxNC41MkwxOS4xNCAxMi45NFpNMTIgMTUuNkM5LjkgMTUuNiA4LjIgMTMuOSA4LjIgMTJDOC4yIDEwLjEgOS45IDguNDIgMTIgOC40MkMxNC4xIDguNDEgMTUuOCAxMC4xIDE1LjggMTJDMTUuOCAxMy45IDE0LjEgMTUuNiAxMiAxNS42WiIgZmlsbD0id2hpdGUiLz4KPC9zdmc+Cg==" mode="aspectFit"></image>
+        <image class="control-icon" src="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjQiIGhlaWdodD0iMjQiIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHBhdGggZD0iTTE5LjE0IDEyLjk0QzE5LjE4IDEyLjY0IDE5LjIgMTIuMzMgMTkuMiAxMkMxOS4yIDExLjY3IDE5LjE4IDExLjM2IDE5LjE0IDExLjA2TDIxLjI1IDkuNDhDMjEuNDMgOS4zNCAyMS40OSA5LjA3IDIxLjM1IDguODVMMTkuNDIgNS42QzE5LjI4IDUuMzggMTkuMDIgNS4zIDE4Ljc4IDUuNEwxNi41IDYuMThDMTUuOTYgNS44MSAxNS4zOCA1LjUgMTQuNzYgNS4zMkwxNC40IDIuODFDMTQuMzYgMi41NCAxNC4xNCAyLjMzIDEzLjg2IDIuMzNIMTAuMTRDOS44NiAyLjMzIDkuNjQgMi41NCA5LjYgMi44MUw5LjI0IDUuMzJDOC42MiA1LjUgOC4wNCA1LjgxIDcuNSA2LjE4TDUuMjIgNS40QzQuOTggNS4zIDQuNzIgNS4zOCA0LjU4IDUuNkwyLjY1IDguODVDMi41MSA5LjA3IDIuNTcgOS4zNCAyLjc1IDkuNDhMNC44NiAxMS4wNkM0LjgyIDExLjM2IDQuOCAxMS42NyA0LjggMTJDNC44IDEyLjMzIDQuODIgMTIuNjQgNC44NiAxMi45NEwyLjc1IDE0LjUyQzIuNTcgMTQuNjYgMi41MSAxNC45MyAyLjY1IDE1LjE1TDQuNTggMTguNEM0LjcyIDE4LjYyIDQuOTggMTguNyA1LjIyIDE4LjZMNy41IDE3LjgyQzguMDQgMTguMTkgOC42MiAxOC41IDkuMjQgMTguNjhMOS42IDIxLjE5QzkuNjQgMjEuNDYgOS44NiAyMS42NyAxMC4xNCAyMS42N0gxMy44NkMxNC4xNCAyMS42NyAxNC4zNiAyMS40NiAxNC40IDIxLjE5TDE0Ljc2IDE4LjY4QzE1LjM4IDE4LjUgMTUuOTYgMTguMTkgMTYuNSAxNy44MkwxOC43OCAxOC42QzE5LjAyIDE4LjcgMTkuMjggMTguNjIgMTkuNDIgMTguNEwyMS4zNSAxNS4xNUMyMS40OSAxNC45MyAyMS40MyAxNC42NiAyMS4yNSAxNC41MkwxOS4xNCAxMi45NFpNMTIgMTUuNkM5LjkgMTUuNiA4LjIgMTMuOSA4LjIgMTJDOC4yIDEwLjEgOS45IDguNDIgMTIgOC40MkMxNC4xIDguNDEgMTUuOCAxMC4xIDE1LjggMTJDMTUuOCAxMy45IDE0LjEgMTUuNiAxMiAxNS42WiIgZmlsbD0id2hpdGUiLz4KPC9zdmc+Cg==" mode="aspectFit"></image>
       </view>
     </view>
   </view>
