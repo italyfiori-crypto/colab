@@ -7,7 +7,7 @@ Page({
         // 字幕数据
         subtitles: [],
         currentIndex: 0,
-        currentSubtitleId: '',
+        currentSubtitleId: 'subtitle-0',
         showChinese: true,
 
         // 音频控制
@@ -45,6 +45,15 @@ Page({
 
         // 加载收藏状态
         this.loadFavoriteStatus();
+    },
+
+    onReady() {
+        // 页面渲染完成后，确保第一个字幕在顶部
+        setTimeout(() => {
+            this.setData({
+                currentSubtitleId: ''  // 清空滚动目标，让列表保持在顶部
+            });
+        }, 100);
     },
 
     onUnload() {
@@ -295,7 +304,7 @@ Pum Zaflani, BBC News, Johannesburg.
         if (newIndex !== this.data.currentIndex) {
             this.setData({
                 currentIndex: newIndex,
-                currentSubtitleId: `subtitle-${newIndex}`
+                currentSubtitleId: newIndex === 0 ? '' : `subtitle-${newIndex}`
             });
         }
     },
@@ -318,7 +327,7 @@ Pum Zaflani, BBC News, Johannesburg.
             this.audioContext.seek(time);
             this.setData({
                 currentIndex: newIndex,
-                currentSubtitleId: `subtitle-${newIndex}`,
+                currentSubtitleId: newIndex === 0 ? '' : `subtitle-${newIndex}`,
                 currentTime: time
             });
         }
@@ -346,7 +355,7 @@ Pum Zaflani, BBC News, Johannesburg.
         this.audioContext.seek(time);
         this.setData({
             currentIndex: index,
-            currentSubtitleId: `subtitle-${index}`,
+            currentSubtitleId: index === 0 ? '' : `subtitle-${index}`,
             currentTime: time
         });
     },
