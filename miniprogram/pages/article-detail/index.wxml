@@ -4,6 +4,7 @@
     class="subtitle-container" 
     scroll-y 
     scroll-into-view="{{currentSubtitleId}}"
+    scroll-into-view-offset="{{scrollOffset}}"
     scroll-with-animation="{{true}}"
   >
     <view class="subtitle-list">

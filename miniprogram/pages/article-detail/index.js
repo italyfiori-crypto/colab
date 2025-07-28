@@ -9,6 +9,8 @@ Page({
         currentIndex: 0,
         currentSubtitleId: '',
         showChinese: true,
+        scrollOffset: 0,
+        containerHeight: 0,
 
         // 滚动控制
         // 移除固定高度相关变量，改用scroll-into-view
@@ -48,6 +50,9 @@ Page({
 
         // 加载收藏状态
         this.loadFavoriteStatus();
+
+        // 获取容器高度
+        this.getContainerHeight();
     },
 
     onUnload() {
@@ -298,6 +303,7 @@ Pum Zaflani, BBC News, Johannesburg.
         }
 
         if (newIndex !== this.data.currentIndex) {
+            this.setScrollAlignment(newIndex);
             this.setData({
                 currentIndex: newIndex,
                 currentSubtitleId: `subtitle-${newIndex}`
@@ -321,6 +327,7 @@ Pum Zaflani, BBC News, Johannesburg.
             const newIndex = currentIndex - 1;
             const time = subtitles[newIndex].time;
             this.audioContext.seek(time);
+            this.setScrollAlignment(newIndex);
             this.setData({
                 currentIndex: newIndex,
                 currentSubtitleId: `subtitle-${newIndex}`,
@@ -336,6 +343,7 @@ Pum Zaflani, BBC News, Johannesburg.
             const newIndex = currentIndex + 1;
             const time = subtitles[newIndex].time;
             this.audioContext.seek(time);
+            this.setScrollAlignment(newIndex);
             this.setData({
                 currentIndex: newIndex,
                 currentSubtitleId: `subtitle-${newIndex}`,
@@ -349,6 +357,7 @@ Pum Zaflani, BBC News, Johannesburg.
         const index = e.currentTarget.dataset.index;
         const time = this.data.subtitles[index].time;
         this.audioContext.seek(time);
+        this.setScrollAlignment(index);
         this.setData({
             currentIndex: index,
             currentSubtitleId: `subtitle-${index}`,
@@ -430,5 +439,28 @@ Pum Zaflani, BBC News, Johannesburg.
             icon: 'none',
             duration: 1000
         });
+    },
+
+    // 获取容器高度
+    getContainerHeight() {
+        const query = wx.createSelectorQuery().in(this);
+        query.select('.subtitle-container').boundingClientRect();
+        query.exec((res) => {
+            if (res[0]) {
+                this.setData({ containerHeight: res[0].height });
+            }
+        });
+    },
+
+    // 设置滚动偏移量（歌词式逻辑）
+    setScrollAlignment(index) {
+        const { subtitles, containerHeight } = this.data;
+        const totalItems = subtitles.length;
+
+        if (containerHeight === 0) return;
+
+        // 计算居中偏移量（负值表示向上偏移，让目标元素显示在中心）
+        const centerOffset = -(containerHeight / 3 - 60); // 60是大概的字幕项高度的一半        
+        this.setData({ scrollOffset: centerOffset });
     }
 }); 
