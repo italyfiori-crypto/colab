@@ -24,8 +24,7 @@
 
 .subtitle-item {
   text-align: left;
-  padding: 16rpx 0;
-  padding-left: 40rpx;
+  padding: 16rpx 40rpx;
   margin-bottom: 8rpx;
   transition: all 0.3s ease;
   opacity: 0.5;
@@ -42,7 +41,7 @@
 }
 
 .subtitle-english {
-  font-size: 38rpx;
+  font-size: 34rpx;
   font-weight: 700;
   color: #FFFFFF;
   line-height: 1.5;
@@ -51,7 +50,7 @@
 }
 
 .subtitle-chinese {
-  font-size: 38rpx;
+  font-size: 34rpx;
   font-weight: 700;
   color: rgba(255, 255, 255, 0.8);
   line-height: 1.5;
@@ -59,15 +58,15 @@
 }
 
 .subtitle-item.active .subtitle-english {
-  font-size: 38rpx;
+  font-size: 34rpx;
   color: #FFFFFF;
-  text-shadow: 0 2rpx 8rpx rgba(0, 0, 0, 0.1);
+  text-shadow: 0 4rpx 12rpx rgba(0, 0, 0, 0.2);
 }
 
 .subtitle-item.active .subtitle-chinese {
-  font-size: 38rpx;
+  font-size: 34rpx;
   color: #FFFFFF;
-  text-shadow: 0 2rpx 8rpx rgba(0, 0, 0, 0.1);
+  text-shadow: 0 4rpx 12rpx rgba(0, 0, 0, 0.2);
 }
 
 .subtitle-item.active .subtitle-time {
@@ -256,11 +255,19 @@
 /* 响应式适配 */
 @media screen and (max-width: 375px) {
   .subtitle-english {
-    font-size: 40rpx;
+    font-size: 34rpx;
+  }
+  
+  .subtitle-chinese {
+    font-size: 34rpx;
   }
   
   .subtitle-item.active .subtitle-english {
-    font-size: 40rpx;
+    font-size: 34rpx;
+  }
+  
+  .subtitle-item.active .subtitle-chinese {
+    font-size: 34rpx;
   }
   
   .controls {

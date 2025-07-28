@@ -455,7 +455,6 @@ Pum Zaflani, BBC News, Johannesburg.
     // 设置滚动偏移量（歌词式逻辑）
     setScrollAlignment(index) {
         const { subtitles, containerHeight } = this.data;
-        const totalItems = subtitles.length;
 
         if (containerHeight === 0) return;
 
