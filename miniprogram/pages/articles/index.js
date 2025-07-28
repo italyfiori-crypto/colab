@@ -52,7 +52,7 @@ Page({
                 description: 'Essential English phrases for smooth airport check-in, security, and boarding procedures.',
                 duration: '6分钟',
                 level: '初级',
-                image: 'https://images.unsplash.com/photo-1556388158-158dc9893ba3?w=400&h=250&fit=crop'
+                image: 'https://plus.unsplash.com/premium_photo-1661501562127-a8bb26defb35?q=80&w=2670&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D'
             },
             {
                 id: 4,
@@ -79,7 +79,7 @@ Page({
                 description: 'Learn to write professional emails with proper tone, structure, and business terminology.',
                 duration: '10分钟',
                 level: '中级',
-                image: 'https://images.unsplash.com/photo-1586892478025-2f5c9e0746a1?w=400&h=250&fit=crop'
+                image: 'https://images.unsplash.com/photo-1557200134-90327ee9fafa?q=80&w=2670&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D'
             }
         ],
         filteredArticles: []
