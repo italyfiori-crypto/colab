@@ -21,7 +21,7 @@ Page({
 
     // 获取传入的书籍ID（如果有）
     const bookId = options.bookId || 1;
-    
+
     // 加载书籍详情数据
     this.loadBookDetail(bookId);
   },
@@ -30,7 +30,7 @@ Page({
   loadBookDetail(bookId) {
     // 这里可以根据bookId从不同数据源加载，现在使用mock数据
     const { bookInfo, chapters, filterOptions } = bookDetailData;
-    
+
     this.setData({
       bookInfo: bookInfo,
       chapters: chapters,
@@ -38,20 +38,10 @@ Page({
     });
   },
 
-
-  // 返回按钮点击
-  onBackTap() {
-    wx.navigateBack({
-      delta: 1
-    });
-  },
-
-
-
   // 章节点击
   onChapterTap(e) {
     const chapter = e.currentTarget.dataset.chapter;
-    
+
     if (chapter.status === 'locked') {
       wx.showToast({
         title: '请先完成前面的章节',
@@ -60,17 +50,11 @@ Page({
       });
       return;
     }
-    
-    wx.showToast({
-      title: `开始学习${chapter.title}`,
-      icon: 'none',
-      duration: 1500
+
+    // 跳转到learning页面
+    wx.navigateTo({
+      url: `/pages/article-detail/index?chapterId=${chapter.id}&bookId=${this.data.bookInfo.id}&chapterTitle=${encodeURIComponent(chapter.title)}`
     });
-    
-    // 这里可以跳转到具体的学习页面
-    // wx.navigateTo({
-    //   url: `/pages/study/index?chapterId=${chapter.id}&bookId=${this.data.bookInfo.id}`
-    // });
   },
 
 
@@ -92,12 +76,12 @@ Page({
   onFilterChange(e) {
     const filterValue = e.currentTarget.dataset.value;
     const filterOption = this.data.filterOptions.find(option => option.value === filterValue);
-    
+
     let filteredChapters = this.data.chapters;
     if (filterValue !== 'all') {
       filteredChapters = this.data.chapters.filter(chapter => chapter.status === filterValue);
     }
-    
+
     this.setData({
       currentFilter: filterValue,
       currentFilterText: filterOption.label,
@@ -115,7 +99,7 @@ Page({
   onPullDownRefresh() {
     // 重新加载数据
     this.loadBookDetail(this.data.bookInfo.id);
-    
+
     setTimeout(() => {
       wx.stopPullDownRefresh();
     }, 1000);

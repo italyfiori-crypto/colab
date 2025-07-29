@@ -1,13 +1,6 @@
 <!--book-detail页面-->
 <view class="book-detail-container">
-  <!-- 自定义导航栏 -->
-  <view class="custom-navbar" style="padding-top: {{statusBarHeight}}px;">
-    <view class="navbar-content">
-      <view class="back-button" bindtap="onBackTap">
-        <text class="back-arrow">‹</text>
-      </view>
-    </view>
-  </view>
+  
 
   <!-- 书籍信息区域 -->
   <view class="book-info-section">

@@ -1,6 +1,6 @@
 .container {
   height: 100vh;
-  background: linear-gradient(135deg, #4A5AE8 0%, #6C5CE7 100%);
+  background: #f8f9fa;
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -10,8 +10,9 @@
 .subtitle-container {
   flex: 1;
   height: 100%;
-  padding: 0 40rpx;
+  padding: 10px 40rpx calc(270rpx + env(safe-area-inset-bottom)) 40rpx;
   box-sizing: border-box;
+  background: #f8f9fa;
 }
 
 .subtitle-list {
@@ -36,41 +37,37 @@
 
 .subtitle-time {
   font-size: 24rpx;
-  color: rgba(255, 255, 255, 0.6);
+  color: #999;
   margin-bottom: 20rpx;
 }
 
 .subtitle-english {
   font-size: 34rpx;
   font-weight: 700;
-  color: #FFFFFF;
+  color: #333;
   line-height: 1.5;
   margin-bottom: 12rpx;
-  text-shadow: 0 2rpx 8rpx rgba(0, 0, 0, 0.1);
 }
 
 .subtitle-chinese {
   font-size: 34rpx;
   font-weight: 700;
-  color: rgba(255, 255, 255, 0.8);
+  color: #666;
   line-height: 1.5;
-  text-shadow: 0 2rpx 8rpx rgba(0, 0, 0, 0.1);
 }
 
 .subtitle-item.active .subtitle-english {
   font-size: 34rpx;
-  color: #FFFFFF;
-  text-shadow: 0 4rpx 12rpx rgba(0, 0, 0, 0.2);
+  color: rgb(52, 152, 219);
 }
 
 .subtitle-item.active .subtitle-chinese {
   font-size: 34rpx;
-  color: #FFFFFF;
-  text-shadow: 0 4rpx 12rpx rgba(0, 0, 0, 0.2);
+  color: #333;
 }
 
 .subtitle-item.active .subtitle-time {
-  color: rgba(255, 255, 255, 0.8);
+  color: rgb(52, 152, 219);
 }
 
 /* 底部控制栏 */
@@ -79,16 +76,54 @@
   bottom: 0;
   left: 0;
   right: 0;
-  background: rgba(0, 0, 0, 0.3);
-  backdrop-filter: blur(20rpx);
-  -webkit-backdrop-filter: blur(20rpx);
-  padding: 30rpx 40rpx;
-  padding-bottom: calc(30rpx + env(safe-area-inset-bottom));
-  border-radius: 40rpx 40rpx 0 0;
+  background: #fff;
+  border-top: 1rpx solid #e0e0e0;
+  padding: 20rpx 40rpx;
+  padding-bottom: calc(10rpx + env(safe-area-inset-bottom));
+  box-shadow: 0 -4rpx 16rpx rgba(0, 0, 0, 0.1);
+  display: flex;
+  flex-direction: column;
+  gap: 20rpx;
 }
 
+/* 第一行：功能按钮 */
+.top-controls {
+  display: flex;
+  justify-content: space-around;
+  align-items: center;
+}
+
+.top-control-btn {
+  width: 70rpx;
+  height: 70rpx;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  transition: all 0.2s ease;
+}
+
+.top-control-btn:active {
+  transform: scale(0.9);
+}
+
+.top-control-btn.active {
+  background: rgba(52, 152, 219, 0.1);
+  border-radius: 50%;
+}
+
+.top-control-btn.active .top-control-icon {
+  opacity: 1;
+  filter: brightness(0) saturate(100%) invert(42%) sepia(93%) saturate(1352%) hue-rotate(204deg) brightness(95%) contrast(86%);
+}
+
+.top-control-icon {
+  width: 40rpx;
+  height: 40rpx;
+}
+
+/* 第二行：进度条 */
 .progress-container {
-  margin-bottom: 30rpx;
+  margin: 0;
 }
 
 .progress-slider {
@@ -96,44 +131,38 @@
   margin: 0;
 }
 
+/* 第三行：播放控制 */
 .controls {
   display: flex;
   justify-content: center;
   align-items: center;
-  gap: 60rpx;
+  gap: 80rpx;
 }
 
 .control-btn {
-  width: 88rpx;
-  height: 88rpx;
+  width: 70rpx;
+  height: 70rpx;
   display: flex;
   justify-content: center;
   align-items: center;
-  border-radius: 50%;
-  background: rgba(255, 255, 255, 0.2);
   transition: all 0.2s ease;
 }
 
 .control-btn:active {
-  transform: scale(0.95);
-  background: rgba(255, 255, 255, 0.3);
+  transform: scale(0.9);
 }
 
 .play-btn {
-  width: 100rpx;
-  height: 100rpx;
-  background: rgba(255, 255, 255, 0.9);
-  box-shadow: 0 8rpx 32rpx rgba(0, 0, 0, 0.3);
+  width: 70rpx;
+  height: 70rpx;
+  background: rgb(52, 152, 219);
+  border-radius: 50%;
+  box-shadow: 0 6rpx 20rpx rgba(52, 152, 219, 0.3);
 }
 
 .control-icon {
-  width: 44rpx;
-  height: 44rpx;
-}
-
-.play-icon {
-  width: 50rpx;
-  height: 50rpx;
+  width: 40rpx;
+  height: 40rpx;
 }
 
 /* 设置弹窗 */
@@ -243,7 +272,7 @@
 .speed-btn.active,
 .subtitle-btn.active {
   color: #FFFFFF;
-  background: #4A5AE8;
+  background: rgb(52, 152, 219);
   font-weight: 500;
 }
 
@@ -254,34 +283,57 @@
 
 /* 响应式适配 */
 @media screen and (max-width: 375px) {
+  .subtitle-container {
+    padding: 10px 40rpx calc(240rpx + env(safe-area-inset-bottom)) 40rpx;
+  }
+  
   .subtitle-english {
-    font-size: 34rpx;
+    font-size: 30rpx;
   }
   
   .subtitle-chinese {
-    font-size: 34rpx;
+    font-size: 30rpx;
   }
   
   .subtitle-item.active .subtitle-english {
-    font-size: 34rpx;
+    font-size: 30rpx;
   }
   
   .subtitle-item.active .subtitle-chinese {
-    font-size: 34rpx;
+    font-size: 30rpx;
   }
   
-  .controls {
+  .top-controls {
     gap: 40rpx;
   }
   
+  .top-control-btn {
+    width: 60rpx;
+    height: 60rpx;
+  }
+  
+  .top-control-icon {
+    width: 36rpx;
+    height: 36rpx;
+  }
+  
+  .controls {
+    gap: 60rpx;
+  }
+  
   .control-btn {
-    width: 80rpx;
-    height: 80rpx;
+    width: 60rpx;
+    height: 60rpx;
+  }
+  
+  .control-icon {
+    width: 36rpx;
+    height: 36rpx;
   }
   
   .play-btn {
-    width: 90rpx;
-    height: 90rpx;
+    width: 60rpx;
+    height: 60rpx;
   }
 }
 
@@ -300,6 +352,6 @@
 /* 安全区域适配 */
 @supports (bottom: env(safe-area-inset-bottom)) {
   .control-bar {
-    padding-bottom: calc(30rpx + env(safe-area-inset-bottom));
+    padding-bottom: calc(10rpx + env(safe-area-inset-bottom));
   }
 } 

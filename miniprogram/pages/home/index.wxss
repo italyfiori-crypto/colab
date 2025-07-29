@@ -144,13 +144,13 @@ page {
 
 .progress {
   height: 100%;
-  background-color: #007AFF;
+  background-color: rgb(52, 152, 219);
   border-radius: 2px;
 }
 
 .progress-text {
   font-size: 12px;
-  color: #007AFF;
+  color: rgb(52, 152, 219);
   font-weight: 500;
 }
 
@@ -168,6 +168,7 @@ page {
 .category-tabs {
   display: flex;
   padding: 0 15px;
+  gap: 4px;
 }
 
 .category-tab {
@@ -214,7 +215,7 @@ page {
 }
 
 .book-grid-item .book-author {
-  margin-bottom: 4px;
+    margin-bottom: 4px;
 }
 
 .book-grid-item .book-title {
@@ -224,7 +225,7 @@ page {
   white-space: normal;
   line-height: 1.4;
   height: 2.8em;
-  margin-bottom: 2px;
+  margin-bottom: 0px;
 }
 
 /* 底部导航栏 */

@@ -26,54 +26,63 @@
 
   <!-- 底部控制栏 -->
   <view class="control-bar">
-    <!-- 进度条 -->
+    <!-- 第一行：功能按钮 -->
+    <view class="top-controls">
+      <!-- 菜单 -->
+      <view class="top-control-btn" bindtap="onMenu">
+        <image class="top-control-icon" src="/resource/icons/book.svg" mode="aspectFit"></image>
+      </view>
+      
+      <!-- 重复播放 -->
+      <view class="top-control-btn {{isLooping ? 'active' : ''}}" bindtap="onRepeat">
+        <image class="top-control-icon" src="/resource/icons/repeat.svg" mode="aspectFit"></image>
+      </view>
+      
+      <!-- 字幕设置 -->
+      <view class="top-control-btn" bindtap="onSubtitleSettings">
+        <image class="top-control-icon" src="/resource/icons/language.svg" mode="aspectFit"></image>
+      </view>
+      
+      <!-- 倍速设置 -->
+      <view class="top-control-btn" bindtap="onSettings">
+        <image class="top-control-icon" src="/resource/icons/gauge.svg" mode="aspectFit"></image>
+      </view>
+    </view>
+    
+    <!-- 第二行：进度条 -->
     <view class="progress-container">
       <slider 
         class="progress-slider"
         min="0"
         max="{{duration}}"
         value="{{currentTime}}"
-        activeColor="#FFFFFF"
-        backgroundColor="rgba(255,255,255,0.3)"
-        block-size="16"
+        activeColor="rgb(52, 152, 219)"
+        backgroundColor="#e0e0e0"
+        block-size="12"
         bindchange="onProgressChange"
         bindchanging="onProgressChanging"
       />
     </view>
     
-    <!-- 控制按钮 -->
+    <!-- 第三行：播放控制 -->
     <view class="controls">
       <!-- 上一句 -->
       <view class="control-btn" bindtap="onPrevious">
-        <image class="control-icon" src="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjQiIGhlaWdodD0iMjQiIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHBhdGggZD0iTTE4IDE4TDE1IDE4TDE1IDZMMTggNkwxOCA2Wk05IDZMMTkgMTJMOSAxOEw5IDZaIiBmaWxsPSJ3aGl0ZSIvPgo8L3N2Zz4K" mode="aspectFit"></image>
+        <image class="control-icon" src="/resource/icons/backward.svg" mode="aspectFit"></image>
       </view>
       
       <!-- 播放/暂停 -->
       <view class="control-btn play-btn" bindtap="onPlayPause">
         <image 
-          class="control-icon play-icon" 
-          src="{{isPlaying ? pauseIcon : playIcon}}" 
+          class="control-icon" 
+          src="{{isPlaying ? '/resource/icons/pause.svg' : '/resource/icons/play.svg'}}" 
           mode="aspectFit"
         ></image>
       </view>
       
       <!-- 下一句 -->
       <view class="control-btn" bindtap="onNext">
-        <image class="control-icon" src="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjQiIGhlaWdodD0iMjQiIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHBhdGggZD0iTTYgMThMMTYgMTJMNiA2VjE4Wk0xOCA2VjE4SDIwVjZIMThaIiBmaWxsPSJ3aGl0ZSIvPgo8L3N2Zz4K" mode="aspectFit"></image>
-      </view>
-      
-      <!-- 收藏 -->
-      <view class="control-btn" bindtap="onFavorite">
-        <image 
-          class="control-icon" 
-          src="{{isFavorited ? favoriteActiveIcon : favoriteIcon}}" 
-          mode="aspectFit"
-        ></image>
-      </view>
-      
-      <!-- 设置 -->
-      <view class="control-btn" bindtap="onSettings">
-        <image class="control-icon" src="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjQiIGhlaWdodD0iMjQiIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHBhdGggZD0iTTE5LjE0IDEyLjk0QzE5LjE4IDEyLjY0IDE5LjIgMTIuMzMgMTkuMiAxMkMxOS4yIDExLjY3IDE5LjE4IDExLjM2IDE5LjE0IDExLjA2TDIxLjI1IDkuNDhDMjEuNDMgOS4zNCAyMS40OSA5LjA3IDIxLjM1IDguODVMMTkuNDIgNS42QzE5LjI4IDUuMzggMTkuMDIgNS4zIDE4Ljc4IDUuNEwxNi41IDYuMThDMTUuOTYgNS44MSAxNS4zOCA1LjUgMTQuNzYgNS4zMkwxNC40IDIuODFDMTQuMzYgMi41NCAxNC4xNCAyLjMzIDEzLjg2IDIuMzNIMTAuMTRDOS44NiAyLjMzIDkuNjQgMi41NCA5LjYgMi44MUw5LjI0IDUuMzJDOC42MiA1LjUgOC4wNCA1LjgxIDcuNSA2LjE4TDUuMjIgNS40QzQuOTggNS4zIDQuNzIgNS4zOCA0LjU4IDUuNkwyLjY1IDguODVDMi41MSA5LjA3IDIuNTcgOS4zNCAyLjc1IDkuNDhMNC44NiAxMS4wNkM0LjgyIDExLjM2IDQuOCAxMS42NyA0LjggMTJDNC44IDEyLjMzIDQuODIgMTIuNjQgNC44NiAxMi45NEwyLjc1IDE0LjUyQzIuNTcgMTQuNjYgMi41MSAxNC45MyAyLjY1IDE1LjE1TDQuNTggMTguNEM0LjcyIDE4LjYyIDQuOTggMTguNyA1LjIyIDE4LjZMNy41IDE3LjgyQzguMDQgMTguMTkgOC42MiAxOC41IDkuMjQgMTguNjhMOS42IDIxLjE5QzkuNjQgMjEuNDYgOS44NiAyMS42NyAxMC4xNCAyMS42N0gxMy44NkMxNC4xNCAyMS42NyAxNC4zNiAyMS40NiAxNC40IDIxLjE5TDE0Ljc2IDE4LjY4QzE1LjM4IDE4LjUgMTUuOTYgMTguMTkgMTYuNSAxNy44MkwxOC43OCAxOC42QzE5LjAyIDE4LjcgMTkuMjggMTguNjIgMTkuNDIgMTguNEwyMS4zNSAxNS4xNUMyMS40OSAxNC45MyAyMS40MyAxNC42NiAyMS4yNSAxNC41MkwxOS4xNCAxMi45NFpNMTIgMTUuNkM5LjkgMTUuNiA4LjIgMTMuOSA4LjIgMTJDOC4yIDEwLjEgOS45IDguNDIgMTIgOC40MkMxNC4xIDguNDEgMTUuOCAxMC4xIDE1LjggMTJDMTUuOCAxMy45IDE0LjEgMTUuNiAxMiAxNS42WiIgZmlsbD0id2hpdGUiLz4KPC9zdmc+Cg==" mode="aspectFit"></image>
+        <image class="control-icon" src="/resource/icons/forward.svg" mode="aspectFit"></image>
       </view>
     </view>
   </view>
