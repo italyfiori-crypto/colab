@@ -1,7 +1,5 @@
 <!--book-detail页面-->
 <view class="book-detail-container">
-  
-
   <!-- 书籍信息区域 -->
   <view class="book-info-section">
     <view class="book-detail-card">

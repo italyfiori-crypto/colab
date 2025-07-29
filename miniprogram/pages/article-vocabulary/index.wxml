@@ -1,0 +1,33 @@
+<!--article-vocabulary页面-->
+<view class="vocabulary-container">
+
+  <!-- 主要内容区域 -->
+  <view class="main-content" style="padding-top: 20px;">
+    <!-- 单词列表 -->
+    <view class="word-list">
+      <view 
+        wx:for="{{words}}" 
+        wx:key="id"
+        class="word-item {{item.status}}"
+        bindtap="onWordTap"
+        data-word="{{item}}"
+      >
+        <!-- 左侧：单词信息 -->
+        <view class="word-main">
+          <view class="word-text">{{item.word}}</view>
+          <view class="word-phonetic">{{item.phonetic}}</view>
+        </view>
+        
+        <!-- 中间：翻译 -->
+        <view class="word-translation">{{item.translation}}</view>
+        
+        <!-- 右侧：收藏按钮 -->
+        <view class="word-actions">
+          <view class="favorite-btn {{item.isFavorited ? 'favorited' : ''}}" bindtap="onToggleFavorite" data-id="{{item.id}}" catchtap="true">
+            <image class="favorite-icon" src="{{item.isFavorited ? '/resource/icons/star-fill.png' : '/resource/icons/star.png'}}" mode="aspectFit"></image>
+          </view>
+        </view>
+      </view>
+    </view>
+  </view>
+</view> 

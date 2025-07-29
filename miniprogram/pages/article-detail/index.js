@@ -14,15 +14,12 @@ Page({
         scrollOffset: 0,
         containerHeight: 0,
 
-        // 滚动控制
-        // 移除固定高度相关变量，改用scroll-into-view
-
         // 音频控制
         isPlaying: false,
         currentTime: 0,
         duration: 240, // 4分钟，与mock音频长度匹配
         playSpeed: 1,
-        speedOptions: [0.75, 1, 1.25, 1.5],
+        speedOptions: [0.7, 0.85, 1.0, 1.25],
         isLooping: false, // 循环播放当前字幕
 
         // UI状态
@@ -297,12 +294,13 @@ Page({
         this.setData({ isFavorited });
     },
 
-    // 菜单按钮
-    onMenu() {
-        wx.showToast({
-            title: '菜单功能',
-            icon: 'none',
-            duration: 1000
+    // 单词按钮 - 跳转到单词页面
+    onDict() {
+        const { articleId, title } = this.data;
+
+        // 跳转到单词页面
+        wx.navigateTo({
+            url: `/pages/article-vocabulary/index?articleId=harry-potter-1&title=${encodeURIComponent('哈利·波特与魔法石')}`
         });
     },
 

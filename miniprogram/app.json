@@ -3,6 +3,7 @@
     "pages/home/index",
     "pages/book-detail/index",
     "pages/article-detail/index",
+    "pages/article-vocabulary/index",
     "pages/index/index",
     "pages/example/index"
   ],
@@ -10,7 +11,7 @@
     "backgroundColor": "#F6F6F6",
     "backgroundTextStyle": "light",
     "navigationBarBackgroundColor": "#F6F6F6",
-    "navigationBarTitleText": "云开发 QuickStart",
+    "navigationBarTitleText": "",
     "navigationBarTextStyle": "black"
   },
   "sitemapLocation": "sitemap.json",

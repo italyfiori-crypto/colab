@@ -155,9 +155,9 @@
 .play-btn {
   width: 70rpx;
   height: 70rpx;
-  background: rgb(52, 152, 219);
+  /* background: rgb(52, 152, 219);
   border-radius: 50%;
-  box-shadow: 0 6rpx 20rpx rgba(52, 152, 219, 0.3);
+  box-shadow: 0 6rpx 20rpx rgba(52, 152, 219, 0.3); */
 }
 
 .control-icon {

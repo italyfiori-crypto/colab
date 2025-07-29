@@ -28,8 +28,8 @@
   <view class="control-bar">
     <!-- 第一行：功能按钮 -->
     <view class="top-controls">
-      <!-- 菜单 -->
-      <view class="top-control-btn" bindtap="onMenu">
+      <!-- 单词 -->
+      <view class="top-control-btn" bindtap="onDict">
         <image class="top-control-icon" src="/resource/icons/book.svg" mode="aspectFit"></image>
       </view>
       
