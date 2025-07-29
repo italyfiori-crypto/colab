@@ -110,6 +110,7 @@ Page({
 
     // 单词点击事件
     onWordTap(e) {
+        console.log('单词项被点击', e);
         const word = e.currentTarget.dataset.word;
         console.log('点击单词:', word);
 
@@ -125,6 +126,10 @@ Page({
     // 切换收藏状态
     onToggleFavorite(e) {
         const wordId = parseInt(e.currentTarget.dataset.id);
+        if (!wordId) {
+            console.error('没有获取到单词ID');
+            return;
+        }
         const words = this.data.words;
 
         // 找到对应的单词并切换收藏状态
@@ -138,20 +143,11 @@ Page({
             return word;
         });
 
+
         // 更新数据
         this.setData({
             words: updatedWords
         });
-
-        // 找到当前单词显示提示
-        const currentWord = updatedWords.find(word => word.id === wordId);
-        if (currentWord) {
-            wx.showToast({
-                title: currentWord.isFavorited ? `已收藏 ${currentWord.word}` : `取消收藏 ${currentWord.word}`,
-                icon: 'none',
-                duration: 1000
-            });
-        }
     },
 
     // 页面分享

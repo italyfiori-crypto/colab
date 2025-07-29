@@ -50,6 +50,25 @@ page {
   color: #1f2937;
 }
 
+.nav-back {
+  flex: 0 0 auto;
+  padding: 16rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.back-text {
+  font-size: 36rpx;
+  color: #1f2937;
+  font-weight: 600;
+}
+
+.nav-placeholder {
+  flex: 0 0 auto;
+  width: 88rpx;
+}
+
 .nav-right {
   width: 88rpx;
   height: 88rpx;
@@ -87,9 +106,9 @@ page {
 
 /* 已掌握状态 - 绿色背景 */
 .word-item.mastered {
-  background: linear-gradient(135deg, #52c41a 0%, #73d13d 100%);
-  border-color: #52c41a;
-  box-shadow: 0 4rpx 16rpx rgba(82, 196, 26, 0.25);
+  background: linear-gradient(135deg, #8bc34a 0%, #a3d63b 100%);
+  border-color: #8bc34a;
+  box-shadow: 0 4rpx 16rpx rgba(139, 195, 74, 0.25);
 }
 
 .word-item.mastered .word-text {
@@ -106,13 +125,7 @@ page {
 }
 
 .word-item.mastered .favorite-btn {
-  background: rgba(255, 255, 255, 0.2);
-  border-color: rgba(255, 255, 255, 0.4);
-  box-shadow: 0 2rpx 8rpx rgba(0, 0, 0, 0.15);
-}
-
-.word-item.mastered .favorite-btn:active {
-  background: rgba(255, 255, 255, 0.3);
+  /* 已掌握状态下保持透明背景 */
 }
 
 /* 单词主要信息 */
@@ -148,6 +161,8 @@ page {
 /* 操作按钮 */
 .word-actions {
   flex: 0 0 auto;
+  position: relative;
+  z-index: 10;
 }
 
 .favorite-btn {
@@ -157,15 +172,12 @@ page {
   align-items: center;
   justify-content: center;
   transition: all 0.2s ease;
-  border: 2rpx solid #e5e7eb;
-  border-radius: 50%;
-  background: #f9fafb;
-  box-shadow: 0 2rpx 6rpx rgba(0, 0, 0, 0.08);
+  position: relative;
+  z-index: 20;
 }
 
 .favorite-btn:active {
   transform: scale(0.9);
-  background: #f3f4f6;
 }
 
 .favorite-icon {
