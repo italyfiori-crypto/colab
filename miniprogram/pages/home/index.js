@@ -82,17 +82,10 @@ Page({
     const book = e.currentTarget.dataset.book;
     console.log('点击书籍:', book);
     
-    // 可以跳转到书籍详情页
-    wx.showToast({
-      title: `打开《${book.title}》`,
-      icon: 'none',
-      duration: 1500
+    // 跳转到书籍详情页
+    wx.navigateTo({
+      url: `/pages/book-detail/index?bookId=${book.id}`
     });
-    
-    // 示例：跳转到文章详情页
-    // wx.navigateTo({
-    //   url: `/pages/article-detail/index?bookId=${book.id}`
-    // });
   },
 
   // 底部导航标签点击处理

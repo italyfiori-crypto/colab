@@ -1,0 +1,145 @@
+<!--book-detail页面-->
+<view class="book-detail-container">
+  <!-- 自定义导航栏 -->
+  <view class="custom-navbar" style="padding-top: {{statusBarHeight}}px;">
+    <view class="navbar-content">
+      <view class="back-button" bindtap="onBackTap">
+        <text class="back-arrow">‹</text>
+      </view>
+    </view>
+  </view>
+
+  <!-- 书籍信息区域 -->
+  <view class="book-info-section">
+    <view class="book-detail-card">
+      <view class="book-cover-large">
+        <image class="cover-image" src="{{bookInfo.cover}}" mode="aspectFill" lazy-load="true"></image>
+      </view>
+      <view class="book-detail-info">
+        <text class="book-title">{{bookInfo.title}}</text>
+        <text class="book-author">{{bookInfo.author}}</text>
+        
+        <!-- 统计信息 -->
+        <view class="book-stats">
+          <view class="stat-item">
+            <text class="stat-value">{{bookInfo.stats.chapters}}</text>
+            <text class="stat-label">章</text>
+          </view>
+          <view class="stat-item">
+            <text class="stat-value">{{bookInfo.stats.duration}}</text>
+            <text class="stat-label"></text>
+          </view>
+          <view class="stat-item">
+            <text class="stat-value">{{bookInfo.stats.vocabulary}}</text>
+            <text class="stat-label">词汇</text>
+          </view>
+        </view>
+        
+        <!-- 进度条 -->
+        <view class="book-progress-large">
+          <view class="progress-bar-large">
+            <view class="progress-large" style="width: {{bookInfo.progress}}%"></view>
+          </view>
+          <text class="progress-text-large">已完成 {{bookInfo.progress}}%</text>
+        </view>
+      </view>
+    </view>
+  </view>
+
+  <!-- 简介区域 -->
+  <view class="description-section">
+    <text class="section-title">简介</text>
+    <text class="description-text">{{bookInfo.description}}</text>
+    
+    <!-- 标签 -->
+    <view class="book-tags">
+      <text 
+        wx:for="{{bookInfo.tags}}" 
+        wx:key="index" 
+        class="tag"
+      >
+        {{item}}
+      </text>
+    </view>
+  </view>
+
+
+  <!-- 章节列表 -->
+  <view class="chapters-section">
+    <view class="section-header">
+      <text class="section-title">章节列表</text>
+      <view class="chapter-filter" bindtap="onShowFilterModal">
+        <text class="filter-text">{{currentFilterText}}</text>
+        <icon type="down" size="12" color="#666"></icon>
+      </view>
+    </view>
+    
+    
+    <!-- 章节列表 -->
+    <view class="chapters-list">
+      <view 
+        wx:for="{{chapters}}" 
+        wx:key="id"
+        class="chapter-item {{item.status}}"
+        bindtap="onChapterTap"
+        data-chapter="{{item}}"
+      >
+        <view class="chapter-info">
+          <text class="chapter-title">{{item.title}}</text>
+          <text class="chapter-meta">词汇量: {{item.vocabulary}} | 时长: {{item.duration}}</text>
+        </view>
+        
+        <view class="chapter-status">
+          <!-- 已完成状态 -->
+          <block wx:if="{{item.status === 'completed'}}">
+            <text class="status-badge completed">已完成</text>
+            <icon type="success" size="16" color="#4CAF50"></icon>
+          </block>
+          
+          <!-- 进行中状态 -->
+          <block wx:elif="{{item.status === 'in-progress'}}">
+            <view class="mini-progress-container">
+              <view class="mini-progress-bar">
+                <view class="mini-progress" style="width: {{item.progress}}%"></view>
+              </view>
+              <text class="mini-progress-text">{{item.progress}}%</text>
+            </view>
+          </block>
+          
+          <!-- 可学习状态 -->
+          <block wx:elif="{{item.status === 'available'}}">
+            <icon type="play" size="16" color="#007AFF"></icon>
+          </block>
+          
+          <!-- 锁定状态 -->
+          <block wx:else>
+            <icon type="safe" size="16" color="#ccc"></icon>
+          </block>
+        </view>
+      </view>
+    </view>
+  </view>
+</view>
+
+<!-- 筛选器模态框 -->
+<view 
+  wx:if="{{showFilterModal}}" 
+  class="modal-overlay" 
+  bindtap="onHideFilterModal"
+>
+  <view class="filter-modal" catchtap="">
+    <view class="modal-title">筛选章节</view>
+    <view class="filter-options">
+      <view 
+        wx:for="{{filterOptions}}" 
+        wx:key="value"
+        class="filter-option {{currentFilter === item.value ? 'active' : ''}}"
+        bindtap="onFilterChange"
+        data-value="{{item.value}}"
+      >
+        <text>{{item.label}}</text>
+        <icon wx:if="{{currentFilter === item.value}}" type="success" size="16" color="#007AFF"></icon>
+      </view>
+    </view>
+  </view>
+</view>

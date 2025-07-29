@@ -1,6 +1,8 @@
 {
   "pages": [
     "pages/home/index",
+    "pages/book-detail/index",
+    
     "pages/articles/index",
     "pages/index/index",
     "pages/example/index",
