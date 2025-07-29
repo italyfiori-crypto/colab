@@ -53,13 +53,14 @@
     
     <!-- 标签 -->
     <view class="book-tags">
-      <text 
+      <button 
         wx:for="{{bookInfo.tags}}" 
         wx:key="index" 
-        class="tag"
+        class="tag-btn"
+        hover-class="none"
       >
         {{item}}
-      </text>
+      </button>
     </view>
   </view>
 

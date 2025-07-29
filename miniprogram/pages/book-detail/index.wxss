@@ -173,13 +173,26 @@ page {
   gap: 8px;
 }
 
-.tag {
-  padding: 6px 12px;
-  background-color: #f0f8ff;
-  color: #4a90e2;
-  font-size: 12px;
-  border-radius: 16px;
-  border: 1px solid #e1f0ff;
+.tag-btn {
+  display: inline-block !important;
+  width: auto !important;
+  min-width: auto !important;
+  margin: 0 8px 8px 0 !important;
+  padding: 0 12px !important;
+  height: 28px !important;
+  line-height: 28px !important;
+  font-size: 12px !important;
+  background-color: #f0f8ff !important;
+  color: #4a90e2 !important;
+  border: 1px solid #e1f0ff !important;
+  border-radius: 16px !important;
+  text-align: center !important;
+  box-sizing: border-box !important;
+}
+
+.tag-btn::after {
+  border: none !important;
+  background: none !important;
 }
 
 
