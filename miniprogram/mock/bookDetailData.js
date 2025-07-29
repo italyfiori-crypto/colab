@@ -7,9 +7,9 @@ const bookDetailData = {
     author: 'J.K. 罗琳',
     cover: 'https://images.unsplash.com/photo-1589829085413-56de8ae18c73?ixlib=rb-4.0.3&auto=format&fit=crop&w=400&q=80',
     stats: {
-      chapters: 17,
-      duration: '约8小时',
-      vocabulary: 523
+      chapters: '17章',
+      duration: '8小时',
+      vocabulary: '523单词'
     },
     progress: 35, // 已完成百分比
     description: '《哈利·波特与魔法石》是J.K.罗琳创作的魔幻文学系列的第一部。故事讲述了年幼的哈利·波特在父母被杀害后，被送到姨父姨妈家寄养。在十一岁生日那天，哈利得知自己是一名巫师，并被霍格沃茨魔法学校录取。在学校里，哈利结交了朋友，发现了自己的天赋，并揭开了魔法石的秘密。',

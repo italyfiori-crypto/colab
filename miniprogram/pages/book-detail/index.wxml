@@ -23,15 +23,12 @@
         <view class="book-stats">
           <view class="stat-item">
             <text class="stat-value">{{bookInfo.stats.chapters}}</text>
-            <text class="stat-label">章</text>
           </view>
           <view class="stat-item">
             <text class="stat-value">{{bookInfo.stats.duration}}</text>
-            <text class="stat-label"></text>
           </view>
           <view class="stat-item">
             <text class="stat-value">{{bookInfo.stats.vocabulary}}</text>
-            <text class="stat-label">词汇</text>
           </view>
         </view>
         
