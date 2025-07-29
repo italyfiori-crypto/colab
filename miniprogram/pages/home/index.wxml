@@ -1,0 +1,107 @@
+<!--home页面-->
+<view class="home-container">
+  <!-- 搜索栏 -->
+  <view class="search-container">
+    <view class="search-bar">
+      <icon class="search-icon" type="search" size="16" color="#999"></icon>
+      <input 
+        class="search-input" 
+        placeholder="搜索书籍或文章..." 
+        value="{{searchKeyword}}"
+        bindinput="onSearchInput"
+        confirm-type="search"
+        bindconfirm="onSearchConfirm"
+      />
+    </view>
+  </view>
+
+  <!-- 最近学习 -->
+  <view class="section recent-section">
+    <view class="section-header">
+      <text class="section-title">最近学习</text>
+    </view>
+    
+    <scroll-view class="books-scroll" scroll-x="true" show-scrollbar="false">
+      <view class="books-list">
+        <view 
+          wx:for="{{recentBooks}}" 
+          wx:key="id" 
+          class="book-card"
+          bindtap="onBookTap"
+          data-book="{{item}}"
+        >
+          <view class="book-cover-wrapper">
+            <image class="book-cover" src="{{item.cover}}" mode="aspectFill" lazy-load="true"></image>
+          </view>
+          <view class="book-info">
+            <text class="book-title">{{item.title}}</text>
+            <text class="book-author">{{item.author}}</text>
+            <view class="book-progress">
+              <view class="progress-bar">
+                <view class="progress" style="width: {{item.progress}}%"></view>
+              </view>
+              <text class="progress-text">{{item.progress}}%</text>
+            </view>
+          </view>
+        </view>
+      </view>
+    </scroll-view>
+  </view>
+
+  <!-- 分类书籍 -->
+  <view class="section category-section">
+    <view class="section-header">
+      <text class="section-title">分类书籍</text>
+    </view>
+    
+    <!-- 分类标签 -->
+    <scroll-view class="category-tabs-scroll" scroll-x="true" show-scrollbar="false">
+      <view class="category-tabs">
+        <button 
+          wx:for="{{categories}}" 
+          wx:key="id"
+          class="category-tab {{item.active ? 'active' : ''}}"
+          bindtap="onCategoryTap"
+          data-category="{{item.id}}"
+        >
+          {{item.name}}
+        </button>
+      </view>
+    </scroll-view>
+    
+    <!-- 书籍网格 -->
+    <view class="books-grid">
+      <view 
+        wx:for="{{currentCategoryBooks}}" 
+        wx:key="id"
+        class="book-grid-item"
+        bindtap="onBookTap"
+        data-book="{{item}}"
+      >
+        <view class="book-cover-wrapper">
+          <image class="book-cover" src="{{item.cover}}" mode="aspectFill" lazy-load="true"></image>
+        </view>
+        <view class="book-info">
+          <text class="book-title">{{item.title}}</text>
+          <text class="book-author">{{item.author}}</text>
+        </view>
+      </view>
+    </view>
+  </view>
+</view>
+
+<!-- 底部导航栏 -->
+<view class="bottom-nav">
+  <view class="nav-item {{currentTab === 'home' ? 'active' : ''}}" bindtap="onTabTap" data-tab="home">
+    <icon class="nav-icon" type="{{currentTab === 'home' ? 'success' : 'circle'}}" size="20" color="{{currentTab === 'home' ? '#007AFF' : '#999'}}"></icon>
+    <text class="nav-text">首页</text>
+  </view>
+  <view class="nav-item {{currentTab === 'vocabulary' ? 'active' : ''}}" bindtap="onTabTap" data-tab="vocabulary">
+    <icon class="nav-icon" type="{{currentTab === 'vocabulary' ? 'success' : 'circle'}}" size="20" color="{{currentTab === 'vocabulary' ? '#007AFF' : '#999'}}"></icon>
+    <text class="nav-text">单词本</text>
+  </view>
+  <view class="nav-item {{currentTab === 'profile' ? 'active' : ''}}" bindtap="onTabTap" data-tab="profile">
+    <icon class="nav-icon" type="{{currentTab === 'profile' ? 'success' : 'circle'}}" size="20" color="{{currentTab === 'profile' ? '#007AFF' : '#999'}}"></icon>
+    <text class="nav-text">我的</text>
+  </view>
+</view>
