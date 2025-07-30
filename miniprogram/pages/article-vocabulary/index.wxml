@@ -1,7 +1,5 @@
 <!--article-vocabulary页面-->
 <view class="vocabulary-container">
-
-
   <!-- 主要内容区域 -->
   <view class="main-content">
     <!-- 单词列表 -->
@@ -9,22 +7,35 @@
       <view 
         wx:for="{{words}}" 
         wx:key="id"
-        class="word-item {{item.status}}"
+        class="word-item"
         data-word="{{item}}"
       >
-        <!-- 左侧：单词信息 -->
-        <view class="word-main" bindtap="onWordTap" data-word="{{item}}">
-          <view class="word-text">{{item.word}}</view>
-          <view class="word-phonetic">{{item.phonetic}}</view>
+        <!-- 外层序号容器 -->
+        <view class="word-number-container">
+          <view class="word-number">{{index + 1}}</view>
         </view>
         
-        <!-- 中间：翻译 -->
-        <view class="word-translation" bindtap="onWordTap" data-word="{{item}}">{{item.translation}}</view>
-        
-        <!-- 右侧：收藏按钮 -->
-        <view class="word-actions" catchtap="onToggleFavorite" data-id="{{item.id}}">
-          <view class="favorite-btn {{item.isFavorited ? 'favorited' : ''}}">
-            <image class="favorite-icon" src="{{item.isFavorited ? '/resource/icons/star-fill.png' : '/resource/icons/star.png'}}" mode="aspectFit"></image>
+        <!-- 内容区域容器 -->  
+        <view class="word-content">
+          <!-- 单词信息 -->
+          <view class="word-main" bindtap="onWordTap" data-word="{{item}}">
+            <view class="word-text">{{item.word}}</view>
+            <view class="word-phonetic">{{item.phonetic}}</view>
+          </view>
+          
+          <!-- 翻译区域 -->
+          <view class="word-translation" bindtap="onWordTap" data-word="{{item}}">
+            <view wx:for="{{item.translations}}" wx:key="*this" class="translation-item">
+              <text class="part-of-speech">{{item.partOfSpeech}}</text>
+              <text class="meaning">{{item.meaning}}</text>
+            </view>
+          </view>
+          
+          <!-- 右侧：收藏按钮 -->
+          <view class="word-actions" catchtap="onToggleFavorite" data-id="{{item.id}}">
+            <view class="favorite-btn {{item.isFavorited ? 'favorited' : ''}}">
+              <image class="favorite-icon" src="{{item.isFavorited ? '/resource/icons/star-fill.png' : '/resource/icons/star.png'}}" mode="aspectFit"></image>
+            </view>
           </view>
         </view>
       </view>

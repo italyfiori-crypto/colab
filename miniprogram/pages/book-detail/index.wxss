@@ -1,11 +1,11 @@
 /* book-detail页面样式 */
 page {
-  background-color: #f8f9fa;
+  background-color: #fff;
   height: 100vh;
 }
 
 .book-detail-container {
-  background-color: #f8f9fa;
+  background-color: #fff;
   min-height: 100vh;
 }
 
