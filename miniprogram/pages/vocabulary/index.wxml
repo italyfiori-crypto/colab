@@ -49,7 +49,7 @@
             <view class="word-phonetic">{{item.phonetic}}</view>
             <!-- 英文遮罩覆盖层 -->
             <view wx:if="{{displayMode === 'english-mask' && !item.isExpanded}}" class="english-mask-overlay" bindtap="onToggleMask" data-index="{{index}}">
-              <text class="mask-text">点击查看</text>
+              <text class="mask-text">点击显示</text>
             </view>
           </view>
           
@@ -63,7 +63,7 @@
             </view>
             <!-- 中文遮罩覆盖层 -->
             <view wx:if="{{displayMode === 'chinese-mask' && !item.isExpanded}}" class="chinese-mask-overlay" bindtap="onToggleMask" data-index="{{index}}">
-              <text class="mask-text">点击查看</text>
+              <text class="mask-text">点击显示</text>
             </view>
           </view>
           

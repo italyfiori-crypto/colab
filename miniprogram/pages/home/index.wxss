@@ -1,6 +1,6 @@
 /* home页面样式 */
 page {
-  background-color: #f8f9fa;
+  background-color: #fff;
   height: 100vh;
 }
 
