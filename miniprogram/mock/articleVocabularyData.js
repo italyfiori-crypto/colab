@@ -61,7 +61,8 @@ const vocabularyData = {
                 phonetic: "/pəʊl/",
                 translations: [
                     { partOfSpeech: "n.", meaning: "民意调查；投票" },
-                    { partOfSpeech: "v.", meaning: "对...进行民意调查" }
+                    { partOfSpeech: "v.", meaning: "对...进行民意调查" },
+                    { partOfSpeech: "v.", meaning: "轮询" }
                 ],
                 status: "mastered",
                 difficulty: "easy",

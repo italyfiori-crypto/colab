@@ -13,7 +13,7 @@ Page({
         availableDays: ['day1', 'day2', 'day3'],
         loading: true,
         // 显示模式：both(中英), chinese-mask(中文遮罩), english-mask(英文遮罩)
-        displayMode: 'both',
+        displayMode: 'english-mask',
         showSettings: false,
         // 触摸相关
         touchStartX: 0,
@@ -145,13 +145,13 @@ Page({
         this.setData({
             displayMode: mode
         });
-        
+
         // 保存到本地存储
         wx.setStorageSync('displayMode', mode);
-        
+
         // 隐藏弹窗
         this.onHideSettings();
-        
+
         // 重置所有单词的展开状态
         const words = this.data.words.map(word => ({
             ...word,
@@ -174,7 +174,7 @@ Page({
         if (index >= 0) {
             const words = this.data.words;
             words[index].isExpanded = !words[index].isExpanded;
-            
+
             this.setData({
                 words: words
             });
@@ -187,19 +187,13 @@ Page({
         if (index >= 0) {
             const words = this.data.words;
             const word = words[index];
-            
+
             // 只有在显示模式为both或者遮罩已展开时，才能标记为已学习
             if (this.data.displayMode === 'both' || word.isExpanded) {
                 words[index].isLearned = true;
-                
+
                 this.setData({
                     words: words
-                });
-
-                wx.showToast({
-                    title: '标记为已学习',
-                    icon: 'success',
-                    duration: 1000
                 });
             }
         }
@@ -217,7 +211,7 @@ Page({
     onTouchMove(e) {
         const deltaX = e.touches[0].clientX - this.data.touchStartX;
         const deltaY = e.touches[0].clientY - this.data.touchStartY;
-        
+
         // 判断是否为左滑手势（水平距离大于50，垂直距离小于100）
         if (Math.abs(deltaX) > 50 && Math.abs(deltaY) < 100 && deltaX < 0) {
             // 左滑操作
@@ -325,7 +319,7 @@ Page({
                     if (res.confirm) {
                         const words = this.data.words;
                         words.splice(index, 1);
-                        
+
                         this.setData({
                             words: words,
                             currentSlideIndex: -1,
@@ -346,7 +340,7 @@ Page({
     // 底部导航标签点击处理
     onTabTap(e) {
         const tab = e.currentTarget.dataset.tab;
-        
+
         this.setData({
             currentTab: tab
         });

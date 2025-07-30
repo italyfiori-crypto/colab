@@ -1,5 +1,5 @@
 // article-vocabulary页面逻辑
-const vocabularyData = require('../../mock/vocabularyData.js');
+const vocabularyData = require('../../mock/articleVocabularyData.js');
 
 Page({
     data: {

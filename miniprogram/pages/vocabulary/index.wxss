@@ -91,9 +91,9 @@ page {
   padding: 0;
   display: flex;
   position: relative;
-  min-height: 120rpx;
+  min-height: 140rpx;
   overflow: hidden;
-  margin-bottom: 12rpx;
+  margin-bottom: 16rpx;
   transition: all 0.2s ease;
 }
 
@@ -143,19 +143,18 @@ page {
   align-items: center;
   width: 100%;
   margin-left: 40rpx;
-  min-height: 120rpx;
+  min-height: 140rpx;
 }
 
 /* 单词主要信息 */
 .word-main {
-  flex: 0 0 auto;
-  min-width: 160rpx;
-  max-width: 180rpx;
+  flex: 0 0 200rpx;
+  width: 200rpx;
   display: flex;
   flex-direction: column;
   justify-content: center;
   align-items: flex-start;
-  min-height: 120rpx;
+  min-height: 140rpx;
   padding: 0 16rpx;
 }
 
@@ -233,11 +232,9 @@ page {
   flex-direction: column;
   justify-content: center;
   align-items: flex-start;
-  min-height: 120rpx;
+  min-height: 140rpx;
   padding: 0 16rpx;
 }
-
-
 
 .translation-item {
   display: flex;
@@ -376,25 +373,6 @@ page {
   color: #6b7280;
 }
 
-/* 响应式适配 */
-@media screen and (max-width: 375px) {
-  .word-text {
-    font-size: 30rpx;
-  }
-  
-  .meaning {
-    font-size: 24rpx;
-  }
-  
-  .word-phonetic {
-    font-size: 20rpx;
-  }
-  
-  .word-item {
-    padding: rpx 16rpx;
-  }
-}
-
 /* 加载状态 */
 .loading {
   display: flex;
@@ -403,25 +381,4 @@ page {
   padding: 60rpx 0;
   color: #999;
   font-size: 28rpx;
-}
-
-/* 空状态 */
-.empty-state {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  padding: 120rpx 40rpx;
-  color: #999;
-}
-
-.empty-state .empty-icon {
-  width: 120rpx;
-  height: 120rpx;
-  margin-bottom: 32rpx;
-  opacity: 0.5;
-}
-
-.empty-state .empty-text {
-  font-size: 28rpx;
-  color: #999;
 }
