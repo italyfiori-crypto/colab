@@ -1,0 +1,209 @@
+/* profile页面样式 */
+page {
+  background-color: #f8f9fa;
+  height: 100vh;
+}
+
+.profile-container {
+  padding: 20px 15px 60px; /* 底部留出tab栏空间 */
+  background-color: #f8f9fa;
+}
+
+/* 用户信息卡片 */
+.user-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  background-color: #fff;
+  border-radius: 16px;
+  padding: 30px 20px;
+  margin-bottom: 20px;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.05);
+}
+
+.user-avatar {
+  width: 80px;
+  height: 80px;
+  border-radius: 50%;
+  overflow: hidden;
+  margin-bottom: 15px;
+  background-color: #e6c549;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.avatar-image {
+  width: 100%;
+  height: 100%;
+}
+
+.user-name {
+  font-size: 20px;
+  font-weight: 600;
+  color: #333;
+}
+
+/* 学习统计区域 */
+.stats-section {
+  margin-bottom: 20px;
+}
+
+.stats-grid {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+}
+
+.stat-card {
+  width: calc(50% - 5px);
+  background-color: #fff;
+  border-radius: 16px;
+  padding: 20px 15px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.05);
+  box-sizing: border-box;
+  margin-bottom: 10px;
+}
+
+.stat-icon-wrapper {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background-color: #e3f2fd;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 15px;
+}
+
+.stat-icon {
+  width: 20px;
+  height: 20px;
+}
+
+.stat-value {
+  font-size: 32px;
+  font-weight: 700;
+  color: #333;
+  line-height: 1;
+  margin-bottom: 8px;
+}
+
+.stat-label {
+  font-size: 14px;
+  color: #666;
+  line-height: 1;
+}
+
+/* 学习日历区域 */
+.calendar-section {
+  background-color: #fff;
+  border-radius: 16px;
+  padding: 20px;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.05);
+}
+
+.section-header {
+  margin-bottom: 20px;
+}
+
+.section-title {
+  font-size: 18px;
+  font-weight: 600;
+  color: #333;
+}
+
+/* 星期标题 */
+.weekdays-header {
+  display: flex;
+  margin-bottom: 10px;
+}
+
+.weekday-item {
+  flex: 1;
+  text-align: center;
+}
+
+.weekday-text {
+  font-size: 14px;
+  color: #666;
+  font-weight: 500;
+}
+
+/* 日历网格 */
+.calendar-grid {
+  display: flex;
+  flex-wrap: wrap;
+}
+
+.calendar-day {
+  width: calc(100% / 7);
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 8px;
+  position: relative;
+}
+
+.day-number {
+  font-size: 14px;
+  color: #333;
+  font-weight: 500;
+  position: relative;
+  z-index: 1;
+}
+
+/* 有学习记录的日期 */
+.calendar-day.has-study .day-number {
+  color: #fff;
+}
+
+.calendar-day.has-study::before {
+  content: '';
+  position: absolute;
+  width: 32px;
+  height: 32px;
+  background-color: #c8e6c9;
+  border-radius: 8px;
+  z-index: 0;
+}
+
+/* 今天的日期 */
+.calendar-day.is-today::before {
+  background-color: #007AFF;
+}
+
+.calendar-day.is-today .day-number {
+  color: #fff;
+  position: relative;
+  z-index: 1;
+}
+
+/* 当天且有学习记录 */
+.calendar-day.has-study.is-today::before {
+  background-color: #007AFF;
+}
+
+/* 响应式调整 */
+@media (max-width: 375px) {
+  .profile-container {
+    padding: 15px 10px 60px;
+  }
+  
+  .user-card {
+    padding: 25px 15px;
+  }
+  
+  .stats-section {
+    padding: 15px;
+  }
+  
+  .calendar-section {
+    padding: 15px;
+  }
+}

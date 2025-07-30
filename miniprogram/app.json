@@ -5,6 +5,7 @@
     "pages/book-detail/index",
     "pages/article-detail/index",
     "pages/article-vocabulary/index",
+    "pages/profile/index",
     "pages/index/index",
     "pages/example/index"
   ],
@@ -34,7 +35,7 @@
         "selectedIconPath": "resource/icons/book-fill.png"
       },
       {
-        "pagePath": "pages/index/index",
+        "pagePath": "pages/profile/index",
         "text": "我的",
         "iconPath": "resource/icons/user.png",
         "selectedIconPath": "resource/icons/user-fill.png"
