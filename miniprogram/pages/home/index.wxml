@@ -90,18 +90,3 @@
   </view>
 </view>
 
-<!-- 底部导航栏 -->
-<view class="bottom-nav">
-  <view class="nav-item {{currentTab === 'home' ? 'active' : ''}}" bindtap="onTabTap" data-tab="home">
-    <icon class="nav-icon" type="{{currentTab === 'home' ? 'success' : 'circle'}}" size="20" color="{{currentTab === 'home' ? '#007AFF' : '#999'}}"></icon>
-    <text class="nav-text">首页</text>
-  </view>
-  <view class="nav-item {{currentTab === 'vocabulary' ? 'active' : ''}}" bindtap="onTabTap" data-tab="vocabulary">
-    <icon class="nav-icon" type="{{currentTab === 'vocabulary' ? 'success' : 'circle'}}" size="20" color="{{currentTab === 'vocabulary' ? '#007AFF' : '#999'}}"></icon>
-    <text class="nav-text">单词本</text>
-  </view>
-  <view class="nav-item {{currentTab === 'profile' ? 'active' : ''}}" bindtap="onTabTap" data-tab="profile">
-    <icon class="nav-icon" type="{{currentTab === 'profile' ? 'success' : 'circle'}}" size="20" color="{{currentTab === 'profile' ? '#007AFF' : '#999'}}"></icon>
-    <text class="nav-text">我的</text>
-  </view>
-</view>

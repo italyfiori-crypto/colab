@@ -1,0 +1,154 @@
+<!--vocabulary单词本页面-->
+<view class="vocabulary-container">
+  <!-- 头部区域重新设计 -->
+  <view class="header-container">
+    <!-- 左侧：日期切换 -->
+    <view class="date-selector">
+      <view class="date-nav" bindtap="onPrevDay">
+        <text class="nav-arrow">‹</text>
+      </view>
+      <view class="date-display">
+        <text class="date-text">{{currentDay}}</text>
+      </view>
+      <view class="date-nav" bindtap="onNextDay">
+        <text class="nav-arrow">›</text>
+      </view>
+    </view>
+    
+    <!-- 右侧：设置按钮 -->
+    <view class="settings-btn" bindtap="onShowSettings">
+      <image class="settings-icon" src="/resource/icons/setting.svg" mode="aspectFit"></image>
+    </view>
+  </view>
+
+  <!-- 主要内容区域 -->
+  <view class="main-content">
+    <!-- 单词列表 -->
+    <view class="word-list">
+      <view 
+        wx:for="{{words}}" 
+        wx:key="id"
+        class="word-item {{item.isLearned ? 'learned' : ''}}"
+        data-word="{{item}}"
+        bindtap="onWordTap"
+        data-index="{{index}}"
+        bindtouchstart="onTouchStart"
+        bindtouchmove="onTouchMove"
+        bindtouchend="onTouchEnd"
+      >
+        <!-- 外层序号容器 -->
+        <view class="word-number-container {{item.isLearned ? 'learned-bg' : ''}}">
+          <view class="word-number">{{index + 1}}</view>
+        </view>
+        
+        <!-- 内容区域容器 -->  
+        <view class="word-content">
+          <!-- 单词信息 -->
+          <view class="word-main">
+            <!-- 英文遮罩模式 -->
+            <view wx:if="{{displayMode === 'english-mask'}}" class="word-mask-container">
+              <view class="word-content-inner">
+                <view class="word-text">{{item.word}}</view>
+                <view class="word-phonetic">{{item.phonetic}}</view>
+              </view>
+              <view wx:if="{{!item.isExpanded}}" class="english-mask-overlay" bindtap="onToggleMask" data-index="{{index}}">
+                <text class="mask-text">点击查看</text>
+              </view>
+            </view>
+            <!-- 非英文遮罩模式 -->
+            <view wx:else>
+              <view class="word-text">{{item.word}}</view>
+              <view class="word-phonetic">{{item.phonetic}}</view>
+            </view>
+          </view>
+          
+          <!-- 翻译区域 -->
+          <view class="word-translation">
+            <!-- 中英模式：全部显示 -->
+            <view wx:if="{{displayMode === 'both'}}" class="translation-content">
+              <view wx:for="{{item.translations}}" wx:key="*this" class="translation-item">
+                <text class="part-of-speech">{{item.partOfSpeech}}</text>
+                <text class="meaning">{{item.meaning}}</text>
+              </view>
+            </view>
+            
+            <!-- 中文遮罩模式 -->
+            <view wx:elif="{{displayMode === 'chinese-mask'}}" class="translation-mask-container">
+              <view class="translation-content-inner">
+                <view wx:for="{{item.translations}}" wx:key="*this" class="translation-item">
+                  <text class="part-of-speech">{{item.partOfSpeech}}</text>
+                  <text class="meaning">{{item.meaning}}</text>
+                </view>
+              </view>
+              <view wx:if="{{!item.isExpanded}}" class="chinese-mask-overlay" bindtap="onToggleMask" data-index="{{index}}">
+                <text class="mask-text">点击查看</text>
+              </view>
+            </view>
+            
+            <!-- 英文遮罩模式 -->
+            <view wx:else class="translation-content">
+              <view wx:for="{{item.translations}}" wx:key="*this" class="translation-item">
+                <text class="part-of-speech">{{item.partOfSpeech}}</text>
+                <text class="meaning">{{item.meaning}}</text>
+              </view>
+            </view>
+          </view>
+          
+        </view>
+        
+        <!-- 左滑操作按钮 -->
+        <view class="slide-actions" wx:if="{{item.showActions}}">
+          <view class="action-btn mastered" bindtap="onMarkMastered" data-index="{{index}}">
+            <text class="action-text">已掌握</text>
+          </view>
+          <view class="action-btn unfamiliar" bindtap="onMarkUnfamiliar" data-index="{{index}}">
+            <text class="action-text">不熟悉</text>
+          </view>
+          <view class="action-btn delete" bindtap="onDeleteWord" data-index="{{index}}">
+            <text class="action-text">删除</text>
+          </view>
+        </view>
+      </view>
+    </view>
+  </view>
+  
+  <!-- 设置弹窗 -->
+  <view class="settings-modal" wx:if="{{showSettings}}" bindtap="onHideSettings">
+    <view class="modal-content" catchtap="">
+      <view class="modal-header">
+        <text class="modal-title">显示设置</text>
+        <view class="modal-close" bindtap="onHideSettings">×</view>
+      </view>
+      <view class="modal-body">
+        <view class="setting-item {{displayMode === 'both' ? 'active' : ''}}" bindtap="onChangeDisplayMode" data-mode="both">
+          <text class="setting-text">中英</text>
+          <view class="setting-desc">同时显示英文和中文</view>
+        </view>
+        <view class="setting-item {{displayMode === 'chinese-mask' ? 'active' : ''}}" bindtap="onChangeDisplayMode" data-mode="chinese-mask">
+          <text class="setting-text">中文遮罩</text>
+          <view class="setting-desc">隐藏中文翻译，点击显示</view>
+        </view>
+        <view class="setting-item {{displayMode === 'english-mask' ? 'active' : ''}}" bindtap="onChangeDisplayMode" data-mode="english-mask">
+          <text class="setting-text">英文遮罩</text>
+          <view class="setting-desc">隐藏英文单词，点击显示</view>
+        </view>
+      </view>
+    </view>
+  </view>
+  
+  <!-- 底部导航栏 -->
+  <view class="bottom-nav">
+    <view class="nav-item {{currentTab === 'home' ? 'active' : ''}}" bindtap="onTabTap" data-tab="home">
+      <icon class="nav-icon" type="{{currentTab === 'home' ? 'success' : 'circle'}}" size="20" color="{{currentTab === 'home' ? '#007AFF' : '#999'}}"></icon>
+      <text class="nav-text">首页</text>
+    </view>
+    <view class="nav-item {{currentTab === 'vocabulary' ? 'active' : ''}}" bindtap="onTabTap" data-tab="vocabulary">
+      <icon class="nav-icon" type="{{currentTab === 'vocabulary' ? 'success' : 'circle'}}" size="20" color="{{currentTab === 'vocabulary' ? '#007AFF' : '#999'}}"></icon>
+      <text class="nav-text">单词本</text>
+    </view>
+    <view class="nav-item {{currentTab === 'profile' ? 'active' : ''}}" bindtap="onTabTap" data-tab="profile">
+      <icon class="nav-icon" type="{{currentTab === 'profile' ? 'success' : 'circle'}}" size="20" color="{{currentTab === 'profile' ? '#007AFF' : '#999'}}"></icon>
+      <text class="nav-text">我的</text>
+    </view>
+  </view>
+</view>

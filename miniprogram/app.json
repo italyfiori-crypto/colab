@@ -1,6 +1,7 @@
 {
   "pages": [
     "pages/home/index",
+    "pages/vocabulary/index",
     "pages/book-detail/index",
     "pages/article-detail/index",
     "pages/article-vocabulary/index",
@@ -13,6 +14,32 @@
     "navigationBarBackgroundColor": "#F6F6F6",
     "navigationBarTitleText": "",
     "navigationBarTextStyle": "black"
+  },
+  "tabBar": {
+    "color": "#999999",
+    "selectedColor": "#007AFF",
+    "backgroundColor": "#ffffff",
+    "borderStyle": "black",
+    "list": [
+      {
+        "pagePath": "pages/home/index",
+        "text": "首页",
+        "iconPath": "resource/icons/home.png",
+        "selectedIconPath": "resource/icons/home-fill.png"
+      },
+      {
+        "pagePath": "pages/vocabulary/index",
+        "text": "单词本",
+        "iconPath": "resource/icons/book.png",
+        "selectedIconPath": "resource/icons/book-fill.png"
+      },
+      {
+        "pagePath": "pages/index/index",
+        "text": "我的",
+        "iconPath": "resource/icons/user.png",
+        "selectedIconPath": "resource/icons/user-fill.png"
+      }
+    ]
   },
   "sitemapLocation": "sitemap.json",
   "style": "v2",

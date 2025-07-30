@@ -11,7 +11,7 @@ page {
 
 /* 搜索栏样式 */
 .search-container {
-  padding: 10px 15px 20px;
+  padding: 10px 15px 0px;
   background-color: #fff;
 }
 
@@ -226,41 +226,6 @@ page {
   line-height: 1.4;
   height: 2.8em;
   margin-bottom: 0px;
-}
-
-/* 底部导航栏 */
-.bottom-nav {
-  position: fixed;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  height: 60px;
-  background-color: #fff;
-  border-top: 1px solid #e0e0e0;
-  display: flex;
-  z-index: 1000;
-}
-
-.nav-item {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  padding: 5px 0;
-}
-
-.nav-icon {
-  margin-bottom: 2px;
-}
-
-.nav-text {
-  font-size: 10px;
-  color: #999;
-}
-
-.nav-item.active .nav-text {
-  color: #007AFF;
 }
 
 /* 响应式调整 */
