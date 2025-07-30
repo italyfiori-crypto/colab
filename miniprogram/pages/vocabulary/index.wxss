@@ -151,14 +151,25 @@ page {
   flex: 0 0 auto;
   min-width: 160rpx;
   max-width: 180rpx;
-  padding: 24rpx 16rpx;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: flex-start;
+  min-height: 120rpx;
+  padding: 0 16rpx;
+}
+
+/* 有遮罩的容器需要相对定位 */
+.word-main.has-mask,
+.word-translation.has-mask {
   position: relative;
 }
 
-/* 英文遮罩容器 */
-.word-mask-container {
-  position: relative;
-  min-height: 72rpx;
+/* 翻译内容垂直居中 */
+.translation-content {
+  display: flex;
+  flex-direction: column;
+  gap: 8rpx;
 }
 
 /* 刮刮乐遮罩样式 - 英文遮罩 */
@@ -169,13 +180,12 @@ page {
   right: 0;
   bottom: 0;
   background: linear-gradient(135deg, #c0c0c0 0%, #a8a8a8 50%, #c0c0c0 100%);
-  border-radius: 8rpx;
   display: flex;
   align-items: center;
   justify-content: center;
-  min-height: 72rpx;
   box-shadow: inset 0 1rpx 3rpx rgba(0, 0, 0, 0.2);
   z-index: 2;
+  cursor: pointer;
 }
 
 /* 刮刮乐遮罩样式 - 中文遮罩 */
@@ -186,20 +196,20 @@ page {
   right: 0;
   bottom: 0;
   background: linear-gradient(135deg, #c0c0c0 0%, #a8a8a8 50%, #c0c0c0 100%);
-  border-radius: 8rpx;
   display: flex;
   align-items: center;
   justify-content: center;
-  min-height: 60rpx;
   box-shadow: inset 0 1rpx 3rpx rgba(0, 0, 0, 0.2);
   z-index: 2;
+  cursor: pointer;
 }
 
 .mask-text {
-  font-size: 22rpx;
+  font-size: 24rpx;
   color: #555555;
   font-weight: 500;
   text-shadow: 0 1rpx 1rpx rgba(255, 255, 255, 0.5);
+  letter-spacing: 1rpx;
 }
 
 .word-text {
@@ -221,18 +231,13 @@ page {
   flex: 1;
   display: flex;
   flex-direction: column;
-  gap: 8rpx;
-  padding: 24rpx 0;
-  position: relative;
+  justify-content: center;
+  align-items: flex-start;
+  min-height: 120rpx;
+  padding: 0 16rpx;
 }
 
-/* 翻译内容 */
-.translation-content {
-  display: flex;
-  flex-direction: column;
-  gap: 8rpx;
-  position: relative;
-}
+
 
 .translation-item {
   display: flex;
@@ -246,7 +251,6 @@ page {
   font-size: 22rpx;
   color: #9ca3af;
   font-weight: 500;
-  min-width: 48rpx;
 }
 
 .meaning {
@@ -372,51 +376,6 @@ page {
   color: #6b7280;
 }
 
-/* 底部导航栏 */
-.bottom-nav {
-  position: fixed;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  height: 120rpx;
-  background-color: #ffffff;
-  border-top: 1rpx solid #e5e7eb;
-  display: flex;
-  align-items: center;
-  justify-content: space-around;
-  z-index: 100;
-  box-shadow: 0 -2rpx 12rpx rgba(0, 0, 0, 0.08);
-}
-
-.nav-item {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  flex: 1;
-  padding: 16rpx 0;
-  transition: all 0.2s ease;
-}
-
-.nav-item:active {
-  transform: scale(0.95);
-}
-
-.nav-icon {
-  margin-bottom: 8rpx;
-}
-
-.nav-text {
-  font-size: 20rpx;
-  color: #999999;
-  transition: all 0.2s ease;
-}
-
-.nav-item.active .nav-text {
-  color: #007AFF;
-  font-weight: 500;
-}
-
 /* 响应式适配 */
 @media screen and (max-width: 375px) {
   .word-text {
@@ -432,7 +391,7 @@ page {
   }
   
   .word-item {
-    padding: 20rpx 16rpx;
+    padding: rpx 16rpx;
   }
 }
 

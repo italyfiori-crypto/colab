@@ -44,53 +44,26 @@
         <!-- 内容区域容器 -->  
         <view class="word-content">
           <!-- 单词信息 -->
-          <view class="word-main">
-            <!-- 英文遮罩模式 -->
-            <view wx:if="{{displayMode === 'english-mask'}}" class="word-mask-container">
-              <view class="word-content-inner">
-                <view class="word-text">{{item.word}}</view>
-                <view class="word-phonetic">{{item.phonetic}}</view>
-              </view>
-              <view wx:if="{{!item.isExpanded}}" class="english-mask-overlay" bindtap="onToggleMask" data-index="{{index}}">
-                <text class="mask-text">点击查看</text>
-              </view>
-            </view>
-            <!-- 非英文遮罩模式 -->
-            <view wx:else>
-              <view class="word-text">{{item.word}}</view>
-              <view class="word-phonetic">{{item.phonetic}}</view>
+          <view class="word-main {{displayMode === 'english-mask' ? 'has-mask' : ''}}">
+            <view class="word-text">{{item.word}}</view>
+            <view class="word-phonetic">{{item.phonetic}}</view>
+            <!-- 英文遮罩覆盖层 -->
+            <view wx:if="{{displayMode === 'english-mask' && !item.isExpanded}}" class="english-mask-overlay" bindtap="onToggleMask" data-index="{{index}}">
+              <text class="mask-text">点击查看</text>
             </view>
           </view>
           
           <!-- 翻译区域 -->
-          <view class="word-translation">
-            <!-- 中英模式：全部显示 -->
-            <view wx:if="{{displayMode === 'both'}}" class="translation-content">
+          <view class="word-translation {{displayMode === 'chinese-mask' ? 'has-mask' : ''}}">
+            <view class="translation-content">
               <view wx:for="{{item.translations}}" wx:key="*this" class="translation-item">
                 <text class="part-of-speech">{{item.partOfSpeech}}</text>
                 <text class="meaning">{{item.meaning}}</text>
               </view>
             </view>
-            
-            <!-- 中文遮罩模式 -->
-            <view wx:elif="{{displayMode === 'chinese-mask'}}" class="translation-mask-container">
-              <view class="translation-content-inner">
-                <view wx:for="{{item.translations}}" wx:key="*this" class="translation-item">
-                  <text class="part-of-speech">{{item.partOfSpeech}}</text>
-                  <text class="meaning">{{item.meaning}}</text>
-                </view>
-              </view>
-              <view wx:if="{{!item.isExpanded}}" class="chinese-mask-overlay" bindtap="onToggleMask" data-index="{{index}}">
-                <text class="mask-text">点击查看</text>
-              </view>
-            </view>
-            
-            <!-- 英文遮罩模式 -->
-            <view wx:else class="translation-content">
-              <view wx:for="{{item.translations}}" wx:key="*this" class="translation-item">
-                <text class="part-of-speech">{{item.partOfSpeech}}</text>
-                <text class="meaning">{{item.meaning}}</text>
-              </view>
+            <!-- 中文遮罩覆盖层 -->
+            <view wx:if="{{displayMode === 'chinese-mask' && !item.isExpanded}}" class="chinese-mask-overlay" bindtap="onToggleMask" data-index="{{index}}">
+              <text class="mask-text">点击查看</text>
             </view>
           </view>
           
@@ -135,20 +108,5 @@
       </view>
     </view>
   </view>
-  
-  <!-- 底部导航栏 -->
-  <view class="bottom-nav">
-    <view class="nav-item {{currentTab === 'home' ? 'active' : ''}}" bindtap="onTabTap" data-tab="home">
-      <icon class="nav-icon" type="{{currentTab === 'home' ? 'success' : 'circle'}}" size="20" color="{{currentTab === 'home' ? '#007AFF' : '#999'}}"></icon>
-      <text class="nav-text">首页</text>
-    </view>
-    <view class="nav-item {{currentTab === 'vocabulary' ? 'active' : ''}}" bindtap="onTabTap" data-tab="vocabulary">
-      <icon class="nav-icon" type="{{currentTab === 'vocabulary' ? 'success' : 'circle'}}" size="20" color="{{currentTab === 'vocabulary' ? '#007AFF' : '#999'}}"></icon>
-      <text class="nav-text">单词本</text>
-    </view>
-    <view class="nav-item {{currentTab === 'profile' ? 'active' : ''}}" bindtap="onTabTap" data-tab="profile">
-      <icon class="nav-icon" type="{{currentTab === 'profile' ? 'success' : 'circle'}}" size="20" color="{{currentTab === 'profile' ? '#007AFF' : '#999'}}"></icon>
-      <text class="nav-text">我的</text>
-    </view>
-  </view>
+
 </view>
