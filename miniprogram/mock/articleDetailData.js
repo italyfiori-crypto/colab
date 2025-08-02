@@ -118,7 +118,82 @@ Oxygen doesn't get depleted and uh I don't have to rush her into emergency when 
 随着南非这个阳光充沛的国家能源危机持续蔓延，此类解决方案不仅能提供电力和稳定，还能带来一线希望。
 4:00
 Pum Zaflani, BBC News, Johannesburg.
-普姆·扎夫拉尼（PumZaflani），BBC新闻，约翰内斯堡。`
+普姆·扎夫拉尼（PumZaflani），BBC新闻，约翰内斯堡。`,
+    
+    "vocabulary": [
+        {
+            id: 1,
+            word: 'escaping',
+            phonetic: '/ɪˈskeɪpɪŋ/',
+            translations: [
+                { partOfSpeech: 'v.', meaning: '逃脱，逃避' }
+            ],
+            isFavorited: true
+        },
+        {
+            id: 2,
+            word: 'punishment',
+            phonetic: '/ˈpʌnɪʃmənt/',
+            translations: [
+                { partOfSpeech: 'n.', meaning: '惩罚，处罚' }
+            ],
+            isFavorited: false
+        },
+        {
+            id: 3,
+            word: 'wizard',
+            phonetic: '/ˈwɪzərd/',
+            translations: [
+                { partOfSpeech: 'n.', meaning: '巫师，魔法师' }
+            ],
+            isFavorited: false
+        },
+        {
+            id: 4,
+            word: 'mysterious',
+            phonetic: '/mɪˈstɪəriəs/',
+            translations: [
+                { partOfSpeech: 'adj.', meaning: '神秘的，难解的' }
+            ],
+            isFavorited: true
+        },
+        {
+            id: 5,
+            word: 'adventure',
+            phonetic: '/ədˈventʃər/',
+            translations: [
+                { partOfSpeech: 'n.', meaning: '冒险，奇遇' }
+            ],
+            isFavorited: false
+        },
+        {
+            id: 6,
+            word: 'infrastructure',
+            phonetic: '/ˈɪnfrəstrʌktʃər/',
+            translations: [
+                { partOfSpeech: 'n.', meaning: '基础设施' }
+            ],
+            isFavorited: false
+        },
+        {
+            id: 7,
+            word: 'corruption',
+            phonetic: '/kəˈrʌpʃən/',
+            translations: [
+                { partOfSpeech: 'n.', meaning: '腐败，贪污' }
+            ],
+            isFavorited: true
+        },
+        {
+            id: 8,
+            word: 'stability',
+            phonetic: '/stəˈbɪləti/',
+            translations: [
+                { partOfSpeech: 'n.', meaning: '稳定性' }
+            ],
+            isFavorited: false
+        }
+    ]
 }
 
 module.exports = articleDetailData;

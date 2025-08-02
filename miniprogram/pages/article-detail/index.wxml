@@ -137,4 +137,67 @@
       </view>
     </view>
   </view>
+
+  <!-- 单词卡片弹出层 -->
+  <view class="vocabulary-overlay {{showVocabulary ? 'show' : ''}}" bindtap="onCloseVocabulary">
+    <view 
+      class="vocabulary-card {{showVocabulary ? 'slide-up' : ''}}" 
+      catchtap="stopPropagation"
+      bindtouchstart="onCardTouchStart"
+      bindtouchmove="onCardTouchMove"
+      bindtouchend="onCardTouchEnd"
+    >
+      <!-- 卡片头部 -->
+      <view class="card-header">
+        <view class="drag-handle"></view>
+        <view class="card-title-bar">
+          <text class="card-title">{{vocabularyTitle || '单词本'}}</text>
+          <view class="card-close-btn" bindtap="onCloseVocabulary">
+            <image class="close-icon" src="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjQiIGhlaWdodD0iMjQiIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHBhdGggZD0iTTE5IDYuNDE4MjZMMTcuNTgxNyA1TDEyIDEwLjU4MTdMNi40MTgzNiA1TDUgNi40MTgyNkwxMC41ODE3IDEyTDUgMTcuNTgxN0w2LjQxODM2IDE5TDEyIDEzLjQxODNMMTcuNTgxNyAxOUwxOSAxNy41ODE3TDEzLjQxODMgMTJMMTkgNi40MTgyNloiIGZpbGw9IiM5OTkiLz4KPC9zdmc+Cg==" mode="aspectFit"></image>
+          </view>
+        </view>
+      </view>
+      
+      <!-- 单词列表 -->
+      <scroll-view class="vocabulary-content" scroll-y="{{true}}">
+        <view class="word-list">
+          <view 
+            wx:for="{{vocabularyWords}}" 
+            wx:key="id"
+            class="word-item"
+            data-word="{{item}}"
+          >
+            <!-- 序号容器 -->
+            <view class="word-number-container">
+              <view class="word-number">{{index + 1}}</view>
+            </view>
+            
+            <!-- 内容区域 -->  
+            <view class="word-content">
+              <!-- 单词信息 -->
+              <view class="word-main" bindtap="onWordTap" data-word="{{item}}">
+                <view class="word-text">{{item.word}}</view>
+                <view class="word-phonetic">{{item.phonetic}}</view>
+              </view>
+              
+              <!-- 翻译区域 -->
+              <view class="word-translation" bindtap="onWordTap" data-word="{{item}}">
+                <view wx:for="{{item.translations}}" wx:key="*this" class="translation-item">
+                  <text class="part-of-speech">{{item.partOfSpeech}}</text>
+                  <text class="meaning">{{item.meaning}}</text>
+                </view>
+              </view>
+              
+              <!-- 右侧：收藏按钮 -->
+              <view class="word-actions" catchtap="onToggleFavorite" data-id="{{item.id}}">
+                <view class="favorite-btn {{item.isFavorited ? 'favorited' : ''}}">
+                  <image class="favorite-icon" src="{{item.isFavorited ? '/resource/icons/star-fill.png' : '/resource/icons/star.png'}}" mode="aspectFit"></image>
+                </view>
+              </view>
+            </view>
+          </view>
+        </view>
+      </scroll-view>
+    </view>
+  </view>
 </view> 

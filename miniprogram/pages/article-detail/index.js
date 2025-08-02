@@ -25,6 +25,11 @@ Page({
         // UI状态
         showSettings: false,
         isFavorited: false,
+        showVocabulary: false,
+        
+        // 单词卡片数据
+        vocabularyTitle: '',
+        vocabularyWords: [],
 
         // UI状态相关的数据，图标现在直接在模板中使用本地文件
     },
@@ -294,14 +299,93 @@ Page({
         this.setData({ isFavorited });
     },
 
-    // 单词按钮 - 跳转到单词页面
+    // 单词按钮 - 显示单词卡片
     onDict() {
         const { articleId, title } = this.data;
 
-        // 跳转到单词页面
-        wx.navigateTo({
-            url: `/pages/article-vocabulary/index?articleId=harry-potter-1&title=${encodeURIComponent('哈利·波特与魔法石')}`
+        // 设置单词卡片数据
+        this.setData({
+            vocabularyTitle: '南非能源危机 单词',
+            vocabularyWords: articleDetailData.vocabulary || [],
+            showVocabulary: true
         });
+    },
+
+
+    // 关闭单词卡片
+    onCloseVocabulary() {
+        this.setData({ showVocabulary: false });
+    },
+
+    // 单词点击事件
+    onWordTap(e) {
+        const word = e.currentTarget.dataset.word;
+        console.log('点击单词:', word);
+        // 这里可以添加单词详情或发音功能
+    },
+
+    // 切换收藏状态
+    onToggleFavorite(e) {
+        const wordId = e.currentTarget.dataset.id;
+        const vocabularyWords = this.data.vocabularyWords.map(word => {
+            if (word.id === wordId) {
+                return { ...word, isFavorited: !word.isFavorited };
+            }
+            return word;
+        });
+        
+        this.setData({ vocabularyWords });
+        
+        const word = vocabularyWords.find(w => w.id === wordId);
+        wx.showToast({
+            title: word.isFavorited ? '已收藏' : '已取消收藏',
+            icon: 'success',
+            duration: 1000
+        });
+    },
+
+    // 卡片手势处理相关变量
+    cardStartY: 0,
+    cardCurrentY: 0,
+    cardMoving: false,
+
+    // 卡片触摸开始
+    onCardTouchStart(e) {
+        this.cardStartY = e.touches[0].clientY;
+        this.cardCurrentY = e.touches[0].clientY;
+        this.cardMoving = false;
+    },
+
+    // 卡片触摸移动
+    onCardTouchMove(e) {
+        if (!this.data.showVocabulary) return;
+        
+        this.cardCurrentY = e.touches[0].clientY;
+        const deltaY = this.cardCurrentY - this.cardStartY;
+        
+        // 只允许向下滑动
+        if (deltaY > 0) {
+            this.cardMoving = true;
+            // 这里可以添加实时拖拽效果，暂时简化处理
+        }
+    },
+
+    // 卡片触摸结束
+    onCardTouchEnd(e) {
+        if (!this.data.showVocabulary || !this.cardMoving) return;
+        
+        const deltaY = this.cardCurrentY - this.cardStartY;
+        const threshold = 100; // 关闭阈值
+        
+        if (deltaY > threshold) {
+            // 向下滑动超过阈值，关闭卡片
+            this.onCloseVocabulary();
+        }
+        
+        // 重置状态
+        this.cardMoving = false;
+        this.cardStartY = 0;
+        this.cardCurrentY = 0;
     },
 
     // 循环播放当前字幕
