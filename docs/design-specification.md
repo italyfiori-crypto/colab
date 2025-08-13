@@ -51,252 +51,32 @@ cloudfunctions/
     └── index.js           # 路由分发
 ```
 
-## 2. 数据结构设计
+## 2. 数据库设计
 
-### 2.1 核心数据模型
+本项目的数据库设计已独立成册，详细的表结构、索引设计和关系图请参考：
 
-#### 用户数据模型 (users)
+📋 **[数据库设计文档](./database-design.md)**
 
-```javascript
-{
-  openid: string,           // 微信openid (主键)
-  nickname: string,         // 用户昵称
-  avatar: string,           // 头像URL
-  level: number,            // 用户等级 (1-10)
-  totalPoints: number,      // 总积分
-  studyDays: number,        // 连续学习天数
-  totalStudyTime: number,   // 总学习时长(分钟)
-  preferences: {            // 学习偏好
-    displayMode: string,    // 显示模式 (both/chinese-mask/english-mask)
-    dailyGoal: number,      // 每日目标单词数
-    reminderTime: string,   // 提醒时间
-    autoPlay: boolean       // 自动播放发音
-  },
-  statistics: {             // 统计信息
-    totalWords: number,     // 学习过的总单词数
-    masteredWords: number,  // 已掌握单词数
-    booksCompleted: number, // 完成的书籍数
-    averageAccuracy: number // 平均正确率
-  },
-  createdAt: Date,
-  lastLoginAt: Date,
-  updatedAt: Date
-}
-```
+### 2.1 核心表概览
 
-#### 书籍数据模型 (books)
+| 表名 | 功能描述 | 主要字段 |
+|------|----------|----------|
+| `users` | 用户信息、偏好和统计 | openid, nickname, level, totalPoints, studyDays |
+| `books` | 书籍基本信息 | title, author, category, difficulty, popularity |
+| `chapters` | 章节内容 | bookId, title, content, wordIds |
+| `vocabularies` | 单词词汇 | word, phonetic, translations, difficulty |
+| `user_progress` | 学习进度 | userId, bookId, progress, currentChapter |
+| `word_records` | 单词学习记录 | userId, wordId, status, accuracy, reviewLevel |
+| `daily_plans` | 每日学习计划 | date, wordIds, targetTime, difficulty |
 
-```javascript
-{
-  id: number,               // 书籍ID
-  title: string,            // 书名
-  author: string,           // 作者
-  cover: string,            // 封面图URL
-  category: string,         // 分类 (literature/business/script/news)
-  description: string,      // 描述
-  difficulty: string,       // 难度 (easy/medium/hard)
-  totalChapters: number,    // 总章节数
-  estimatedTime: number,    // 预估学习时长(分钟)
-  vocabularyCount: number,  // 词汇量
-  popularity: number,       // 受欢迎程度 (0-100)
-  isActive: boolean,        // 是否上架
-  tags: Array<string>,      // 标签
-  metadata: {               // 元数据
-    isbn: string,           // ISBN号
-    publisher: string,      // 出版社
-    publishDate: Date,      // 出版日期
-    language: string        // 语言
-  },
-  createdAt: Date,
-  updatedAt: Date
-}
-```
+### 2.2 设计特点
 
-#### 章节数据模型 (chapters)
+- **简化结构**: 从8个表精简到7个核心表
+- **统一ID**: 使用字符串ID，简化数据处理
+- **合并字段**: 将相关属性合并到主表中
+- **优化索引**: 仅保留核心业务查询的索引
 
-```javascript
-{
-  id: number,               // 章节ID
-  bookId: number,           // 所属书籍ID
-  chapterNumber: number,    // 章节序号
-  title: string,            // 章节标题
-  content: string,          // 章节内容
-  vocabularyIds: Array<number>, // 关联单词ID列表
-  estimatedTime: number,    // 预估阅读时长(分钟)
-  difficulty: string,       // 难度等级
-  wordCount: number,        // 单词数
-  isActive: boolean,        // 是否启用
-  summary: string,          // 章节摘要
-  createdAt: Date,
-  updatedAt: Date
-}
-```
-
-#### 单词数据模型 (vocabularies)
-
-```javascript
-{
-  id: number,               // 单词ID
-  word: string,             // 单词
-  phonetic: string,         // 音标
-  translations: [{          // 翻译列表
-    partOfSpeech: string,   // 词性 (n./v./adj./adv.等)
-    meaning: string,        // 中文含义
-    example?: string        // 例句
-  }],
-  difficulty: string,       // 难度 (easy/medium/hard)
-  frequency: string,        // 使用频率 (high/medium/low)
-  examples: [{              // 例句列表
-    english: string,        // 英文例句
-    chinese: string,        // 中文翻译
-    source?: string         // 来源
-  }],
-  audioUrl: string,         // 发音音频URL
-  imageUrl?: string,        // 相关图片URL
-  tags: Array<string>,      // 标签
-  bookIds: Array<number>,   // 关联书籍ID列表
-  usage: number,            // 使用次数
-  synonyms: Array<string>,  // 同义词
-  antonyms: Array<string>,  // 反义词
-  createdAt: Date,
-  updatedAt: Date
-}
-```
-
-#### 用户学习进度模型 (user_progress)
-
-```javascript
-{
-  openid: string,           // 用户openid
-  bookId: number,           // 书籍ID
-  currentChapter: number,   // 当前章节
-  totalChapters: number,    // 总章节数
-  progress: number,         // 进度百分比(0-100)
-  studyTime: number,        // 累计学习时长(分钟)
-  startedAt: Date,          // 开始学习时间
-  lastStudyAt: Date,        // 最后学习时间
-  completedAt?: Date,       // 完成时间
-  status: string,           // 学习状态 (not_started/studying/completed/paused)
-  chaptersCompleted: Array<number>, // 已完成章节列表
-  notes: string,            // 学习笔记
-  createdAt: Date,
-  updatedAt: Date
-}
-```
-
-#### 单词学习记录模型 (word_learning_records)
-
-```javascript
-{
-  openid: string,           // 用户openid
-  wordId: number,           // 单词ID
-  status: string,           // 学习状态 (new/learning/mastered)
-  correctCount: number,     // 答对次数
-  totalCount: number,       // 总测试次数
-  accuracy: number,         // 正确率 (0-100)
-  firstStudyAt: Date,       // 首次学习时间
-  lastStudyAt: Date,        // 最后学习时间
-  masteredAt?: Date,        // 掌握时间
-  reviewAt: Date,           // 下次复习时间
-  reviewLevel: number,      // 复习等级 (艾宾浩斯: 1-7)
-  studyCount: number,       // 学习次数
-  timeSpent: number,        // 总学习时长(秒)
-  source: string,           // 学习来源 (book/daily/review)
-  createdAt: Date,
-  updatedAt: Date
-}
-```
-
-#### 学习会话记录模型 (study_sessions)
-
-```javascript
-{
-  id: string,               // 会话ID (UUID)
-  openid: string,           // 用户openid
-  type: string,             // 会话类型 (book/daily/review/test)
-  bookId?: number,          // 书籍ID (如果是书籍学习)
-  chapterId?: number,       // 章节ID
-  startTime: Date,          // 开始时间
-  endTime?: Date,           // 结束时间
-  studyTime: number,        // 学习时长(秒)
-  wordsStudied: Array<number>, // 学习的单词ID列表
-  wordsLearned: number,     // 新学会的单词数
-  wordsMastered: number,    // 新掌握的单词数
-  actions: [{               // 用户操作记录
-    action: string,         // 操作类型
-    wordId?: number,        // 单词ID
-    timestamp: Date,        // 时间戳
-    duration?: number,      // 持续时间
-    result?: string         // 操作结果
-  }],
-  points: number,           // 获得积分
-  achievements: Array<string>, // 解锁成就
-  createdAt: Date
-}
-```
-
-#### 每日学习计划模型 (daily_plans)
-
-```javascript
-{
-  date: string,             // 日期 YYYY-MM-DD
-  dayKey: string,           // 天数标识 day1/day2...
-  title: string,            // 计划标题
-  description: string,      // 计划描述
-  totalWords: number,       // 当天总单词数
-  words: Array<number>,     // 单词ID列表
-  targetTime: number,       // 目标学习时长(分钟)
-  difficulty: string,       // 整体难度
-  isActive: boolean,        // 是否启用
-  priority: number,         // 优先级
-  createdAt: Date,
-  updatedAt: Date
-}
-```
-
-### 2.2 数据库索引设计
-
-```javascript
-// 用户集合索引
-users: [
-  { openid: 1 },                    // 主键索引
-  { level: -1, totalPoints: -1 },   // 排行榜索引
-  { lastLoginAt: -1 }               // 活跃度索引
-]
-
-// 书籍集合索引
-books: [
-  { id: 1 },                        // 主键索引
-  { category: 1, isActive: 1 },     // 分类查询索引
-  { difficulty: 1, category: 1 },   // 难度筛选索引
-  { popularity: -1 },               // 热门排序索引
-  { tags: 1 }                       // 标签查询索引
-]
-
-// 单词集合索引
-vocabularies: [
-  { id: 1 },                        // 主键索引
-  { word: 1 },                      // 单词查询索引 (唯一)
-  { difficulty: 1, frequency: 1 },  // 难度频率索引
-  { bookIds: 1 },                   // 书籍关联索引
-  { usage: -1 }                     // 使用频率索引
-]
-
-// 学习记录索引
-word_learning_records: [
-  { openid: 1, wordId: 1 },         // 复合主键索引 (唯一)
-  { openid: 1, status: 1 },         // 用户状态查询索引
-  { openid: 1, reviewAt: 1 },       // 复习时间索引
-  { openid: 1, lastStudyAt: -1 }    // 最近学习索引
-]
-
-// 学习进度索引
-user_progress: [
-  { openid: 1, bookId: 1 },         // 复合主键索引 (唯一)
-  { openid: 1, lastStudyAt: -1 },   // 最近学习索引
-  { openid: 1, status: 1 }          // 学习状态索引
-]
-```
+详细的表结构定义、字段说明、索引策略和数据关系图请查看数据库设计文档。
 
 ## 3. 接口设计方案
 

@@ -2,7 +2,8 @@
   "permissions": {
     "allow": [
       "WebFetch(domain:www.cnblogs.com)",
-      "Bash(mkdir:*)"
+      "Bash(mkdir:*)",
+      "WebFetch(domain:github.com)"
     ],
     "deny": []
   }
