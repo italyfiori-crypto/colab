@@ -270,6 +270,69 @@ class ChineseTranslator:
                 f.write(f"{entry['chinese_text']}\n\n")
     
     
+    def translate_book_title(self, title: str) -> str:
+        """
+        翻译书名
+        
+        Args:
+            title: 英文书名
+            
+        Returns:
+            中文书名
+        """
+        if not title.strip():
+            return ""
+        
+        prompt = f"""请将以下英文书名翻译成中文，要求：
+1. 准确传达原书名的含义
+2. 符合中文图书命名习惯
+3. 保持书名的文学性和吸引力
+4. 只返回翻译结果，不要其他解释
+
+英文书名：{title}
+
+中文书名："""
+        
+        response = self._call_api(prompt)
+        if response:
+            # 清理响应，只保留书名
+            chinese_title = response.strip().replace("中文书名：", "").strip()
+            return chinese_title
+        else:
+            raise RuntimeError("书名翻译失败")
+    
+    def translate_chapter_title(self, title: str) -> str:
+        """
+        翻译章节标题
+        
+        Args:
+            title: 英文章节标题
+            
+        Returns:
+            中文章节标题
+        """
+        if not title.strip():
+            return ""
+        
+        prompt = f"""请将以下英文章节标题翻译成中文，要求：
+1. 准确传达章节内容主题
+2. 保持标题的简洁性
+3. 符合中文表达习惯
+4. 如果是"CHAPTER X"格式，保持章节编号
+5. 只返回翻译结果，不要其他解释
+
+英文章节标题：{title}
+
+中文章节标题："""
+        
+        response = self._call_api(prompt)
+        if response:
+            # 清理响应，只保留标题
+            chinese_title = response.strip().replace("中文章节标题：", "").strip()
+            return chinese_title
+        else:
+            raise RuntimeError("章节标题翻译失败")
+    
     def test_connection(self) -> bool:
         """测试API连接 - 必须成功"""
         print("正在测试硅基流动API连接...")

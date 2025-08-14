@@ -16,6 +16,66 @@ class TextProcessor:
         """初始化预处理器"""
         pass
     
+    def extract_book_info(self, text: str) -> Dict[str, str]:
+        """
+        从古腾堡项目文本头部提取书名和作者信息
+        
+        Args:
+            text: 原始文本内容
+            
+        Returns:
+            包含书名和作者的字典 {'title': str, 'author': str}
+        """
+        lines = text.split('\n')
+        book_info = {'title': '', 'author': ''}
+        
+        # 查找书名和作者信息的范围（头部50行内）
+        header_lines = lines[:50]
+        
+        # 寻找书名 - 在START标记后，author标记前
+        start_found = False
+        title_candidates = []
+        
+        for line in header_lines:
+            line = line.strip()
+            
+            # 找到START标记
+            if "START OF THE PROJECT GUTENBERG" in line.upper():
+                start_found = True
+                continue
+            
+            if start_found and line:
+                # 跳过插图标记
+                if line.startswith('[Illustration'):
+                    continue
+                
+                # 找到作者信息，停止收集标题
+                if line.lower().startswith('by '):
+                    # 提取作者名
+                    book_info['author'] = line[3:].strip()
+                    break
+                
+                # 跳过空行、星号、版权信息等
+                if (not line or 
+                    line.startswith('***') or 
+                    'copyright' in line.lower() or
+                    'dedicated' in line.lower() or
+                    'edition' in line.lower() or
+                    len(line) < 3):
+                    continue
+                
+                # 收集潜在的标题行
+                if len(line) > 3 and not line.isdigit():
+                    title_candidates.append(line)
+        
+        # 处理标题候选项，选择最合适的作为书名
+        if title_candidates:
+            # 优先选择较长且格式化的标题
+            best_title = max(title_candidates, key=lambda x: (len(x), x.istitle()))
+            book_info['title'] = best_title
+        
+        return book_info
+    
     def preprocess_text(self, text: str) -> List[Dict[str, str]]:
         """
         预处理文本：删除头部信息、目录，按章节分割

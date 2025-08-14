@@ -14,29 +14,35 @@ from typing import Dict, List, Any
 class StatisticsCollector:
     """统计信息收集器"""
     
-    def __init__(self, book_title: str = ""):
+    def __init__(self, book_title_en: str = "", book_title_zh: str = "", author: str = ""):
         """
         初始化统计收集器
         
         Args:
-            book_title: 书籍标题
+            book_title_en: 英文书籍标题
+            book_title_zh: 中文书籍标题
+            author: 作者
         """
-        self.book_title = book_title
+        self.book_title_en = book_title_en
+        self.book_title_zh = book_title_zh
+        self.book_title = book_title_en  # 保持向后兼容
+        self.author = author
         self.chapters_stats = []
         self.start_time = datetime.now()
         
         # 阅读速度常量（词/分钟）
         self.reading_speed_wpm = 250
     
-    def add_chapter_stats(self, chapter_number: int, chapter_title: str, 
-                         text: str, subtitle_count: int, segments_count: int,
-                         audio_duration: float) -> Dict[str, Any]:
+    def add_chapter_stats(self, chapter_number: int, chapter_title_en: str, 
+                         chapter_title_zh: str, text: str, subtitle_count: int, 
+                         segments_count: int, audio_duration: float) -> Dict[str, Any]:
         """
         添加章节统计信息
         
         Args:
             chapter_number: 章节编号
-            chapter_title: 章节标题
+            chapter_title_en: 英文章节标题
+            chapter_title_zh: 中文章节标题
             text: 章节文本内容
             subtitle_count: 字幕条目数
             segments_count: 音频段数
@@ -58,7 +64,9 @@ class StatisticsCollector:
         # 创建章节统计
         chapter_stats = {
             "chapter_number": chapter_number,
-            "chapter_title": chapter_title,
+            "chapter_title_en": chapter_title_en,
+            "chapter_title_zh": chapter_title_zh,
+            "chapter_title": chapter_title_en,  # 保持向后兼容
             "subtitle_count": subtitle_count,
             "character_count": character_count,
             "word_count": word_count,
@@ -96,7 +104,10 @@ class StatisticsCollector:
         avg_subtitle_per_chapter = total_subtitle_count / total_chapters
         
         return {
-            "book_title": self.book_title,
+            "book_title_en": self.book_title_en,
+            "book_title_zh": self.book_title_zh,
+            "book_title": self.book_title,  # 保持向后兼容
+            "author": self.author,
             "total_chapters": total_chapters,
             "total_subtitle_count": total_subtitle_count,
             "total_character_count": total_character_count,
@@ -164,8 +175,18 @@ class StatisticsCollector:
         content = []
         
         # 书籍标题
-        content.append(f"# {book_stats['book_title'] or '有声书统计报告'}")
+        if book_stats.get('book_title_zh') and book_stats.get('book_title_en'):
+            content.append(f"# {book_stats['book_title_zh']} ({book_stats['book_title_en']})")
+        elif book_stats.get('book_title_en'):
+            content.append(f"# {book_stats['book_title_en']}")
+        else:
+            content.append("# 有声书统计报告")
         content.append("")
+        
+        # 作者信息
+        if book_stats.get('author'):
+            content.append(f"**作者**: {book_stats['author']}")
+            content.append("")
         
         # 生成信息
         content.append("## 生成信息")
@@ -194,13 +215,17 @@ class StatisticsCollector:
         # 章节详情
         content.append("## 章节详情")
         content.append("")
-        content.append("| 章节 | 标题 | 字数 | 字幕数 | 音频时长 | 预计阅读时间 |")
-        content.append("|------|------|------|--------|----------|--------------|")
+        content.append("| 章节 | 英文标题 | 中文标题 | 字数 | 字幕数 | 音频时长 | 预计阅读时间 |")
+        content.append("|------|----------|----------|------|--------|----------|--------------|")
         
         for chapter in self.chapters_stats:
+            en_title = chapter.get('chapter_title_en', chapter.get('chapter_title', ''))
+            zh_title = chapter.get('chapter_title_zh', '')
+            
             content.append(
                 f"| {chapter['chapter_number']} | "
-                f"{chapter['chapter_title']} | "
+                f"{en_title} | "
+                f"{zh_title} | "
                 f"{chapter['word_count']} | "
                 f"{chapter['subtitle_count']} | "
                 f"{chapter['audio_duration_formatted']} | "
@@ -232,7 +257,18 @@ class StatisticsCollector:
         
         print("\n📊 有声书生成统计摘要")
         print("=" * 50)
-        print(f"📖 书籍: {book_stats['book_title'] or '未知'}")
+        
+        # 显示书名（优先显示双语）
+        if book_stats.get('book_title_zh') and book_stats.get('book_title_en'):
+            print(f"📖 书籍: {book_stats['book_title_zh']} ({book_stats['book_title_en']})")
+        elif book_stats.get('book_title_en'):
+            print(f"📖 书籍: {book_stats['book_title_en']}")
+        else:
+            print(f"📖 书籍: {book_stats.get('book_title', '未知')}")
+            
+        if book_stats.get('author'):
+            print(f"✍️  作者: {book_stats['author']}")
+            
         print(f"📚 章节数: {book_stats['total_chapters']}")
         print(f"📝 总字数: {book_stats['total_word_count']:,}")
         print(f"🎵 总时长: {book_stats['total_audio_duration_formatted']}")

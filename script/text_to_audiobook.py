@@ -72,14 +72,29 @@ class TextToAudiobook:
         with open(self.input_file, 'r', encoding='utf-8') as f:
             text = f.read()
         
+        # 提取书籍信息
+        print("正在提取书籍信息...")
+        book_info = self.text_processor.extract_book_info(text)
+        book_title_en = book_info.get('title', self.input_file.stem.replace('_', ' ').title())
+        author = book_info.get('author', '')
+        
+        print(f"📖 书名: {book_title_en}")
+        if author:
+            print(f"✍️  作者: {author}")
+        
+        # 翻译书名
+        print("正在翻译书名...")
+        book_title_zh = self.translator.translate_book_title(book_title_en) if book_title_en else ""
+        if book_title_zh:
+            print(f"📖 中文书名: {book_title_zh}")
+        
         # 预处理文本
         print("正在预处理文本...")
         chapters = self.text_processor.preprocess_text(text)
         print(f"识别到 {len(chapters)} 个章节")
         
-        # 设置书籍标题（从文件名推断）
-        book_title = self.input_file.stem.replace('_', ' ').title()
-        self.statistics.book_title = book_title
+        # 重新初始化统计收集器，包含双语书名信息
+        self.statistics = StatisticsCollector(book_title_en, book_title_zh, author)
         
         # 转换每个章节
         total_duration = 0
@@ -90,11 +105,18 @@ class TextToAudiobook:
             temp_subtitle_file = self.subtitle_dir / f"{chapter_name}_temp.srt"  # 临时英文字幕
             final_subtitle_file = self.subtitle_dir / f"{chapter_name}.srt"      # 最终合并字幕
             
-            print(f"\\n处理章节 {i}/{len(chapters)}: {chapter['title']}")
+            chapter_title_en = chapter['title']
+            print(f"\\n处理章节 {i}/{len(chapters)}: {chapter_title_en}")
+            
+            # 翻译章节标题
+            print(f"  正在翻译章节标题...")
+            chapter_title_zh = self.translator.translate_chapter_title(chapter_title_en)
+            if chapter_title_zh:
+                print(f"  中文标题: {chapter_title_zh}")
             
             # 过滤内容：移除章节标题和描述
             content = self.text_processor.filter_chapter_titles(
-                chapter['content'], chapter['title']
+                chapter['content'], chapter_title_en
             )
             
             if not content.strip():
@@ -132,7 +154,8 @@ class TextToAudiobook:
                 # 收集章节统计信息
                 self.statistics.add_chapter_stats(
                     chapter_number=i,
-                    chapter_title=chapter['title'],
+                    chapter_title_en=chapter_title_en,
+                    chapter_title_zh=chapter_title_zh,
                     text=content,
                     subtitle_count=subtitle_count,
                     segments_count=segments_count,
