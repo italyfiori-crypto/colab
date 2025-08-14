@@ -165,7 +165,7 @@ class ChineseTranslator:
         return self._parse_translation_response(response, batch)
     
     def _call_api(self, prompt: str) -> Optional[str]:
-        """调用API - 必须成功"""
+        """调用API - 带重试机制"""
         url = f"{self.base_url}/chat/completions"
         
         headers = {
@@ -191,15 +191,41 @@ class ChineseTranslator:
             "temperature": 0.3
         }
         
-        response = requests.post(url, json=payload, headers=headers, timeout=self.timeout)
-        response.raise_for_status()
+        # 带指数退避的重试机制
+        retry_delay = self.initial_retry_delay
+        last_exception = None
         
-        result = response.json()
-        if 'choices' in result and len(result['choices']) > 0:
-            content = result['choices'][0]['message']['content']
-            return content.strip()
-        else:
-            raise RuntimeError(f"API响应格式异常: {result}")
+        for attempt in range(self.max_retries + 1):
+            try:
+                response = requests.post(url, json=payload, headers=headers, timeout=self.timeout)
+                response.raise_for_status()
+                
+                result = response.json()
+                if 'choices' in result and len(result['choices']) > 0:
+                    content = result['choices'][0]['message']['content']
+                    if attempt > 0:
+                        print(f"✅ API调用在第{attempt + 1}次尝试后成功")
+                    return content.strip()
+                else:
+                    raise RuntimeError(f"API响应格式异常: {result}")
+                    
+            except Exception as e:
+                last_exception = e
+                
+                if attempt == self.max_retries:
+                    print(f"❌ API调用失败，已达到最大重试次数({self.max_retries + 1}次)")
+                    print(f"最后错误: {e}")
+                    raise RuntimeError(f"硅基流动API调用失败，重试{self.max_retries + 1}次后仍然失败: {e}")
+                
+                print(f"⚠️ API调用失败(第{attempt + 1}次尝试): {e}")
+                print(f"将在{retry_delay}秒后重试...")
+                time.sleep(retry_delay)
+                
+                # 指数退避，但不超过最大延迟
+                retry_delay = min(retry_delay * 2, self.max_retry_delay)
+        
+        # 理论上不会执行到这里
+        raise RuntimeError("API调用出现未知错误")
     
     def _parse_translation_response(self, response: str, batch: List[Dict]) -> List[Dict]:
         """解析翻译响应"""
