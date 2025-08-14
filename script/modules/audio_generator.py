@@ -22,7 +22,7 @@ except ImportError:
 class AudioGenerator:
     """音频生成器"""
     
-    def __init__(self, voice: str = 'af_heart', sample_rate: int = 24000):
+    def __init__(self, voice, sample_rate: int = 24000):
         """
         初始化音频生成器
         
@@ -54,7 +54,7 @@ class AudioGenerator:
             print("将使用模拟模式（仅生成字幕文件）")
             self.simulate_mode = True
     
-    def generate_audio(self, text: str, output_path: Path, text_splitter) -> Dict[str, float]:
+    def generate_audio(self, text: str, output_path: Path, text_splitter) -> Dict:
         """
         生成音频文件
         
@@ -64,7 +64,11 @@ class AudioGenerator:
             text_splitter: 文本分割器实例
             
         Returns:
-            包含音频统计信息的字典: {'duration': float, 'segments_count': int}
+            包含音频统计信息和分段时间信息的字典: {
+                'duration': float,
+                'segments_count': int,
+                'segment_timings': [{'text': str, 'start_time': float, 'end_time': float, 'duration': float}]
+            }
         """
         if self.simulate_mode:
             return self._simulate_audio_generation(text, text_splitter)
@@ -77,18 +81,39 @@ class AudioGenerator:
             segments = text_splitter.split_text(text, max_length=300)
             segments_count = len(segments)
             
-            # 生成各段的音频
+            # 生成各段的音频并记录时间信息
             all_audio = []
+            segment_timings = []
+            current_time = 0.0
+            
             for i, segment in enumerate(segments):
                 if segment.strip():
                     print(f"  处理第 {i+1}/{segments_count} 段...")
                     segment_audio = self._generate_segment_audio(segment)
                     if segment_audio is not None:
+                        # 计算当前段的时长
+                        segment_duration = len(segment_audio) / self.sample_rate
+                        
+                        # 记录分段时间信息
+                        segment_timings.append({
+                            'text': segment.strip(),
+                            'start_time': current_time,
+                            'end_time': current_time + segment_duration,
+                            'duration': segment_duration
+                        })
+                        
                         all_audio.append(segment_audio)
+                        current_time += segment_duration
+                        
+                        print(f"    段时长: {segment_duration:.3f}秒")
             
             if not all_audio:
                 print("没有成功生成任何音频段")
-                return {"duration": 0.0, "segments_count": segments_count}
+                return {
+                    "duration": 0.0, 
+                    "segments_count": segments_count,
+                    "segment_timings": []
+                }
             
             # 合并所有音频段
             audio = np.concatenate(all_audio)
@@ -100,7 +125,12 @@ class AudioGenerator:
             duration = len(audio) / self.sample_rate
             
             print(f"音频生成完成，时长: {duration:.2f}秒")
-            return {"duration": duration, "segments_count": segments_count}
+            print(f"共生成 {len(segment_timings)} 个音频段")
+            return {
+                "duration": duration, 
+                "segments_count": segments_count,
+                "segment_timings": segment_timings
+            }
             
         except Exception as e:
             print(f"生成音频时出错: {e}")
@@ -126,16 +156,39 @@ class AudioGenerator:
             print(f"  段音频生成失败: {e}")
             return None
     
-    def _simulate_audio_generation(self, text: str, text_splitter) -> Dict[str, float]:
+    def _simulate_audio_generation(self, text: str, text_splitter) -> Dict:
         """模拟模式下的音频时长估算"""
         print("使用模拟模式生成音频时长估算")
         word_count = len(text.split())
         estimated_duration = (word_count / self.words_per_minute) * 60
         
-        # 计算分段数
+        # 计算分段数和模拟时间信息
         segments = text_splitter.split_text(text, max_length=300)
         segments_count = len(segments)
         
+        # 为每个段估算时间
+        segment_timings = []
+        current_time = 0.0
+        
+        for segment in segments:
+            if segment.strip():
+                # 基于单词数估算段时长
+                segment_words = len(segment.split())
+                segment_duration = (segment_words / self.words_per_minute) * 60
+                
+                segment_timings.append({
+                    'text': segment.strip(),
+                    'start_time': current_time,
+                    'end_time': current_time + segment_duration,
+                    'duration': segment_duration
+                })
+                
+                current_time += segment_duration
+        
         print(f"估算音频时长: {estimated_duration:.2f}秒")
         print(f"分段数量: {segments_count}")
-        return {"duration": estimated_duration, "segments_count": segments_count}
+        return {
+            "duration": estimated_duration, 
+            "segments_count": segments_count,
+            "segment_timings": segment_timings
+        }

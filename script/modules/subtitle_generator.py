@@ -18,7 +18,7 @@ class SubtitleGenerator:
         pass
     
     def generate_subtitle(self, text: str, duration: float, output_path: Path, 
-                         text_splitter, chapter_offset: float = 0) -> int:
+                         text_splitter, chapter_offset: float = 0, segment_timings=None) -> int:
         """
         生成SRT字幕文件
         
@@ -28,20 +28,27 @@ class SubtitleGenerator:
             output_path: 输出字幕文件路径
             text_splitter: 文本分割器实例
             chapter_offset: 章节时间偏移（用于合并字幕）
+            segment_timings: 音频分段时间信息列表（来自音频生成器）
             
         Returns:
             字幕条目数量
         """
         print(f"正在生成字幕: {output_path.name}")
         
-        # 使用文本分割器生成短字幕条目
-        segments = text_splitter.split_text(text, max_length=120)
-        
-        if not segments:
-            return 0
-        
-        # 计算字幕时间轴
-        subtitle_entries = self._calculate_subtitle_timing(segments, duration, chapter_offset)
+        # 优先使用音频分段时间信息
+        if segment_timings:
+            print("使用音频分段的实际时间信息")
+            subtitle_entries = self._create_subtitles_from_audio_timings(segment_timings, text_splitter, chapter_offset)
+        else:
+            print("使用传统的时间估算方法")
+            # 使用文本分割器生成短字幕条目
+            segments = text_splitter.split_text(text, max_length=120)
+            
+            if not segments:
+                return 0
+            
+            # 计算字幕时间轴
+            subtitle_entries = self._calculate_subtitle_timing(segments, duration, chapter_offset)
         
         # 简单的引号修复
         subtitle_entries = self._fix_basic_quotes(subtitle_entries)
@@ -119,6 +126,86 @@ class SubtitleGenerator:
             
             current_time = end_time
         
+        return subtitle_entries
+    
+    def _create_subtitles_from_audio_timings(self, segment_timings: List[Dict], text_splitter, chapter_offset: float = 0) -> List[Dict]:
+        """
+        基于音频分段的实际时间信息创建字幕条目
+        
+        Args:
+            segment_timings: 音频分段时间信息列表
+            text_splitter: 文本分割器实例
+            chapter_offset: 章节时间偏移
+            
+        Returns:
+            字幕条目列表
+        """
+        subtitle_entries = []
+        
+        for segment_timing in segment_timings:
+            segment_text = segment_timing['text']
+            segment_start = segment_timing['start_time'] + chapter_offset
+            segment_end = segment_timing['end_time'] + chapter_offset
+            
+            # 将每个音频段进一步分割为更短的字幕条目
+            sub_segments = text_splitter.split_text(segment_text, max_length=120)
+            
+            if not sub_segments:
+                continue
+            
+            # 在当前音频段的时间范围内分配子段时间
+            segment_duration = segment_end - segment_start
+            
+            # 计算子段权重
+            sub_weights = []
+            for sub_segment in sub_segments:
+                words = len(sub_segment.split())
+                punctuation_weight = (sub_segment.count(',') * 0.3 + 
+                                    sub_segment.count(';') * 0.5 + 
+                                    sub_segment.count(':') * 0.4 + 
+                                    sub_segment.count('.') * 0.8)
+                quote_weight = sub_segment.count('"') * 0.2
+                weight = words + punctuation_weight + quote_weight
+                sub_weights.append(weight)
+            
+            total_weight = sum(sub_weights) if sub_weights else 1
+            current_time = segment_start
+            
+            for i, (sub_segment, weight) in enumerate(zip(sub_segments, sub_weights)):
+                sub_segment = sub_segment.strip()
+                if not sub_segment:
+                    continue
+                
+                # 基于权重在当前音频段内分配时间
+                sub_duration = (weight / total_weight) * segment_duration
+                
+                # 设置最小和最大显示时间
+                min_duration = max(1.5, len(sub_segment) / 100)
+                max_duration = min(segment_duration / len(sub_segments), len(sub_segment) / 10)
+                
+                sub_duration = max(min_duration, min(max_duration, sub_duration))
+                
+                start_time = current_time
+                end_time = min(current_time + sub_duration, segment_end)
+                
+                # 确保最后一个子段结束在音频段结束时间
+                if i == len(sub_segments) - 1:
+                    end_time = segment_end
+                
+                # 格式化时间戳
+                start_timestamp = self._format_timestamp(start_time)
+                end_timestamp = self._format_timestamp(end_time)
+                
+                subtitle_entries.append({
+                    'index': len(subtitle_entries) + 1,
+                    'start': start_timestamp,
+                    'end': end_timestamp,
+                    'text': sub_segment
+                })
+                
+                current_time = end_time
+        
+        print(f"基于 {len(segment_timings)} 个音频段生成了 {len(subtitle_entries)} 条字幕")
         return subtitle_entries
     
     def _fix_basic_quotes(self, subtitle_entries: List[Dict]) -> List[Dict]:

@@ -112,12 +112,13 @@ class TextToAudiobook:
             
             duration = audio_result.get("duration", 0)
             segments_count = audio_result.get("segments_count", 0)
+            segment_timings = audio_result.get("segment_timings", [])
             
             if duration > 0:
-                # 生成临时英文字幕
+                # 生成临时英文字幕（使用音频分段时间信息）
                 subtitle_count = self.subtitle_generator.generate_subtitle(
                     content, duration, temp_subtitle_file, 
-                    self.text_splitter, total_duration
+                    self.text_splitter, total_duration, segment_timings
                 )
                 
                 # 生成中英文合并字幕

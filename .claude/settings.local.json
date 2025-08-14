@@ -7,7 +7,9 @@
       "Bash(python3:*)",
       "WebFetch(domain:docs.siliconflow.cn)",
       "Bash(ls:*)",
-      "Bash(rm:*)"
+      "Bash(rm:*)",
+      "Bash(cp:*)",
+      "WebFetch(domain:developers.weixin.qq.com)"
     ],
     "deny": []
   }

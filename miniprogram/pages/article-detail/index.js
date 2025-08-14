@@ -17,7 +17,7 @@ Page({
         // 音频控制
         isPlaying: false,
         currentTime: 0,
-        duration: 240, // 4分钟，与mock音频长度匹配
+        duration: 168, // 2分48秒，与Alice音频长度匹配
         playSpeed: 1,
         speedOptions: [0.7, 0.85, 1.0, 1.25],
         isLooping: false, // 循环播放当前字幕
@@ -26,7 +26,7 @@ Page({
         showSettings: false,
         isFavorited: false,
         showVocabulary: false,
-        
+
         // 单词卡片数据
         vocabularyTitle: '',
         vocabularyWords: [],
@@ -69,13 +69,106 @@ Page({
 
     // 加载字幕数据
     loadSubtitleData() {
-        // 这里应该根据articleId获取对应的数据，现在使用solar.txt
-        const mockData = articleDetailData.subtitles;
-        const subtitles = this.parseSubtitleData(mockData);
-        this.setData({ subtitles });
+        console.log('开始加载字幕数据...');
+        try {
+            // 使用默认的mock数据
+            const mockData = articleDetailData.subtitles;
+            const subtitles = this.parseSubtitleData(mockData);
+            this.setData({ subtitles });
+            
+            // 显示成功提示
+            wx.showToast({
+                title: '字幕加载成功',
+                icon: 'success',
+                duration: 1500
+            });
+        } catch (error) {
+            console.error('字幕加载失败:', error);
+            // 设置空数组防止进一步错误
+            this.setData({ subtitles: [] });
+            
+            // 显示错误提示
+            wx.showToast({
+                title: '字幕加载失败',
+                icon: 'none',
+                duration: 1500
+            });
+        }
     },
 
-    // 解析字幕数据
+    // 从SRT文件加载字幕数据
+    loadSRTFile() {
+        return new Promise((resolve, reject) => {
+            const fs = wx.getFileSystemManager();
+            const filePath = '/mock/chapter_01.srt'; // 代码包文件路径
+
+            fs.readFile({
+                filePath: filePath,
+                encoding: 'utf8',
+                success: (res) => {
+                    try {
+                        const subtitles = this.parseSRTData(res.data);
+                        resolve(subtitles);
+                    } catch (error) {
+                        reject(new Error(`解析SRT文件失败: ${error.message}`));
+                    }
+                },
+                fail: (error) => {
+                    console.log('读取SRT文件失败:', error);
+                    reject(new Error(`读取文件失败: ${error.errMsg || error.message}`));
+                }
+            });
+        });
+    },
+
+    // 解析SRT格式字幕数据
+    parseSRTData(data) {
+        const subtitles = [];
+        const blocks = data.trim().split(/\n\s*\n/); // 按空行分割字幕块
+
+        for (let block of blocks) {
+            const lines = block.trim().split('\n');
+            if (lines.length >= 4) {
+                const index = lines[0]; // 字幕序号
+                const timeRange = lines[1]; // 时间范围
+                const english = lines[2]; // 英文
+                const chinese = lines[3]; // 中文
+
+                // 解析开始时间
+                const startTime = this.parseSRTTimeToSeconds(timeRange.split(' --> ')[0]);
+
+                subtitles.push({
+                    timeText: this.formatSecondsToMinutes(startTime),
+                    time: startTime,
+                    english: english,
+                    chinese: chinese
+                });
+            }
+        }
+
+        return subtitles;
+    },
+
+    // 将SRT时间格式转换为秒 (HH:MM:SS,mmm)
+    parseSRTTimeToSeconds(timeStr) {
+        const parts = timeStr.split(':');
+        const hours = parseInt(parts[0]) || 0;
+        const minutes = parseInt(parts[1]) || 0;
+        const secondsParts = parts[2].split(',');
+        const seconds = parseInt(secondsParts[0]) || 0;
+        const milliseconds = parseInt(secondsParts[1]) || 0;
+
+        return hours * 3600 + minutes * 60 + seconds + milliseconds / 1000;
+    },
+
+    // 将秒数格式化为分:秒格式
+    formatSecondsToMinutes(seconds) {
+        const minutes = Math.floor(seconds / 60);
+        const secs = Math.floor(seconds % 60);
+        return `${minutes}:${secs.toString().padStart(2, '0')}`;
+    },
+
+    // 解析字幕数据（原有的简单格式）
     parseSubtitleData(data) {
         const lines = data.trim().split('\n');
         const subtitles = [];
@@ -114,7 +207,7 @@ Page({
     // 创建音频上下文
     createAudioContext() {
         this.audioContext = wx.createInnerAudioContext();
-        this.audioContext.src = '/mock/solar.mp3';
+        this.audioContext.src = 'mock/chapter_01.wav'; // 使用相对路径访问代码包文件
         this.audioContext.autoplay = false;
 
         // 监听音频事件
@@ -333,9 +426,9 @@ Page({
             }
             return word;
         });
-        
+
         this.setData({ vocabularyWords });
-        
+
         const word = vocabularyWords.find(w => w.id === wordId);
         wx.showToast({
             title: word.isFavorited ? '已收藏' : '已取消收藏',
@@ -359,10 +452,10 @@ Page({
     // 卡片触摸移动
     onCardTouchMove(e) {
         if (!this.data.showVocabulary) return;
-        
+
         this.cardCurrentY = e.touches[0].clientY;
         const deltaY = this.cardCurrentY - this.cardStartY;
-        
+
         // 只允许向下滑动
         if (deltaY > 0) {
             this.cardMoving = true;
@@ -373,15 +466,15 @@ Page({
     // 卡片触摸结束
     onCardTouchEnd(e) {
         if (!this.data.showVocabulary || !this.cardMoving) return;
-        
+
         const deltaY = this.cardCurrentY - this.cardStartY;
         const threshold = 100; // 关闭阈值
-        
+
         if (deltaY > threshold) {
             // 向下滑动超过阈值，关闭卡片
             this.onCloseVocabulary();
         }
-        
+
         // 重置状态
         this.cardMoving = false;
         this.cardStartY = 0;
