@@ -3,7 +3,11 @@
     "allow": [
       "WebFetch(domain:www.cnblogs.com)",
       "Bash(mkdir:*)",
-      "WebFetch(domain:github.com)"
+      "WebFetch(domain:github.com)",
+      "Bash(python3:*)",
+      "WebFetch(domain:docs.siliconflow.cn)",
+      "Bash(ls:*)",
+      "Bash(rm:*)"
     ],
     "deny": []
   }
