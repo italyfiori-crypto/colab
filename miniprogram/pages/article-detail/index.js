@@ -70,137 +70,37 @@ Page({
     // 加载字幕数据
     loadSubtitleData() {
         console.log('开始加载字幕数据...');
-        try {
-            // 使用默认的mock数据
-            const mockData = articleDetailData.subtitles;
-            const subtitles = this.parseSubtitleData(mockData);
-            this.setData({ subtitles });
-            
-            // 显示成功提示
-            wx.showToast({
-                title: '字幕加载成功',
-                icon: 'success',
-                duration: 1500
-            });
-        } catch (error) {
-            console.error('字幕加载失败:', error);
-            // 设置空数组防止进一步错误
-            this.setData({ subtitles: [] });
-            
-            // 显示错误提示
-            wx.showToast({
-                title: '字幕加载失败',
-                icon: 'none',
-                duration: 1500
-            });
-        }
-    },
-
-    // 从SRT文件加载字幕数据
-    loadSRTFile() {
-        return new Promise((resolve, reject) => {
-            const fs = wx.getFileSystemManager();
-            const filePath = '/mock/chapter_01.srt'; // 代码包文件路径
-
-            fs.readFile({
-                filePath: filePath,
-                encoding: 'utf8',
-                success: (res) => {
-                    try {
-                        const subtitles = this.parseSRTData(res.data);
-                        resolve(subtitles);
-                    } catch (error) {
-                        reject(new Error(`解析SRT文件失败: ${error.message}`));
-                    }
-                },
-                fail: (error) => {
-                    console.log('读取SRT文件失败:', error);
-                    reject(new Error(`读取文件失败: ${error.errMsg || error.message}`));
-                }
-            });
+        wx.showLoading({
+            title: '加载字幕中...'
         });
-    },
-
-    // 解析SRT格式字幕数据
-    parseSRTData(data) {
-        const subtitles = [];
-        const blocks = data.trim().split(/\n\s*\n/); // 按空行分割字幕块
-
-        for (let block of blocks) {
-            const lines = block.trim().split('\n');
-            if (lines.length >= 4) {
-                const index = lines[0]; // 字幕序号
-                const timeRange = lines[1]; // 时间范围
-                const english = lines[2]; // 英文
-                const chinese = lines[3]; // 中文
-
-                // 解析开始时间
-                const startTime = this.parseSRTTimeToSeconds(timeRange.split(' --> ')[0]);
-
-                subtitles.push({
-                    timeText: this.formatSecondsToMinutes(startTime),
-                    time: startTime,
-                    english: english,
-                    chinese: chinese
+        
+        // 使用articleDetailData中的方法从SRT文件加载字幕
+        articleDetailData.loadSubtitlesFromSRT()
+            .then(subtitles => {
+                this.setData({ subtitles });
+                wx.hideLoading();
+                wx.showToast({
+                    title: '字幕加载成功',
+                    icon: 'success',
+                    duration: 1500
                 });
-            }
-        }
-
-        return subtitles;
-    },
-
-    // 将SRT时间格式转换为秒 (HH:MM:SS,mmm)
-    parseSRTTimeToSeconds(timeStr) {
-        const parts = timeStr.split(':');
-        const hours = parseInt(parts[0]) || 0;
-        const minutes = parseInt(parts[1]) || 0;
-        const secondsParts = parts[2].split(',');
-        const seconds = parseInt(secondsParts[0]) || 0;
-        const milliseconds = parseInt(secondsParts[1]) || 0;
-
-        return hours * 3600 + minutes * 60 + seconds + milliseconds / 1000;
-    },
-
-    // 将秒数格式化为分:秒格式
-    formatSecondsToMinutes(seconds) {
-        const minutes = Math.floor(seconds / 60);
-        const secs = Math.floor(seconds % 60);
-        return `${minutes}:${secs.toString().padStart(2, '0')}`;
-    },
-
-    // 解析字幕数据（原有的简单格式）
-    parseSubtitleData(data) {
-        const lines = data.trim().split('\n');
-        const subtitles = [];
-
-        for (let i = 0; i < lines.length; i += 3) {
-            if (i + 2 < lines.length) {
-                const timeText = lines[i];
-                const english = lines[i + 1];
-                const chinese = lines[i + 2];
-
-                // 转换时间为秒
-                const timeSeconds = this.parseTimeToSeconds(timeText);
-
-                subtitles.push({
-                    timeText,
-                    time: timeSeconds,
-                    english,
-                    chinese
+            })
+            .catch(error => {
+                console.error('字幕加载失败:', error);
+                wx.hideLoading();
+                wx.showToast({
+                    title: '字幕加载失败',
+                    icon: 'none',
+                    duration: 1500
                 });
-            }
-        }
-
-        return subtitles;
+            });
     },
 
-    // 将时间字符串转换为秒
-    parseTimeToSeconds(timeStr) {
-        const parts = timeStr.split(':');
-        const minutes = parseInt(parts[0]) || 0;
-        const seconds = parseInt(parts[1]) || 0;
-        return minutes * 60 + seconds;
-    },
+
+
+
+
+
 
 
 
@@ -295,7 +195,7 @@ Page({
         }
 
         if (newIndex !== this.data.currentIndex) {
-            this.setScrollAlignment(newIndex);
+            this.setScrollAlignment();
             this.setData({
                 currentIndex: newIndex,
                 currentSubtitleId: `subtitle-${newIndex}`
@@ -319,7 +219,7 @@ Page({
             const newIndex = currentIndex - 1;
             const time = subtitles[newIndex].time;
             this.audioContext.seek(time);
-            this.setScrollAlignment(newIndex);
+            this.setScrollAlignment();
             this.setData({
                 currentIndex: newIndex,
                 currentSubtitleId: `subtitle-${newIndex}`,
@@ -335,7 +235,7 @@ Page({
             const newIndex = currentIndex + 1;
             const time = subtitles[newIndex].time;
             this.audioContext.seek(time);
-            this.setScrollAlignment(newIndex);
+            this.setScrollAlignment();
             this.setData({
                 currentIndex: newIndex,
                 currentSubtitleId: `subtitle-${newIndex}`,
@@ -349,7 +249,7 @@ Page({
         const index = e.currentTarget.dataset.index;
         const time = this.data.subtitles[index].time;
         this.audioContext.seek(time);
-        this.setScrollAlignment(index);
+        this.setScrollAlignment();
         this.setData({
             currentIndex: index,
             currentSubtitleId: `subtitle-${index}`,
@@ -394,8 +294,6 @@ Page({
 
     // 单词按钮 - 显示单词卡片
     onDict() {
-        const { articleId, title } = this.data;
-
         // 设置单词卡片数据
         this.setData({
             vocabularyTitle: '南非能源危机 单词',
@@ -464,7 +362,7 @@ Page({
     },
 
     // 卡片触摸结束
-    onCardTouchEnd(e) {
+    onCardTouchEnd() {
         if (!this.data.showVocabulary || !this.cardMoving) return;
 
         const deltaY = this.cardCurrentY - this.cardStartY;
@@ -570,8 +468,8 @@ Page({
     },
 
     // 设置滚动偏移量（歌词式逻辑）
-    setScrollAlignment(index) {
-        const { subtitles, containerHeight } = this.data;
+    setScrollAlignment() {
+        const { containerHeight } = this.data;
 
         if (containerHeight === 0) return;
 
@@ -579,4 +477,4 @@ Page({
         const centerOffset = -(containerHeight / 3 - 60); // 60是大概的字幕项高度的一半        
         this.setData({ scrollOffset: centerOffset });
     }
-}); 
+});

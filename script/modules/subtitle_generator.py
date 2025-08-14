@@ -17,38 +17,25 @@ class SubtitleGenerator:
         """初始化字幕生成器"""
         pass
     
-    def generate_subtitle(self, text: str, duration: float, output_path: Path, 
-                         text_splitter, chapter_offset: float = 0, segment_timings=None) -> int:
+    def generate_subtitle_from_segments(self, segments: List[str], segment_timings: List[Dict], 
+                                       output_path: Path, chapter_offset: float = 0) -> int:
         """
-        生成SRT字幕文件
+        从预分割的文本段和音频时间信息生成SRT字幕文件
         
         Args:
-            text: 文本内容
-            duration: 音频时长
-            output_path: 输出字幕文件路径
-            text_splitter: 文本分割器实例
-            chapter_offset: 章节时间偏移（用于合并字幕）
+            segments: 预分割的文本段列表
             segment_timings: 音频分段时间信息列表（来自音频生成器）
+            output_path: 输出字幕文件路径
+            chapter_offset: 章节时间偏移（用于合并字幕）
             
         Returns:
             字幕条目数量
         """
         print(f"正在生成字幕: {output_path.name}")
+        print(f"处理 {len(segments)} 个文本段，对应 {len(segment_timings)} 个音频段")
         
-        # 优先使用音频分段时间信息
-        if segment_timings:
-            print("使用音频分段的实际时间信息")
-            subtitle_entries = self._create_subtitles_from_audio_timings(segment_timings, text_splitter, chapter_offset)
-        else:
-            print("使用传统的时间估算方法")
-            # 使用文本分割器生成短字幕条目
-            segments = text_splitter.split_text(text, max_length=120)
-            
-            if not segments:
-                return 0
-            
-            # 计算字幕时间轴
-            subtitle_entries = self._calculate_subtitle_timing(segments, duration, chapter_offset)
+        # 直接使用音频分段时间信息，一个音频段对应一个字幕条目
+        subtitle_entries = self._create_subtitles_directly(segment_timings, chapter_offset)
         
         # 简单的引号修复
         subtitle_entries = self._fix_basic_quotes(subtitle_entries)
@@ -252,6 +239,41 @@ class SubtitleGenerator:
         
         return fixed_entries
     
+    def _create_subtitles_directly(self, segment_timings: List[Dict], chapter_offset: float = 0) -> List[Dict]:
+        """
+        直接从音频分段时间信息创建字幕条目，不进行二次分割
+        
+        Args:
+            segment_timings: 音频分段时间信息列表
+            chapter_offset: 章节时间偏移
+            
+        Returns:
+            字幕条目列表
+        """
+        subtitle_entries = []
+        
+        for segment_timing in segment_timings:
+            segment_text = segment_timing['text'].strip()
+            if not segment_text:
+                continue
+                
+            segment_start = segment_timing['start_time'] + chapter_offset
+            segment_end = segment_timing['end_time'] + chapter_offset
+            
+            # 格式化时间戳
+            start_timestamp = self._format_timestamp(segment_start)
+            end_timestamp = self._format_timestamp(segment_end)
+            
+            subtitle_entries.append({
+                'index': len(subtitle_entries) + 1,
+                'start': start_timestamp,
+                'end': end_timestamp,
+                'text': segment_text
+            })
+        
+        print(f"直接创建了 {len(subtitle_entries)} 个字幕条目")
+        return subtitle_entries
+    
     def _format_timestamp(self, seconds: float) -> str:
         """格式化时间戳为SRT格式"""
         td = timedelta(seconds=seconds)
@@ -270,3 +292,4 @@ class SubtitleGenerator:
                 f.write(f"{entry['index']}\n")
                 f.write(f"{entry['start']} --> {entry['end']}\n")
                 f.write(f"{entry['text']}\n\n")
+    

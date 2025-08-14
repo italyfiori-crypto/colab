@@ -11,10 +11,7 @@ import json
 from pathlib import Path
 from typing import List, Dict, Optional
 
-try:
-    import requests
-except ImportError:
-    requests = None
+import requests
 
 
 class ChineseTranslator:
@@ -41,12 +38,10 @@ class ChineseTranslator:
         self.batch_size = 5  # 每次翻译的字幕条目数量
         
         if not self.api_key:
-            print("⚠️  未找到硅基流动API密钥")
+            print("❌ 未找到硅基流动API密钥")
             print("请设置环境变量 SILICONFLOW_API_KEY 或在初始化时传入api_key参数")
             print("获取API密钥: https://cloud.siliconflow.cn/")
-        
-        if not requests:
-            print("⚠️  未安装requests库，请运行: pip install requests")
+            raise RuntimeError("翻译器初始化失败: 缺少API密钥")
     
     def generate_bilingual_subtitle(self, english_srt_path: Path, output_path: Path) -> bool:
         """
@@ -59,11 +54,6 @@ class ChineseTranslator:
         Returns:
             翻译是否成功
         """
-        if not self.api_key or not requests:
-            print("翻译功能不可用，生成纯英文字幕")
-            # 复制英文字幕到输出路径
-            self._copy_english_subtitle(english_srt_path, output_path)
-            return False
         
         print(f"正在生成中英文合并字幕: {english_srt_path.name} -> {output_path.name}")
         
@@ -80,9 +70,7 @@ class ChineseTranslator:
             translated_entries = self._translate_subtitle_entries(subtitle_entries)
             
             if not translated_entries:
-                print("翻译失败，生成纯英文字幕")
-                self._copy_english_subtitle(english_srt_path, output_path)
-                return False
+                raise RuntimeError("字幕翻译失败")
             
             # 写入中英文合并SRT文件
             self._write_bilingual_srt(translated_entries, output_path)
@@ -90,10 +78,8 @@ class ChineseTranslator:
             return True
             
         except Exception as e:
-            print(f"翻译过程中出错: {e}")
-            print("生成纯英文字幕作为备选")
-            self._copy_english_subtitle(english_srt_path, output_path)
-            return False
+            print(f"❌ 翻译过程中出错: {e}")
+            raise
     
     def _parse_srt_file(self, srt_path: Path) -> List[Dict]:
         """解析SRT文件"""
@@ -140,17 +126,9 @@ class ChineseTranslator:
             
             print(f"  翻译批次 {batch_num}/{total_batches} ({len(batch)} 条字幕)")
             
-            # 翻译当前批次
+            # 翻译当前批次 - 必须成功
             translated_batch = self._translate_batch(batch)
-            
-            if translated_batch:
-                translated_entries.extend(translated_batch)
-            else:
-                print(f"  批次 {batch_num} 翻译失败，使用原文")
-                # 翻译失败时使用原文
-                for entry in batch:
-                    entry['chinese_text'] = entry['english_text']
-                translated_entries.extend(batch)
+            translated_entries.extend(translated_batch)
             
             # 添加延迟避免API限流
             if i + self.batch_size < total_entries:
@@ -178,26 +156,16 @@ class ChineseTranslator:
 
 请严格按照 "编号. 中文翻译" 的格式输出，每行一条字幕："""
         
-        # 调用API进行翻译，使用指数退避重试
-        for attempt in range(self.max_retries):
-            try:
-                response = self._call_api_with_retry(prompt, attempt)
-                if response:
-                    # 解析翻译结果
-                    return self._parse_translation_response(response, batch)
-                
-            except Exception as e:
-                print(f"  翻译尝试 {attempt + 1} 失败: {e}")
-                if attempt < self.max_retries - 1:
-                    # 指数退避延迟
-                    delay = min(self.initial_retry_delay * (2 ** attempt), self.max_retry_delay)
-                    print(f"  等待 {delay} 秒后重试...")
-                    time.sleep(delay)
+        # 调用API进行翻译 - 不重试，必须成功
+        response = self._call_api(prompt)
+        if not response:
+            raise RuntimeError("翻译API调用失败")
         
-        return None
+        # 解析翻译结果
+        return self._parse_translation_response(response, batch)
     
-    def _call_api_with_retry(self, prompt: str, attempt: int) -> Optional[str]:
-        """带重试逻辑的API调用"""
+    def _call_api(self, prompt: str) -> Optional[str]:
+        """调用API - 必须成功"""
         url = f"{self.base_url}/chat/completions"
         
         headers = {
@@ -220,52 +188,18 @@ class ChineseTranslator:
             ],
             "stream": False,
             "max_tokens": 2000,
-            "temperature": 0.3  # 较低的温度以确保翻译一致性
+            "temperature": 0.3
         }
         
-        try:
-            # 动态调整超时时间
-            timeout = self.timeout + (attempt * 5)  # 每次重试增加5秒超时
-            
-            response = requests.post(url, json=payload, headers=headers, timeout=timeout)
-            
-            # 检查HTTP状态码
-            if response.status_code == 429:  # 速率限制
-                print(f"  遇到速率限制，等待更长时间...")
-                raise requests.exceptions.RequestException("Rate limit exceeded")
-            elif response.status_code >= 500:  # 服务器错误，可重试
-                print(f"  服务器错误 {response.status_code}，可重试")
-                raise requests.exceptions.RequestException(f"Server error: {response.status_code}")
-            elif response.status_code >= 400:  # 客户端错误，不重试
-                print(f"  客户端错误 {response.status_code}，不重试")
-                return None
-            
-            response.raise_for_status()
-            
-            result = response.json()
-            if 'choices' in result and len(result['choices']) > 0:
-                content = result['choices'][0]['message']['content']
-                return content.strip()
-            else:
-                print(f"API响应格式异常: {result}")
-                return None
-                
-        except requests.exceptions.Timeout:
-            print(f"  请求超时 (超时时间: {timeout}秒)")
-            raise
-        except requests.exceptions.ConnectionError:
-            print(f"  连接错误")
-            raise
-        except requests.exceptions.RequestException as e:
-            print(f"  API请求失败: {e}")
-            raise
-        except json.JSONDecodeError as e:
-            print(f"  API响应解析失败: {e}")
-            return None
-    
-    def _call_api(self, prompt: str) -> Optional[str]:
-        """简单API调用（向后兼容）"""
-        return self._call_api_with_retry(prompt, 0)
+        response = requests.post(url, json=payload, headers=headers, timeout=self.timeout)
+        response.raise_for_status()
+        
+        result = response.json()
+        if 'choices' in result and len(result['choices']) > 0:
+            content = result['choices'][0]['message']['content']
+            return content.strip()
+        else:
+            raise RuntimeError(f"API响应格式异常: {result}")
     
     def _parse_translation_response(self, response: str, batch: List[Dict]) -> List[Dict]:
         """解析翻译响应"""
@@ -292,24 +226,9 @@ class ChineseTranslator:
                         entry['chinese_text'] = chinese_text
                         translated_batch.append(entry)
         
-        # 如果解析失败，回退到按顺序匹配
+        # 如果解析失败，直接报错
         if len(translated_batch) != len(batch):
-            print(f"  解析翻译结果异常，尝试按顺序匹配")
-            translated_batch = []
-            for i, entry in enumerate(batch):
-                if i < len(lines):
-                    # 移除可能的编号前缀
-                    chinese_text = lines[i].strip()
-                    if '. ' in chinese_text:
-                        chinese_text = chinese_text.split('. ', 1)[1]
-                    
-                    entry_copy = entry.copy()
-                    entry_copy['chinese_text'] = chinese_text or entry['english_text']
-                    translated_batch.append(entry_copy)
-                else:
-                    entry_copy = entry.copy()
-                    entry_copy['chinese_text'] = entry['english_text']
-                    translated_batch.append(entry_copy)
+            raise RuntimeError(f"翻译结果解析失败，期望{len(batch)}条，实际解析{len(translated_batch)}条")
         
         return translated_batch
     
@@ -324,37 +243,14 @@ class ChineseTranslator:
                 f.write(f"{entry['english_text']}\n")
                 f.write(f"{entry['chinese_text']}\n\n")
     
-    def _copy_english_subtitle(self, english_srt_path: Path, output_path: Path):
-        """复制英文字幕作为备选"""
-        output_path.parent.mkdir(parents=True, exist_ok=True)
-        
-        try:
-            with open(english_srt_path, 'r', encoding='utf-8') as src:
-                content = src.read()
-            
-            with open(output_path, 'w', encoding='utf-8') as dst:
-                dst.write(content)
-            
-            print(f"已复制英文字幕到: {output_path}")
-        except Exception as e:
-            print(f"复制英文字幕失败: {e}")
     
     def test_connection(self) -> bool:
-        """测试API连接"""
-        if not self.api_key or not requests:
-            return False
+        """测试API连接 - 必须成功"""
+        print("正在测试硅基流动API连接...")
+        response = self._call_api("请回答：你好")
         
-        try:
-            print("正在测试硅基流动API连接...")
-            response = self._call_api("请回答：你好")
-            
-            if response:
-                print(f"✅ API连接成功，响应: {response[:50]}...")
-                return True
-            else:
-                print("❌ API连接失败")
-                return False
-                
-        except Exception as e:
-            print(f"❌ API连接测试失败: {e}")
-            return False
+        if response:
+            print(f"✅ API连接成功，响应: {response[:50]}...")
+            return True
+        else:
+            raise RuntimeError("API连接失败")

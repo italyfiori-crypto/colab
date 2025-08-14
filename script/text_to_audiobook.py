@@ -59,22 +59,18 @@ class TextToAudiobook:
         
         # 初始化翻译器（必需功能）
         self.translator = ChineseTranslator()
-        # 测试API连接
+        # 测试API连接 - 失败直接退出
         if not self.translator.test_connection():
-            print("⚠️  翻译功能初始化失败，程序将继续运行但不生成中文字幕")
-            self.translator = None
+            print("❌ 翻译功能初始化失败，程序退出")
+            sys.exit(1)
     
     def convert(self):
         """执行完整的转换过程"""
         print(f"开始转换文件: {self.input_file}")
         
-        # 读取输入文件
-        try:
-            with open(self.input_file, 'r', encoding='utf-8') as f:
-                text = f.read()
-        except Exception as e:
-            print(f"读取文件失败: {e}")
-            return
+        # 读取输入文件 - 失败直接退出
+        with open(self.input_file, 'r', encoding='utf-8') as f:
+            text = f.read()
         
         # 预处理文本
         print("正在预处理文本...")
@@ -102,12 +98,17 @@ class TextToAudiobook:
             )
             
             if not content.strip():
-                print("  章节内容为空，跳过")
-                continue
+                print("❌ 章节内容为空，处理失败")
+                sys.exit(1)
             
-            # 生成音频
-            audio_result = self.audio_generator.generate_audio(
-                content, audio_file, self.text_splitter
+            # 一次性分割文本（统一使用120字符）
+            print(f"  正在分割文本（最大120字符/段）...")
+            segments = self.text_splitter.split_text(content, max_length=120)
+            print(f"  分割完成：{len(segments)} 个文本段")
+            
+            # 生成音频（使用预分割的文本段）
+            audio_result = self.audio_generator.generate_audio_from_segments(
+                segments, audio_file
             )
             
             duration = audio_result.get("duration", 0)
@@ -115,22 +116,18 @@ class TextToAudiobook:
             segment_timings = audio_result.get("segment_timings", [])
             
             if duration > 0:
-                # 生成临时英文字幕（使用音频分段时间信息）
-                subtitle_count = self.subtitle_generator.generate_subtitle(
-                    content, duration, temp_subtitle_file, 
-                    self.text_splitter, total_duration, segment_timings
+                # 生成临时英文字幕（使用预分割的文本段和音频时间信息）
+                subtitle_count = self.subtitle_generator.generate_subtitle_from_segments(
+                    segments, segment_timings, temp_subtitle_file, total_duration
                 )
                 
-                # 生成中英文合并字幕
-                if self.translator:
-                    print(f"  正在生成中英文合并字幕...")
-                    self.translator.generate_bilingual_subtitle(temp_subtitle_file, final_subtitle_file)
-                    # 删除临时文件
-                    temp_subtitle_file.unlink(missing_ok=True)
-                else:
-                    print(f"  翻译器不可用，使用纯英文字幕")
-                    # 重命名临时文件为最终文件
-                    temp_subtitle_file.rename(final_subtitle_file)
+                # 生成中英文合并字幕 - 翻译器必须可用
+                print(f"  正在生成中英文合并字幕...")
+                if not self.translator.generate_bilingual_subtitle(temp_subtitle_file, final_subtitle_file):
+                    print("❌ 字幕翻译失败，程序退出")
+                    sys.exit(1)
+                # 删除临时文件
+                temp_subtitle_file.unlink(missing_ok=True)
                 
                 # 收集章节统计信息
                 self.statistics.add_chapter_stats(

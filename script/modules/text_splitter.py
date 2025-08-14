@@ -109,7 +109,7 @@ class TextSplitter:
         # 分析句子结构
         doc = self.nlp(sentence)
         
-        # 寻找合适的分割点
+        # 寻找合适的分割点（标点符号后）
         split_points = []
         for token in doc:
             if (token.text in [',', ';', ':', '--', '—'] and 
@@ -119,34 +119,50 @@ class TextSplitter:
         if not split_points:
             return self._split_by_words(sentence, max_length)
         
-        # 根据分割点创建段落
+        # 根据分割点创建段落，确保不丢失任何文本
         segments = []
         start = 0
         current_segment = ""
         
         for split_point in split_points:
+            # 获取从start到split_point的文本
             segment_text = doc[start:split_point].text.strip()
             
-            if len(current_segment + " " + segment_text) <= max_length:
-                current_segment += (" " if current_segment else "") + segment_text
-            else:
-                if current_segment:
-                    segments.append(current_segment)
-                current_segment = segment_text
+            if segment_text:  # 确保不是空文本
+                # 检查是否可以合并到当前段落
+                test_length = len(current_segment + (" " if current_segment else "") + segment_text)
+                if test_length <= max_length:
+                    current_segment += (" " if current_segment else "") + segment_text
+                else:
+                    # 保存当前段落并开始新的
+                    if current_segment:
+                        segments.append(current_segment)
+                    current_segment = segment_text
+            
             start = split_point
         
-        # 处理剩余部分
+        # 处理剩余部分（从最后一个分割点到句子结尾）
         if start < len(doc):
             remaining = doc[start:].text.strip()
-            if len(current_segment + " " + remaining) <= max_length:
-                current_segment += (" " if current_segment else "") + remaining
-            else:
-                if current_segment:
-                    segments.append(current_segment)
-                segments.append(remaining)
-        else:
-            if current_segment:
-                segments.append(current_segment)
+            if remaining:  # 确保不是空文本
+                test_length = len(current_segment + (" " if current_segment else "") + remaining)
+                if test_length <= max_length:
+                    current_segment += (" " if current_segment else "") + remaining
+                else:
+                    if current_segment:
+                        segments.append(current_segment)
+                    current_segment = remaining
+        
+        # 添加最后的段落
+        if current_segment:
+            segments.append(current_segment)
+        
+        # 验证没有数据丢失 - 必须完整
+        original_text = sentence.strip()
+        combined_text = " ".join(segments)
+        
+        if len(combined_text) < len(original_text) * 0.9:
+            raise RuntimeError(f"文本分割数据丢失: 原文{len(original_text)}字符 -> 分割后{len(combined_text)}字符")
         
         return segments if segments else [sentence]
     
