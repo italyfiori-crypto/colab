@@ -139,8 +139,9 @@ class TextToAudiobook:
             
             if duration > 0:
                 # 生成临时英文字幕（使用预分割的文本段和音频时间信息）
+                # 每个章节独立时间轴，从00:00:00开始
                 subtitle_count = self.subtitle_generator.generate_subtitle_from_segments(
-                    segments, segment_timings, temp_subtitle_file, total_duration
+                    segments, segment_timings, temp_subtitle_file, chapter_offset=0.0
                 )
                 
                 # 生成中英文合并字幕 - 翻译器必须可用

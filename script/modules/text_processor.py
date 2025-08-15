@@ -12,9 +12,16 @@ from typing import List, Dict
 class TextProcessor:
     """文本预处理器"""
     
-    def __init__(self):
-        """初始化预处理器"""
-        pass
+    def __init__(self, max_chapter_length: int = 5000, min_split_length: int = 1000):
+        """
+        初始化预处理器
+        
+        Args:
+            max_chapter_length: 单个子章节最大长度（字符数）
+            min_split_length: 最小拆分长度，避免生成过短的章节
+        """
+        self.max_chapter_length = max_chapter_length
+        self.min_split_length = min_split_length
     
     def extract_book_info(self, text: str) -> Dict[str, str]:
         """
@@ -78,13 +85,14 @@ class TextProcessor:
     
     def preprocess_text(self, text: str) -> List[Dict[str, str]]:
         """
-        预处理文本：删除头部信息、目录，按章节分割
+        预处理文本：删除头部信息、目录，按章节分割，并智能拆分长章节
         
         Args:
             text: 原始文本内容
             
         Returns:
-            章节列表，每个元素包含 {'title': str, 'content': str}
+            章节列表，每个元素包含 {'title': str, 'content': str, ...}
+            长章节会被拆分为多个子章节，包含完整的元信息
         """
         lines = text.split('\n')
         
@@ -99,7 +107,17 @@ class TextProcessor:
         for chapter in chapters:
             chapter["content"] = self._clean_content(chapter["content"])
         
-        return chapters
+        # 智能拆分过长的章节
+        all_chapters = []
+        for i, chapter in enumerate(chapters):
+            sub_chapters = self._split_long_chapter(chapter, i)
+            all_chapters.extend(sub_chapters)
+            
+            # 打印拆分信息
+            if len(sub_chapters) > 1:
+                print(f"章节 '{chapter['title']}' 长度 {len(chapter['content'])} 字符，拆分为 {len(sub_chapters)} 个子章节")
+        
+        return all_chapters
     
     def _find_content_start(self, lines: List[str]) -> int:
         """查找正文开始位置"""
@@ -233,3 +251,165 @@ class TextProcessor:
             result += '.'
             
         return result
+    
+    def _find_best_split_point(self, text: str, target_length: int) -> int:
+        """
+        在指定位置附近找到最佳的文本拆分点，优先选择段落边界
+        
+        Args:
+            text: 要拆分的文本
+            target_length: 目标拆分长度
+            
+        Returns:
+            最佳拆分位置的索引
+        """
+        if len(text) <= target_length:
+            return len(text)
+        
+        # 搜索范围：目标长度前后25%，给段落边界更多搜索空间
+        search_start = max(int(target_length * 0.75), self.min_split_length)
+        search_end = min(int(target_length * 1.25), len(text))
+        
+        # 优先级拆分点（按优先级排序，段落边界优先）
+        split_patterns = [
+            # 第一优先级：段落边界
+            r'\n\n+',               # 空行（段落分隔），最佳拆分点
+            r'\n\s*[A-Z]',          # 换行后跟大写字母（新段落开始）
+            r'\.\s*\n',             # 句号后换行（段落结束）
+            r'\!\s*\n',             # 感叹号后换行
+            r'\?\s*\n',             # 问号后换行
+            
+            # 第二优先级：句子边界
+            r'\.\s+[A-Z]',          # 句号后跟大写字母（新句子开始）
+            r'\!\s+[A-Z]',          # 感叹号后跟大写字母
+            r'\?\s+[A-Z]',          # 问号后跟大写字母
+            
+            # 第三优先级：标点符号后
+            r'\.\s',                # 句号后有空格
+            r'\!\s',                # 感叹号后有空格
+            r'\?\s',                # 问号后有空格
+            r';\s',                 # 分号后有空格
+            r':\s',                 # 冒号后有空格
+            r',\s',                 # 逗号后有空格
+        ]
+        
+        # 在搜索范围内寻找最佳拆分点
+        for priority, pattern in enumerate(split_patterns):
+            matches = []
+            for match in re.finditer(pattern, text[search_start:search_end]):
+                pos = search_start + match.end()
+                # 对于段落边界，给予额外的权重
+                weight = 1.0
+                if priority < 5:  # 段落边界和句子边界
+                    weight = 0.7  # 优先选择接近目标长度的段落边界
+                
+                matches.append((pos, abs(pos - target_length) * weight))
+            
+            if matches:
+                # 选择加权距离最小的匹配点
+                best_match = min(matches, key=lambda x: x[1])[0]
+                return best_match
+        
+        # 如果没有找到合适的标点拆分点，寻找单词边界
+        for i in range(min(target_length + 200, len(text)), search_start - 1, -1):
+            if text[i].isspace():
+                return i + 1
+        
+        # 最后的选择：强制在目标长度拆分
+        return min(target_length, len(text))
+    
+    def _split_long_chapter(self, chapter: Dict[str, str], chapter_index: int) -> List[Dict[str, str]]:
+        """
+        拆分过长的章节为多个子章节，实现近似平均拆分，保留完整元信息
+        
+        Args:
+            chapter: 原始章节数据 {'title': str, 'content': str}
+            chapter_index: 章节索引（用于生成子章节编号）
+            
+        Returns:
+            拆分后的子章节列表
+        """
+        content = chapter['content']
+        title = chapter['title']
+        
+        # 如果章节不够长，不需要拆分
+        if len(content) <= self.max_chapter_length:
+            return [chapter]
+        
+        # 计算理想的子章节数量，确保每个子章节都在合理范围内
+        total_length = len(content)
+        min_parts = max(2, (total_length + self.max_chapter_length - 1) // self.max_chapter_length)
+        max_parts = total_length // self.min_split_length
+        
+        # 选择最优的子章节数量，使长度分布最均匀
+        best_parts = min_parts
+        best_variance = float('inf')
+        
+        for parts in range(min_parts, min(max_parts + 1, min_parts + 3)):
+            avg_length = total_length / parts
+            if avg_length >= self.min_split_length and avg_length <= self.max_chapter_length:
+                # 计算长度分布的方差
+                variance = abs(avg_length - (self.min_split_length + self.max_chapter_length) / 2)
+                if variance < best_variance:
+                    best_variance = variance
+                    best_parts = parts
+        
+        # 执行智能平均拆分
+        sub_chapters = []
+        current_pos = 0
+        
+        for sub_index in range(1, best_parts + 1):
+            remaining_text = content[current_pos:]
+            remaining_parts = best_parts - sub_index + 1
+            
+            if remaining_parts == 1:
+                # 最后一个子章节，包含所有剩余内容
+                sub_content = remaining_text
+            else:
+                # 计算当前子章节的理想长度
+                remaining_length = len(remaining_text)
+                ideal_length = remaining_length // remaining_parts
+                
+                # 在合理范围内调整目标长度
+                target_length = max(
+                    self.min_split_length,
+                    min(ideal_length, self.max_chapter_length)
+                )
+                
+                # 找到最佳拆分点（优先段落边界）
+                split_point = self._find_best_split_point(remaining_text, target_length)
+                sub_content = remaining_text[:split_point].strip()
+                
+                # 防止子章节过短，如果太短则扩展
+                if len(sub_content) < self.min_split_length and remaining_parts > 1:
+                    extended_target = max(self.min_split_length * 1.2, target_length * 1.1)
+                    split_point = self._find_best_split_point(remaining_text, extended_target)
+                    sub_content = remaining_text[:split_point].strip()
+            
+            # 创建子章节
+            sub_chapter = {
+                'title': f"{title} - 第{sub_index}部分",
+                'content': sub_content,
+                'parent_chapter': chapter_index + 1,
+                'sub_chapter_index': sub_index,
+                'is_sub_chapter': True,
+                'original_title': title,
+                'total_sub_chapters': best_parts
+            }
+            sub_chapters.append(sub_chapter)
+            
+            # 移动到下一个位置
+            if sub_index < best_parts:
+                if 'split_point' in locals():
+                    current_pos += split_point
+                    # 跳过可能的空白字符
+                    while current_pos < len(content) and content[current_pos].isspace():
+                        current_pos += 1
+                else:
+                    break
+            
+            # 防止无限循环
+            if current_pos >= len(content):
+                break
+        
+        return sub_chapters
