@@ -10,6 +10,7 @@ import os
 import json
 from typing import List, Tuple, Optional
 from dataclasses import dataclass
+from .sub_chapter_splitter import SubChapterConfig
 
 
 @dataclass
@@ -37,6 +38,9 @@ class ChapterDetectionConfig:
     # 是否忽略大小写
     ignore_case: bool
     
+    # 子章节配置
+    sub_chapter: SubChapterConfig
+    
     @classmethod
     def from_json_file(cls, config_path: str) -> 'ChapterDetectionConfig':
         """
@@ -50,6 +54,12 @@ class ChapterDetectionConfig:
         """
         with open(config_path, 'r', encoding='utf-8') as f:
             config_data = json.load(f)
+        
+        # 处理子章节配置
+        if 'sub_chapter' in config_data:
+            sub_config_data = config_data.pop('sub_chapter')
+            sub_config = SubChapterConfig(**sub_config_data)
+            config_data['sub_chapter'] = sub_config
         
         return cls(**config_data)
     
@@ -126,6 +136,7 @@ class ChapterSplitter:
             print(f"已生成章节文件: {file_path}")
         
         print(f"\n成功拆分 {len(output_files)} 个章节到目录: {full_output_dir}")
+        
         return output_files
     
     def _detect_chapter_boundaries(self, lines: List[str]) -> List[Tuple[int, int, Tuple[str, str]]]:
@@ -272,11 +283,84 @@ class ChapterSplitter:
         while content_lines and not content_lines[-1].strip():
             content_lines.pop()
         
+        # 合并段落（将多行合并为单行）
+        processed_lines = self._merge_paragraph_lines(content_lines)
+        
         # 构建最终内容：第一行是章节标题
         result_lines = [chapter_title + '\n', '\n']
-        result_lines.extend(content_lines)
+        result_lines.extend(processed_lines)
         
         return ''.join(result_lines)
+    
+    def _merge_paragraph_lines(self, lines: List[str]) -> List[str]:
+        """
+        合并段落内的多行为单行
+        
+        Args:
+            lines: 原始行列表
+            
+        Returns:
+            处理后的行列表
+        """
+        if not lines:
+            return []
+        
+        result = []
+        current_paragraph = []
+        
+        for line in lines:
+            line_stripped = line.strip()
+            
+            if not line_stripped:
+                # 空行，表示段落结束
+                if current_paragraph:
+                    # 合并当前段落
+                    merged_line = self._merge_lines(current_paragraph)
+                    result.append(merged_line + '\n')
+                    current_paragraph = []
+                result.append('\n')  # 保留段落间的空行
+            else:
+                # 非空行，加入当前段落
+                current_paragraph.append(line_stripped)
+        
+        # 处理最后一个段落
+        if current_paragraph:
+            merged_line = self._merge_lines(current_paragraph)
+            result.append(merged_line + '\n')
+        
+        return result
+    
+    def _merge_lines(self, lines: List[str]) -> str:
+        """
+        将多行文本合并为一行
+        
+        Args:
+            lines: 行列表
+            
+        Returns:
+            合并后的单行文本
+        """
+        if not lines:
+            return ""
+        
+        if len(lines) == 1:
+            return lines[0]
+        
+        result = lines[0]
+        
+        for i in range(1, len(lines)):
+            prev_line = result
+            current_line = lines[i].strip()
+            
+            # 检查前一行是否以标点符号结尾
+            if prev_line and prev_line[-1] in '.,;:!?"\'':
+                # 有标点符号，直接连接不加空格
+                result += current_line
+            else:
+                # 没有标点符号，加一个空格连接
+                result += ' ' + current_line
+        
+        return result
     
     def _generate_filename(self, chapter_num: int, chapter_title: str) -> str:
         """

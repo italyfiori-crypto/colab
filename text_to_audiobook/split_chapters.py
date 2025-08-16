@@ -14,6 +14,7 @@ from pathlib import Path
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 from modules.chapter_splitter import ChapterSplitter, ChapterDetectionConfig
+from modules.sub_chapter_splitter import SubChapterSplitter
 
 
 def main():
@@ -29,7 +30,7 @@ def main():
   
 默认配置文件: text_to_audiobook/config.json
 默认输出目录: ./output
-输出格式: {filename}_chapters/ 目录下的章节文件
+输出格式: {filename}_chapters/ 和 sub_chapters/ 目录下的章节文件
         """
     )
     
@@ -68,9 +69,16 @@ def main():
         
         # 创建拆分器并执行拆分
         splitter = ChapterSplitter(config)
-        output_files = splitter.split_book(args.input_file,output_dir)
+        chapter_files = splitter.split_book(args.input_file,output_dir)
         
-        print(f"\n✅ 拆分完成! 共生成 {len(output_files)} 个章节文件")
+        print(f"\n✅ 章节拆分完成! 共生成 {len(chapter_files)} 个章节文件")
+        
+        # 执行子章节拆分
+        print(f"\n🔄 开始子章节拆分处理...")
+        sub_splitter = SubChapterSplitter(config.sub_chapter)
+        output_files = sub_splitter.split_chapters(chapter_files, output_dir)
+        
+        print(f"\n✅ 子章节拆分完成! 最终生成 {len(output_files)} 个文件")
         
         if args.verbose:
             # 从第一个输出文件获取实际输出目录
