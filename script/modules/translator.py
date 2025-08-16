@@ -145,16 +145,33 @@ class ChineseTranslator:
         
         combined_text = '\n'.join(texts_to_translate)
         
-        prompt = f"""请将以下英文字幕翻译成中文，保持原有的编号和格式。翻译要求：
-1. 准确传达原意
-2. 语言自然流畅
-3. 保持字幕的简洁性
-4. 保留原有的编号格式
+        prompt = f"""将英文字幕翻译成中文，必须严格遵守格式要求。
 
-待翻译内容：
+**格式要求（必须严格遵守）**：
+- 输出格式：编号. 中文翻译
+- 保持原有编号不变
+- 每行一条字幕
+- 不要添加任何解释或其他文字
+- 不要改变编号顺序
+
+**翻译要求**：
+1. 准确传达原意
+2. 语言自然流畅  
+3. 保持字幕简洁性
+
+**示例**：
+输入：
+1. Alice was beginning to get very tired.
+2. She looked at her sister's book.
+
+输出：
+1. 爱丽丝开始感到非常疲倦。
+2. 她看了看姐姐的书。
+
+**待翻译内容**：
 {combined_text}
 
-请严格按照 "编号. 中文翻译" 的格式输出，每行一条字幕："""
+**严格按照格式输出**："""
         
         # 调用API进行翻译 - 不重试，必须成功
         response = self._call_api(prompt)
@@ -228,13 +245,17 @@ class ChineseTranslator:
         raise RuntimeError("API调用出现未知错误")
     
     def _parse_translation_response(self, response: str, batch: List[Dict]) -> List[Dict]:
-        """解析翻译响应"""
+        """解析翻译响应，支持部分匹配和容错处理"""
         lines = response.strip().split('\n')
         translated_batch = []
+        matched_indices = set()
         
         # 创建索引映射
         index_map = {entry['index']: entry for entry in batch}
         
+        print(f"  解析翻译响应: 收到 {len(lines)} 行，期望匹配 {len(batch)} 条")
+        
+        # 第一轮：精确匹配标准格式 "编号. 翻译内容"
         for line in lines:
             line = line.strip()
             if not line:
@@ -247,14 +268,67 @@ class ChineseTranslator:
                     index = parts[0].strip()
                     chinese_text = parts[1].strip()
                     
-                    if index in index_map:
+                    if index in index_map and index not in matched_indices:
                         entry = index_map[index].copy()
                         entry['chinese_text'] = chinese_text
                         translated_batch.append(entry)
+                        matched_indices.add(index)
         
-        # 如果解析失败，直接报错
-        if len(translated_batch) != len(batch):
-            raise RuntimeError(f"翻译结果解析失败，期望{len(batch)}条，实际解析{len(translated_batch)}条")
+        print(f"  精确匹配: {len(matched_indices)} 条成功")
+        
+        # 第二轮：模糊匹配未匹配的条目
+        unmatched_entries = [entry for entry in batch if entry['index'] not in matched_indices]
+        if unmatched_entries:
+            print(f"  尝试模糊匹配: {len(unmatched_entries)} 条未匹配")
+            
+            # 收集可能的翻译内容（没有标准编号格式的行）
+            potential_translations = []
+            for line in lines:
+                line = line.strip()
+                if not line:
+                    continue
+                
+                # 跳过已经精确匹配的行
+                skip_line = False
+                for matched_index in matched_indices:
+                    if line.startswith(f"{matched_index}. "):
+                        skip_line = True
+                        break
+                
+                if not skip_line:
+                    # 清理可能的编号前缀
+                    cleaned_line = line
+                    # 移除各种可能的编号格式
+                    import re
+                    cleaned_line = re.sub(r'^\d+[.。]\s*', '', cleaned_line)
+                    cleaned_line = re.sub(r'^[•·-]\s*', '', cleaned_line)
+                    
+                    if cleaned_line and len(cleaned_line) > 5:  # 只考虑有实际内容的行
+                        potential_translations.append(cleaned_line)
+            
+            # 尝试按顺序匹配剩余条目
+            for i, unmatched_entry in enumerate(unmatched_entries):
+                if i < len(potential_translations):
+                    entry = unmatched_entry.copy()
+                    entry['chinese_text'] = potential_translations[i]
+                    translated_batch.append(entry)
+                    print(f"    模糊匹配成功: {unmatched_entry['index']} -> {potential_translations[i][:50]}...")
+                else:
+                    # 没有足够的翻译内容，保留英文原文
+                    entry = unmatched_entry.copy()
+                    entry['chinese_text'] = f"[翻译失败] {unmatched_entry['english_text']}"
+                    translated_batch.append(entry)
+                    print(f"    保留原文: {unmatched_entry['index']}")
+        
+        # 按原始顺序排序
+        original_order = {entry['index']: i for i, entry in enumerate(batch)}
+        translated_batch.sort(key=lambda x: original_order.get(x['index'], 999))
+        
+        print(f"  最终结果: {len(translated_batch)} 条（期望 {len(batch)} 条）")
+        
+        # 只有在完全无法解析时才抛出异常
+        if len(translated_batch) == 0:
+            raise RuntimeError("翻译结果完全无法解析")
         
         return translated_batch
     
@@ -283,15 +357,24 @@ class ChineseTranslator:
         if not title.strip():
             return ""
         
-        prompt = f"""请将以下英文书名翻译成中文，要求：
-1. 准确传达原书名的含义
+        prompt = f"""将英文书名翻译成中文。
+
+**翻译要求**：
+1. 准确传达原书名含义
 2. 符合中文图书命名习惯
 3. 保持书名的文学性和吸引力
-4. 只返回翻译结果，不要其他解释
+4. 只返回翻译结果，不要任何解释
 
-英文书名：{title}
+**示例**：
+英文：Alice's Adventures in Wonderland
+中文：爱丽丝梦游仙境
 
-中文书名："""
+英文：Pride and Prejudice
+中文：傲慢与偏见
+
+**待翻译书名**：{title}
+
+**中文书名**："""
         
         response = self._call_api(prompt)
         if response:
@@ -314,16 +397,25 @@ class ChineseTranslator:
         if not title.strip():
             return ""
         
-        prompt = f"""请将以下英文章节标题翻译成中文，要求：
+        prompt = f"""将英文章节标题翻译成中文。
+
+**翻译要求**：
 1. 准确传达章节内容主题
 2. 保持标题的简洁性
 3. 符合中文表达习惯
-4. 如果是"CHAPTER X"格式，保持章节编号
-5. 只返回翻译结果，不要其他解释
+4. 保持原有章节编号（如CHAPTER I）
+5. 只返回翻译结果，不要任何解释
 
-英文章节标题：{title}
+**示例**：
+英文：CHAPTER I: Down the Rabbit-Hole
+中文：第一章：掉进兔子洞
 
-中文章节标题："""
+英文：The Pool of Tears
+中文：眼泪池
+
+**待翻译章节标题**：{title}
+
+**中文章节标题**："""
         
         response = self._call_api(prompt)
         if response:

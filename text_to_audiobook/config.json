@@ -1,0 +1,9 @@
+{
+  "chapter_pattern": "^Chapter [IVX]+$",
+  "title_pattern": null,
+  "title_line_offset": 1,
+  "skip_empty_lines": false,
+  "max_title_search_lines": 3,
+  "header_lines_count": 3,
+  "ignore_case": true
+}

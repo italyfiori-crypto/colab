@@ -33,18 +33,20 @@ except ImportError as e:
 class TextToAudiobook:
     """文本转有声书转换器"""
     
-    def __init__(self, input_file: str, output_dir: str = "output"):
+    def __init__(self, input_file: str, output_dir: str = "output", force_rebuild: bool = False):
         """
         初始化转换器
         
         Args:
             input_file: 输入文本文件路径
             output_dir: 输出目录路径
+            force_rebuild: 是否强制重新构建所有章节（跳过已处理检查）
         """
         self.input_file = Path(input_file)
         self.output_dir = Path(output_dir)
         self.audio_dir = self.output_dir / "audio"
         self.subtitle_dir = self.output_dir / "subtitles"
+        self.force_rebuild = force_rebuild
         
         # 确保输出目录存在
         self.audio_dir.mkdir(parents=True, exist_ok=True)
@@ -63,6 +65,32 @@ class TextToAudiobook:
         if not self.translator.test_connection():
             print("❌ 翻译功能初始化失败，程序退出")
             sys.exit(1)
+    
+    def _is_chapter_processed(self, chapter_name: str) -> bool:
+        """
+        检查章节是否已经处理完成
+        
+        Args:
+            chapter_name: 章节名称（如chapter_01）
+            
+        Returns:
+            章节是否已处理完成
+        """
+        if self.force_rebuild:
+            return False
+            
+        audio_file = self.audio_dir / f"{chapter_name}.wav"
+        subtitle_file = self.subtitle_dir / f"{chapter_name}.srt"
+        
+        # 检查文件是否存在且大小合理
+        if not (audio_file.exists() and subtitle_file.exists()):
+            return False
+        
+        # 检查文件大小（避免空文件或损坏文件）
+        if audio_file.stat().st_size < 1000 or subtitle_file.stat().st_size < 100:
+            return False
+        
+        return True
     
     def convert(self):
         """执行完整的转换过程"""
@@ -98,6 +126,8 @@ class TextToAudiobook:
         
         # 转换每个章节
         total_duration = 0
+        processed_count = 0
+        skipped_count = 0
         
         for i, chapter in enumerate(chapters, 1):
             chapter_name = f"chapter_{i:02d}"
@@ -106,7 +136,27 @@ class TextToAudiobook:
             final_subtitle_file = self.subtitle_dir / f"{chapter_name}.srt"      # 最终合并字幕
             
             chapter_title_en = chapter['title']
+            
+            # 检查章节是否已经处理完成
+            if self._is_chapter_processed(chapter_name):
+                print(f"\\n跳过章节 {i}/{len(chapters)}: {chapter_title_en} (已处理)")
+                skipped_count += 1
+                
+                # 获取已处理章节的时长（用于统计）
+                try:
+                    import wave
+                    with wave.open(str(audio_file), 'rb') as wav_file:
+                        frames = wav_file.getnframes()
+                        rate = wav_file.getframerate()
+                        duration = frames / float(rate)
+                        total_duration += duration
+                except:
+                    # 如果无法读取音频文件，跳过时长统计
+                    pass
+                continue
+            
             print(f"\\n处理章节 {i}/{len(chapters)}: {chapter_title_en}")
+            processed_count += 1
             
             # 翻译章节标题
             print(f"  正在翻译章节标题...")
@@ -177,10 +227,14 @@ class TextToAudiobook:
         self.statistics.print_summary()
         
         print(f"\\n✅ 转换完成！")
+        print(f"📊 处理统计: 新处理 {processed_count} 个章节, 跳过 {skipped_count} 个已处理章节")
         print(f"📁 音频文件: {self.audio_dir}")
         print(f"📁 字幕文件: {self.subtitle_dir}")
         print(f"📊 统计信息: {metadata_file}")
         print(f"📖 详细报告: {readme_file}")
+        
+        if processed_count == 0 and skipped_count > 0:
+            print("\\n💡 所有章节已处理完成。如需重新处理，请使用 --force-rebuild 参数")
 
 
 def main():
@@ -188,6 +242,8 @@ def main():
     parser = argparse.ArgumentParser(description="将文本文件转换为有声书（包含中文翻译）")
     parser.add_argument("input_file", help="输入文本文件路径")
     parser.add_argument("-o", "--output", default="test_output", help="输出目录 (默认: test_output)")
+    parser.add_argument("--force-rebuild", action="store_true", 
+                       help="强制重新处理所有章节（跳过已处理检查）")
     
     args = parser.parse_args()
     
@@ -196,8 +252,14 @@ def main():
         print(f"错误: 输入文件不存在: {args.input_file}")
         sys.exit(1)
     
+    # 显示处理模式
+    if args.force_rebuild:
+        print("🔄 强制重建模式: 将重新处理所有章节")
+    else:
+        print("⚡ 增量处理模式: 将跳过已处理章节")
+    
     # 创建转换器并执行转换
-    converter = TextToAudiobook(args.input_file, args.output)
+    converter = TextToAudiobook(args.input_file, args.output, args.force_rebuild)
     converter.convert()
 
 

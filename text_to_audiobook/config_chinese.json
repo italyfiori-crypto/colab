@@ -1,0 +1,9 @@
+{
+  "chapter_pattern": "^第[一二三四五六七八九十]+章",
+  "title_pattern": null,
+  "title_line_offset": 1,
+  "skip_empty_lines": true,
+  "max_title_search_lines": 3,
+  "header_lines_count": 3,
+  "ignore_case": false
+}
