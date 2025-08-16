@@ -56,10 +56,9 @@ PROTECTED_PATTERNS = [
 ]
 
 # 长度控制常量 - 针对语音合成优化
-TARGET_MAX_LENGTH = 90      # 目标最大长度（适合语音合成）
-
-MERGE_THRESHOLD = 75        # 合并阈值
-MAX_MERGE_LENGTH = 120      # 最大合并长度
+MAX_SENTENCE_LENGTH = 80      # 目标最大长度（适合语音合成）
+MIN_MERGE_LENGTH = 40      # 最大合并长度
+MAX_MERGE_LENGTH = 100      # 最大合并长度
 
 # 成对符号定义（支持所有类型引号和括号）
 QUOTE_PAIRS = [
@@ -304,7 +303,7 @@ class SentenceSplitter:
         result = []
         
         for sentence in sentences:
-            if len(sentence) <= TARGET_MAX_LENGTH:
+            if len(sentence) <= MAX_SENTENCE_LENGTH:
                 result.append(sentence)
                 continue
             
@@ -314,17 +313,15 @@ class SentenceSplitter:
         
         return result
     
-    def split_into_clauses(self, text: str,
-                        paren_symbols=PAIR_SYMBOLS_PARENS,
-                        quote_symbols=PAIR_SYMBOLS_QUOTES,
-                        split_punct=SPLIT_PUNCT,
-                        min_len: int = 15):
+    def _parse_text_into_clauses(self, text: str,
+                                paren_symbols=PAIR_SYMBOLS_PARENS,
+                                quote_symbols=PAIR_SYMBOLS_QUOTES,
+                                split_punct=SPLIT_PUNCT):
         """
-        将文本拆分成子句：
+        将文本拆分成子句的核心逻辑：
         1. 括号类符号内的文本作为独立子句。
         2. 引号类符号内的文本作为独立子句。
         3. 分隔符触发拆分，分隔符保留在子句末尾。
-        4. 短子句自动与前一个子句合并。
         """
         clauses = []
         buf = []
@@ -408,13 +405,101 @@ class SentenceSplitter:
             if clause:
                 clauses.append(clause)
 
+        return clauses
+
+    def split_into_clauses(self, text: str,
+                        paren_symbols=PAIR_SYMBOLS_PARENS,
+                        quote_symbols=PAIR_SYMBOLS_QUOTES,
+                        split_punct=SPLIT_PUNCT,
+                        min_len: int = 15):
+        """
+        将文本拆分成子句：
+        1. 括号类符号内的文本作为独立子句。
+        2. 引号类符号内的文本作为独立子句。
+        3. 分隔符触发拆分，分隔符保留在子句末尾。
+        4. 短子句自动与前一个子句合并。
+        5. 对长度超过阈值的括号或引号子句再次拆分。
+        """
+        # 第一次调用内部逻辑进行基础拆分
+        clauses = self._parse_text_into_clauses(text, paren_symbols, quote_symbols, split_punct)
+
+        # 第二次调用内部逻辑，对长度超过阈值的括号或引号包围的子句进行再拆分
+        final_result = []
+        for clause in clauses:
+            if len(clause) > MAX_SENTENCE_LENGTH and self._is_quoted_or_parenthesized(clause):
+                # 去掉外层括号或引号，拆分内部内容，然后重新包围
+                inner_content, wrapper = self._extract_inner_content_and_wrapper(clause)
+                if inner_content:
+                    inner_clauses = self._parse_text_into_clauses(inner_content, paren_symbols, quote_symbols, split_punct)
+                    # 重新添加包围符号
+                    for i, inner_clause in enumerate(inner_clauses):
+                        if i == 0 and i == len(inner_clauses) - 1:
+                            # 只有一个子句，完整包围
+                            final_result.append(f"{wrapper[0]}{inner_clause}{wrapper[1]}")
+                        elif i == 0:
+                            # 第一个子句，只加开始符号
+                            final_result.append(f"{wrapper[0]}{inner_clause}")
+                        elif i == len(inner_clauses) - 1:
+                            # 最后一个子句，只加结束符号
+                            final_result.append(f"{inner_clause}{wrapper[1]}")
+                        else:
+                            # 中间子句，不加符号
+                            final_result.append(inner_clause)
+                else:
+                    final_result.append(clause)
+            else:
+                final_result.append(clause)
+
         # 合并过短的子句
         merged = []
-        for c in clauses:
-            if merged and len(merged[-1]) + len(c) < MAX_MERGE_LENGTH:
+        for c in final_result:
+            if merged and len(merged[-1]) < MIN_MERGE_LENGTH and len(merged[-1]) + len(c) < MAX_MERGE_LENGTH:
                 print(f"***合并子句***: {merged[-1]} 和 {c}")
                 merged[-1] += " " + c
             else:
                 merged.append(c)
 
         return merged
+
+    def _is_quoted_or_parenthesized(self, text: str) -> bool:
+        """
+        检查文本是否被括号或引号包围
+        """
+        if len(text) < 2:
+            return False
+        
+        # 检查是否被括号包围
+        for open_sym, close_sym in PAIR_SYMBOLS_PARENS:
+            if text.startswith(open_sym) and text.endswith(close_sym):
+                return True
+        
+        # 检查是否被引号包围
+        for open_sym, close_sym in PAIR_SYMBOLS_QUOTES:
+            if text.startswith(open_sym) and text.endswith(close_sym):
+                return True
+        
+        return False
+
+    def _extract_inner_content_and_wrapper(self, text: str) -> tuple[str, tuple[str, str]]:
+        """
+        从被包围的文本中提取内部内容和包围符号
+        
+        Returns:
+            (内部内容, (开始符号, 结束符号))
+        """
+        if len(text) < 2:
+            return text, ("", "")
+        
+        # 检查括号
+        for open_sym, close_sym in PAIR_SYMBOLS_PARENS:
+            if text.startswith(open_sym) and text.endswith(close_sym):
+                inner = text[len(open_sym):-len(close_sym)]
+                return inner, (open_sym, close_sym)
+        
+        # 检查引号
+        for open_sym, close_sym in PAIR_SYMBOLS_QUOTES:
+            if text.startswith(open_sym) and text.endswith(close_sym):
+                inner = text[len(open_sym):-len(close_sym)]
+                return inner, (open_sym, close_sym)
+        
+        return text, ("", "")
