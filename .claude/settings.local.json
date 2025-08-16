@@ -12,7 +12,8 @@
       "WebFetch(domain:developers.weixin.qq.com)",
       "Bash(python:*)",
       "Bash(pip3 install:*)",
-      "Bash(grep:*)"
+      "Bash(grep:*)",
+      "Bash(timeout:*)"
     ],
     "deny": []
   }

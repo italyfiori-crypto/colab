@@ -7,7 +7,7 @@
       "content_start_offset": 3
     },
     {
-      "name": "numeric_style", 
+      "name": "numeric_style",
       "multiline_regex": "^Chapter (\\d+)\n([^\n]+)\n",
       "title_line_index": 1,
       "content_start_offset": 2
@@ -33,5 +33,13 @@
     "clean": false,
     "enable_clause_splitting": true,
     "max_sentence_length": 100
+  },
+  "subtitle_translator": {
+    "api_key": "sk-umedlfcxxcbzvyiobzxnigiyjrwgpeocgbffhhmwqmnlnein",
+    "enabled": true,
+    "batch_size": 5,
+    "model": "deepseek-ai/DeepSeek-V2.5",
+    "timeout": 30,
+    "max_retries": 5
   }
 }

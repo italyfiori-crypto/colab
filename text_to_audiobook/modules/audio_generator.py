@@ -155,7 +155,7 @@ class AudioGenerator:
         """
         try:
             # 使用Kokoro管道生成音频
-            generator = self.tts_pipeline(text, voice=self.config.voice)
+            generator = self.tts_pipeline(text, voice=self.config.voice, speed=self.config.speed)
             audio_chunks = []
             
             for (_, _, audio_chunk) in generator:
