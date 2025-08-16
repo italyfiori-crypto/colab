@@ -16,7 +16,17 @@
    pip3 install pysbd
    ```
 
-3. **下载NLTK数据包**
+3. **安装spaCy库**（短句拆分功能）
+   ```bash
+   pip3 install spacy
+   ```
+
+4. **下载spaCy英文模型**
+   ```bash
+   python3 -m spacy download en_core_web_sm
+   ```
+
+5. **下载NLTK数据包**
    ```bash
    python3 -c "import nltk; nltk.download('punkt')"
    ```

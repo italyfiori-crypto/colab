@@ -30,6 +30,8 @@
     "output_subdir": "sentences",
     "segmenter": "pysbd",
     "language": "en",
-    "clean": false
+    "clean": false,
+    "enable_clause_splitting": true,
+    "max_sentence_length": 100
   }
 }

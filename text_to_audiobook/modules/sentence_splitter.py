@@ -3,14 +3,76 @@
 """
 句子拆分模块
 将子章节的段落拆分为句子，每个句子占一行，保留段落间隔
+使用引号优先的语义感知分割方法
 """
 
 import os
 import re
 import nltk
 import pysbd
-from typing import List
+from typing import List, Tuple
 from dataclasses import dataclass
+
+# 配置：括号类符号（整体保留）
+PAIR_SYMBOLS_PARENS = [
+    ("(", ")"),
+    ("[", "]"),
+    ("{", "}"),
+    ("（", "）"),
+    ("【", "】"),
+    ("《", "》"),
+]
+
+# 配置：引号类符号（允许内部继续拆分）
+PAIR_SYMBOLS_QUOTES = [
+    ("“", "”"),
+    ('"', '"'),
+]
+
+# 配置：句中分隔符（可以再扩展）
+SPLIT_PUNCT = [",", "，", ":", "：", ";", "；"]
+
+# 分隔符优先级列表（按语义强度排序）
+SEPARATORS = [
+    ". ",        # 句号+空格（最高优先级）
+    "! ",        # 感叹号+空格
+    "? ",        # 问号+空格
+    "; ",        # 分号+空格
+    ": ",        # 冒号+空格
+    ", and ",    # 逗号+and连词
+    ", but ",    # 逗号+but连词
+    ", or ",     # 逗号+or连词
+    ", when ",   # 逗号+when连词
+    ", that ",   # 逗号+that连词
+    ", ",        # 逗号+空格（最低优先级）
+]
+
+# 保护模式（引号、括号等，绝对不拆分）
+PROTECTED_PATTERNS = [
+    r'"[^"]*"',      # 双引号内容
+    r"'[^']*'",      # 单引号内容
+    r'\([^)]*\)',    # 圆括号内容
+    r'\[[^\]]*\]',   # 方括号内容
+]
+
+# 长度控制常量 - 针对语音合成优化
+TARGET_MAX_LENGTH = 90      # 目标最大长度（适合语音合成）
+
+MERGE_THRESHOLD = 75        # 合并阈值
+MAX_MERGE_LENGTH = 120      # 最大合并长度
+
+# 成对符号定义（支持所有类型引号和括号）
+QUOTE_PAIRS = [
+    ('"', '"'),     # 标准双引号
+    ('"', '"'),     # 弯曲双引号
+    ('„', '"'),     # 德式双引号
+    ("'", "'"),     # 标准单引号
+    ("'", "'"),     # 弯曲单引号
+    ("‚", "'"),     # 德式单引号
+    ('(', ')'),     # 圆括号
+    ('[', ']'),     # 方括号
+    ('{', '}'),     # 花括号
+]
 
 
 @dataclass
@@ -21,13 +83,19 @@ class SentenceSplitterConfig:
     output_subdir: str = "sentences"
     
     # 分割器类型：'nltk' 或 'pysbd'
-    segmenter: str = "pysbd"
+    segmenter: str = "nltk"
     
     # 语言设置
     language: str = "en"
     
     # 是否清理文本
     clean: bool = False
+    
+    # 是否启用短句拆分
+    enable_clause_splitting: bool = True
+    
+    # 触发拆分的最大句子长度（字符数）
+    max_sentence_length: int = 100
 
 
 class SentenceSplitter:
@@ -40,7 +108,6 @@ class SentenceSplitter:
         Args:
             config: 句子拆分配置
         """
-        nltk.download('punkt_tab')
         self.config = config
         self._ensure_nltk_data()
     
@@ -72,15 +139,19 @@ class SentenceSplitter:
         output_files = []
         
         for input_file in input_files:
-            # 生成输出文件路径
-            filename = os.path.basename(input_file)
-            output_file = os.path.join(sentences_dir, filename)
-            
-            # 处理单个文件
-            self._process_file(input_file, output_file)
-            output_files.append(output_file)
-            
-            print(f"📝 已处理句子拆分: {filename}")
+            try:
+                # 生成输出文件路径
+                filename = os.path.basename(input_file)
+                output_file = os.path.join(sentences_dir, filename)
+                
+                # 处理单个文件
+                self._process_file(input_file, output_file)
+                output_files.append(output_file)
+                
+                print(f"📝 已处理句子拆分: {filename}")
+            except Exception as e:
+                print(f"❌ 拆分失败: {e}")
+                continue
         
         print(f"\n📁 句子拆分完成，输出到: {sentences_dir}")
         return output_files
@@ -144,7 +215,7 @@ class SentenceSplitter:
             处理后的内容
         """
         # 按段落分割（双换行分割）
-        paragraphs = re.split(r'\n\s*\n', content)
+        paragraphs = re.split(r'\n\n', content)
         
         # 过滤空段落
         paragraphs = [p.strip() for p in paragraphs if p.strip()]
@@ -165,7 +236,7 @@ class SentenceSplitter:
     
     def _split_sentences(self, text: str) -> List[str]:
         """
-        将文本拆分为句子，支持多种分割器
+        将文本拆分为句子，使用引号优先的迭代分割方法
         
         Args:
             text: 输入文本
@@ -179,14 +250,15 @@ class SentenceSplitter:
         if not text:
             return []
         
-        # 根据配置选择分割器
+        # 第一阶段：使用专业工具进行基础句子分割
         if self.config.segmenter == "pysbd":
             sentences = self._split_with_pysbd(text)
         else:
             sentences = self._split_with_nltk(text)
         
-        # 后处理：合并引号内的句子
-        sentences = self._merge_quoted_sentences(sentences)
+        # 第二阶段：新的长句拆分逻辑
+        if self.config.enable_clause_splitting:
+            sentences = self._split_long_sentences_new(sentences)
         
         # 清理句子（去除首尾空白）
         sentences = [s.strip() for s in sentences if s.strip()]
@@ -218,50 +290,131 @@ class SentenceSplitter:
         """
         return nltk.sent_tokenize(text)
     
-    def _merge_quoted_sentences(self, sentences: List[str]) -> List[str]:
+    
+    def _split_long_sentences_new(self, sentences: List[str]) -> List[str]:
         """
-        合并引号内被错误拆分的句子
+        新的长句拆分策略：成对符号保护 + 分隔符拆分 + 智能合并
         
         Args:
             sentences: 原始句子列表
             
         Returns:
-            合并后的句子列表
+            处理后的句子列表
         """
-        if not sentences:
-            return sentences
-        
-        merged = []
-        current_sentence = ""
-        in_quote = False
+        result = []
         
         for sentence in sentences:
-            # 清理句子中的转义字符
-            clean_sentence = sentence.replace('\\!', '!').replace('\\"', '"')
+            if len(sentence) <= TARGET_MAX_LENGTH:
+                result.append(sentence)
+                continue
             
-            # 检查是否包含引号
-            quote_count = clean_sentence.count('"')
-            
-            if not in_quote:
-                # 不在引号内
-                if quote_count % 2 == 1:
-                    # 开始引号
-                    in_quote = True
-                    current_sentence = clean_sentence
+            # 对长句进行拆分-合并处理
+            split_result = self.split_into_clauses(sentence)
+            result.extend(split_result)
+        
+        return result
+    
+    def split_into_clauses(self, text: str,
+                        paren_symbols=PAIR_SYMBOLS_PARENS,
+                        quote_symbols=PAIR_SYMBOLS_QUOTES,
+                        split_punct=SPLIT_PUNCT,
+                        min_len: int = 15):
+        """
+        将文本拆分成子句：
+        1. 括号类符号内的文本作为独立子句。
+        2. 引号类符号内的文本作为独立子句。
+        3. 分隔符触发拆分，分隔符保留在子句末尾。
+        4. 短子句自动与前一个子句合并。
+        """
+        clauses = []
+        buf = []
+        stack = []  # 跟踪括号/引号状态
+        paren_content = []  # 存储括号内内容
+        quote_content = []  # 存储引号内内容
+
+        open_parens = {o: c for o, c in paren_symbols}
+        close_parens = {c: o for o, c in paren_symbols}
+        open_quotes = {o: c for o, c in quote_symbols}
+        close_quotes = {c: o for o, c in quote_symbols}
+
+        for ch in text:
+            # 括号处理
+            if ch in open_parens:
+                # 保存当前缓冲区内容作为子句
+                if buf:
+                    clause = ''.join(buf).strip()
+                    if clause:
+                        clauses.append(clause)
+                    buf = []
+                
+                stack.append(("paren", ch))
+                paren_content = [ch]  # 开始收集括号内内容
+                continue
+            elif ch in close_parens:
+                if stack and stack[-1][1] == close_parens[ch]:
+                    stack.pop()
+                    # 完成括号内容收集，作为独立子句
+                    paren_content.append(ch)
+                    clause = ''.join(paren_content).strip()
+                    if clause:
+                        clauses.append(clause)
+                    paren_content = []
+                continue
+
+            # 引号处理
+            if ch in open_quotes:
+                # 保存当前缓冲区内容作为子句
+                if buf:
+                    clause = ''.join(buf).strip()
+                    if clause:
+                        clauses.append(clause)
+                    buf = []
+                
+                if not stack or stack[-1][0] != "quote":
+                    stack.append(("quote", ch))
+                    quote_content = [ch]  # 开始收集引号内内容
                 else:
-                    # 完整句子
-                    merged.append(clean_sentence)
+                    stack.pop()
+                    # 完成引号内容收集，作为独立子句
+                    quote_content.append(ch)
+                    clause = ''.join(quote_content).strip()
+                    if clause:
+                        clauses.append(clause)
+                    quote_content = []
+                continue
+
+            # 如果在括号或引号内，收集内容
+            if paren_content:
+                paren_content.append(ch)
+                continue
+            elif quote_content:
+                quote_content.append(ch)
+                continue
+
+            # 正常字符处理
+            buf.append(ch)
+
+            # 分隔符处理
+            if ch in split_punct:
+                clause = ''.join(buf).strip()
+                if clause:
+                    clauses.append(clause)
+                buf = []
+                continue
+
+        # 收尾
+        if buf:
+            clause = ''.join(buf).strip()
+            if clause:
+                clauses.append(clause)
+
+        # 合并过短的子句
+        merged = []
+        for c in clauses:
+            if merged and len(merged[-1]) + len(c) < MAX_MERGE_LENGTH:
+                print(f"***合并子句***: {merged[-1]} 和 {c}")
+                merged[-1] += " " + c
             else:
-                # 在引号内
-                current_sentence += " " + clean_sentence
-                if quote_count % 2 == 1:
-                    # 结束引号
-                    in_quote = False
-                    merged.append(current_sentence)
-                    current_sentence = ""
-        
-        # 处理未闭合的引号
-        if current_sentence:
-            merged.append(current_sentence)
-        
+                merged.append(c)
+
         return merged
