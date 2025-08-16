@@ -30,7 +30,7 @@ PAIR_SYMBOLS_QUOTES = [
 ]
 
 # 配置：句中分隔符（可以再扩展）
-SPLIT_PUNCT = [",", "，", ":", "：", ";", "；"]
+SPLIT_PUNCT = [",", "，", ":", "：", ";", "；", "!", "?"]
 
 # 分隔符优先级列表（按语义强度排序）
 SEPARATORS = [
@@ -57,7 +57,7 @@ PROTECTED_PATTERNS = [
 
 # 长度控制常量 - 针对语音合成优化
 MAX_SENTENCE_LENGTH = 80      # 目标最大长度（适合语音合成）
-MIN_MERGE_LENGTH = 40      # 最大合并长度
+MIN_MERGE_LENGTH = 50      # 最大合并长度
 MAX_MERGE_LENGTH = 100      # 最大合并长度
 
 # 成对符号定义（支持所有类型引号和括号）
@@ -319,92 +319,116 @@ class SentenceSplitter:
                                 split_punct=SPLIT_PUNCT):
         """
         将文本拆分成子句的核心逻辑：
-        1. 括号类符号内的文本作为独立子句。
-        2. 引号类符号内的文本作为独立子句。
-        3. 分隔符触发拆分，分隔符保留在子句末尾。
+        1. 使用统一的配对符号处理逻辑
+        2. 分隔符包含在子句末尾，触发拆分
+        3. 确保语义边界的正确性
         """
+        # 统一所有配对符号
+        all_pairs = []
+        # 添加括号类符号
+        for open_sym, close_sym in paren_symbols:
+            all_pairs.append((open_sym, close_sym, "paren"))
+        # 添加引号类符号
+        for open_sym, close_sym in quote_symbols:
+            all_pairs.append((open_sym, close_sym, "quote"))
+        
+        # 创建符号映射
+        open_to_close = {}
+        close_to_open = {}
+        symbol_types = {}
+        
+        for open_sym, close_sym, symbol_type in all_pairs:
+            open_to_close[open_sym] = close_sym
+            close_to_open[close_sym] = open_sym
+            symbol_types[open_sym] = symbol_type
+            symbol_types[close_sym] = symbol_type
+        
         clauses = []
         buf = []
-        stack = []  # 跟踪括号/引号状态
-        paren_content = []  # 存储括号内内容
-        quote_content = []  # 存储引号内内容
-
-        open_parens = {o: c for o, c in paren_symbols}
-        close_parens = {c: o for o, c in paren_symbols}
-        open_quotes = {o: c for o, c in quote_symbols}
-        close_quotes = {c: o for o, c in quote_symbols}
-
+        stack = []  # 跟踪配对符号状态 [(symbol_type, open_symbol, content)]
+        
         for ch in text:
-            # 括号处理
-            if ch in open_parens:
-                # 保存当前缓冲区内容作为子句
-                if buf:
-                    clause = ''.join(buf).strip()
-                    if clause:
-                        clauses.append(clause)
-                    buf = []
+            # 检查是否是配对符号
+            if ch in open_to_close:
+                # 可能是开始符号
+                expected_close = open_to_close[ch]
+                symbol_type = symbol_types[ch]
                 
-                stack.append(("paren", ch))
-                paren_content = [ch]  # 开始收集括号内内容
-                continue
-            elif ch in close_parens:
-                if stack and stack[-1][1] == close_parens[ch]:
-                    stack.pop()
-                    # 完成括号内容收集，作为独立子句
-                    paren_content.append(ch)
-                    clause = ''.join(paren_content).strip()
-                    if clause:
-                        clauses.append(clause)
-                    paren_content = []
-                continue
-
-            # 引号处理
-            if ch in open_quotes:
-                # 保存当前缓冲区内容作为子句
-                if buf:
-                    clause = ''.join(buf).strip()
-                    if clause:
-                        clauses.append(clause)
-                    buf = []
+                # 检查是否真的是开始符号（对于相同开始/结束符号如引号）
+                is_opening = True
+                if ch == expected_close:  # 相同符号，需要通过栈状态判断
+                    # 查找栈中是否有相同符号类型的未配对符号
+                    for stack_item in stack:
+                        if stack_item[0] == symbol_type and stack_item[1] == ch:
+                            is_opening = False
+                            break
                 
-                if not stack or stack[-1][0] != "quote":
-                    stack.append(("quote", ch))
-                    quote_content = [ch]  # 开始收集引号内内容
+                if is_opening:
+                    # 开始符号：保存当前缓冲区，开始收集配对内容
+                    if buf:
+                        clause = ''.join(buf).rstrip()  # 去除尾部空格
+                        if clause:
+                            clauses.append(clause)
+                        buf = []
+                    
+                    stack.append((symbol_type, ch, [ch]))
                 else:
-                    stack.pop()
-                    # 完成引号内容收集，作为独立子句
-                    quote_content.append(ch)
-                    clause = ''.join(quote_content).strip()
-                    if clause:
-                        clauses.append(clause)
-                    quote_content = []
+                    # 结束符号：完成配对内容收集
+                    if stack:
+                        for i in reversed(range(len(stack))):
+                            if stack[i][0] == symbol_type and stack[i][1] == ch:
+                                # 找到匹配的开始符号
+                                symbol_type, open_sym, content = stack.pop(i)
+                                content.append(ch)
+                                clause = ''.join(content).strip()
+                                if clause:
+                                    clauses.append(clause)
+                                break
                 continue
-
-            # 如果在括号或引号内，收集内容
-            if paren_content:
-                paren_content.append(ch)
+            
+            elif ch in close_to_open:
+                # 明确的结束符号（开始和结束不同的情况）
+                open_sym = close_to_open[ch]
+                symbol_type = symbol_types[ch]
+                
+                # 查找栈中匹配的开始符号
+                if stack:
+                    for i in reversed(range(len(stack))):
+                        if stack[i][0] == symbol_type and stack[i][1] == open_sym:
+                            # 找到匹配的开始符号
+                            symbol_type, open_sym, content = stack.pop(i)
+                            content.append(ch)
+                            clause = ''.join(content).strip()
+                            if clause:
+                                clauses.append(clause)
+                            break
                 continue
-            elif quote_content:
-                quote_content.append(ch)
+            
+            # 如果在配对符号内，添加到相应的内容中
+            if stack:
+                stack[-1][2].append(ch)
                 continue
-
+            
             # 正常字符处理
             buf.append(ch)
-
-            # 分隔符处理
+            
+            # 分隔符处理：包含在当前子句中，然后触发拆分
             if ch in split_punct:
                 clause = ''.join(buf).strip()
-                if clause:
+                if clause and len(clause) > 1:  # 避免单个分隔符成为独立子句
                     clauses.append(clause)
-                buf = []
+                    buf = []
                 continue
-
-        # 收尾
+        
+        # 收尾处理
         if buf:
             clause = ''.join(buf).strip()
             if clause:
                 clauses.append(clause)
-
+        
+        # 清理并过滤空子句
+        clauses = [clause.strip() for clause in clauses if clause.strip()]
+        
         return clauses
 
     def split_into_clauses(self, text: str,
@@ -503,3 +527,4 @@ class SentenceSplitter:
                 return inner, (open_sym, close_sym)
         
         return text, ("", "")
+
