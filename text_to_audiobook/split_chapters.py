@@ -16,6 +16,7 @@ sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 from modules.chapter_splitter import ChapterSplitter, ChapterDetectionConfig
 from modules.sub_chapter_splitter import SubChapterSplitter
 from modules.sentence_splitter import SentenceSplitter
+from modules.audio_generator import AudioGenerator, AudioGeneratorConfig
 
 
 def main():
@@ -40,6 +41,11 @@ def main():
     parser.add_argument('--output-dir', default='./output', help='输出目录路径 (默认: ./output)')
     parser.add_argument('--config', default='text_to_audiobook/config.json', help='配置文件路径 (默认: text_to_audiobook/config.json)')
     parser.add_argument('--verbose','-v',action='store_true',help='显示详细信息')
+    
+    # 音频生成参数
+    parser.add_argument('--audio', action='store_true', help='启用音频生成')
+    parser.add_argument('--voice', default='af_bella', help='语音模型 (默认: af_bella)')
+    parser.add_argument('--speed', type=float, default=1.0, help='语音速度 (默认: 1.0)')
     
     args = parser.parse_args()
     
@@ -84,18 +90,45 @@ def main():
         # 执行句子拆分
         print(f"\n🔄 开始句子拆分处理...")
         sentence_splitter = SentenceSplitter(config.sentence)
-        output_files = sentence_splitter.split_files(sub_chapter_files, output_dir)
+        sentence_files = sentence_splitter.split_files(sub_chapter_files, output_dir)
         
-        print(f"\n✅ 句子拆分完成! 最终生成 {len(output_files)} 个文件")
+        print(f"\n✅ 句子拆分完成! 最终生成 {len(sentence_files)} 个句子文件")
+        
+        # 执行音频生成（可选）
+        audio_files = []
+        subtitle_files = []
+        if args.audio:
+            print(f"\n🔊 开始音频生成处理...")
+            try:
+                audio_config = AudioGeneratorConfig(voice=args.voice, speed=args.speed)
+                audio_generator = AudioGenerator(audio_config)
+                audio_files, subtitle_files = audio_generator.generate_audio_files(sentence_files, output_dir)
+                
+                print(f"\n✅ 音频生成完成! 生成 {len(audio_files)} 个音频文件和 {len(subtitle_files)} 个字幕文件")
+            except Exception as e:
+                print(f"\n⚠️ 音频生成失败: {e}")
+                if args.verbose:
+                    import traceback
+                    traceback.print_exc()
+                print("继续执行其他步骤...")
         
         if args.verbose:
-            # 从第一个输出文件获取实际输出目录
-            if output_files:
-                actual_output_dir = os.path.dirname(output_files[0])
+            # 从第一个句子文件获取实际输出目录
+            if sentence_files:
+                actual_output_dir = os.path.dirname(sentence_files[0])
                 print(f"\n输出目录: {actual_output_dir}")
-            print("生成的文件:")
-            for file_path in output_files:
+            print("生成的句子文件:")
+            for file_path in sentence_files:
                 print(f"  - {os.path.basename(file_path)}")
+            
+            # 显示音频文件信息（如果生成）
+            if args.audio and audio_files:
+                print("生成的音频文件:")
+                for file_path in audio_files:
+                    print(f"  - {os.path.basename(file_path)}")
+                print("生成的字幕文件:")
+                for file_path in subtitle_files:
+                    print(f"  - {os.path.basename(file_path)}")
         
         return 0
         

@@ -478,7 +478,6 @@ class SentenceSplitter:
         merged = []
         for c in final_result:
             if merged and len(merged[-1]) < MIN_MERGE_LENGTH and len(merged[-1]) + len(c) < MAX_MERGE_LENGTH:
-                print(f"***合并子句***: {merged[-1]} 和 {c}")
                 merged[-1] += " " + c
             else:
                 merged.append(c)
