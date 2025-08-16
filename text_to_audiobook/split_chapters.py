@@ -15,6 +15,7 @@ sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 from modules.chapter_splitter import ChapterSplitter, ChapterDetectionConfig
 from modules.sub_chapter_splitter import SubChapterSplitter
+from modules.sentence_splitter import SentenceSplitter
 
 
 def main():
@@ -76,9 +77,16 @@ def main():
         # 执行子章节拆分
         print(f"\n🔄 开始子章节拆分处理...")
         sub_splitter = SubChapterSplitter(config.sub_chapter)
-        output_files = sub_splitter.split_chapters(chapter_files, output_dir)
+        sub_chapter_files = sub_splitter.split_chapters(chapter_files, output_dir)
         
-        print(f"\n✅ 子章节拆分完成! 最终生成 {len(output_files)} 个文件")
+        print(f"\n✅ 子章节拆分完成! 生成 {len(sub_chapter_files)} 个子章节文件")
+        
+        # 执行句子拆分
+        print(f"\n🔄 开始句子拆分处理...")
+        sentence_splitter = SentenceSplitter(config.sentence)
+        output_files = sentence_splitter.split_files(sub_chapter_files, output_dir)
+        
+        print(f"\n✅ 句子拆分完成! 最终生成 {len(output_files)} 个文件")
         
         if args.verbose:
             # 从第一个输出文件获取实际输出目录

@@ -1,15 +1,35 @@
 {
-  "chapter_pattern": "^Chapter [IVX]+$",
-  "title_pattern": null,
-  "title_line_offset": 1,
-  "skip_empty_lines": false,
-  "max_title_search_lines": 3,
-  "header_lines_count": 3,
+  "chapter_patterns": [
+    {
+      "name": "alice_style",
+      "multiline_regex": "^CHAPTER ([IVX]+)\\.\n([^\n]+)\n\n",
+      "title_line_index": 1,
+      "content_start_offset": 3
+    },
+    {
+      "name": "numeric_style", 
+      "multiline_regex": "^Chapter (\\d+)\n([^\n]+)\n",
+      "title_line_index": 1,
+      "content_start_offset": 2
+    },
+    {
+      "name": "simple_roman",
+      "multiline_regex": "^Chapter ([IVX]+)$",
+      "title_line_index": 0,
+      "content_start_offset": 1
+    }
+  ],
   "ignore_case": true,
   "sub_chapter": {
     "max_reading_minutes": 5,
     "words_per_minute": 200,
     "enable_splitting": true,
     "min_paragraphs_per_sub": 2
+  },
+  "sentence": {
+    "output_subdir": "sentences",
+    "segmenter": "pysbd",
+    "language": "en",
+    "clean": false
   }
 }

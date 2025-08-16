@@ -8,38 +8,44 @@
 import re
 import os
 import json
-from typing import List, Tuple, Optional
+from typing import List
 from dataclasses import dataclass
 from .sub_chapter_splitter import SubChapterConfig
+from .sentence_splitter import SentenceSplitterConfig
+
+
+@dataclass
+class ChapterPattern:
+    """章节模式配置类"""
+    
+    # 模式名称
+    name: str
+    
+    # 多行正则表达式
+    multiline_regex: str
+    
+    # 标题行索引（0开始）
+    title_line_index: int
+    
+    # 内容开始行偏移
+    content_start_offset: int
 
 
 @dataclass
 class ChapterDetectionConfig:
     """章节检测配置类"""
     
-    # 章节标识行正则表达式
-    chapter_pattern: str
-    
-    # 标题行正则表达式（可选，用于验证标题格式）
-    title_pattern: Optional[str]
-    
-    # 标题行相对于章节标识行的偏移量
-    title_line_offset: int
-    
-    # 是否跳过空行寻找标题
-    skip_empty_lines: bool
-    
-    # 最大搜索标题的行数
-    max_title_search_lines: int
-    
-    # 章节头部总行数（用于跳过到内容开始）
-    header_lines_count: int
+    # 章节模式列表
+    chapter_patterns: List[ChapterPattern]
     
     # 是否忽略大小写
     ignore_case: bool
     
     # 子章节配置
     sub_chapter: SubChapterConfig
+    
+    # 句子拆分配置
+    sentence: SentenceSplitterConfig
     
     @classmethod
     def from_json_file(cls, config_path: str) -> 'ChapterDetectionConfig':
@@ -55,11 +61,23 @@ class ChapterDetectionConfig:
         with open(config_path, 'r', encoding='utf-8') as f:
             config_data = json.load(f)
         
+        # 处理章节模式配置
+        if 'chapter_patterns' in config_data:
+            patterns_data = config_data.pop('chapter_patterns')
+            patterns = [ChapterPattern(**pattern_data) for pattern_data in patterns_data]
+            config_data['chapter_patterns'] = patterns
+        
         # 处理子章节配置
         if 'sub_chapter' in config_data:
             sub_config_data = config_data.pop('sub_chapter')
             sub_config = SubChapterConfig(**sub_config_data)
             config_data['sub_chapter'] = sub_config
+        
+        # 处理句子拆分配置
+        if 'sentence' in config_data:
+            sentence_config_data = config_data.pop('sentence')
+            sentence_config = SentenceSplitterConfig(**sentence_config_data)
+            config_data['sentence'] = sentence_config
         
         return cls(**config_data)
     
@@ -78,13 +96,15 @@ class ChapterSplitter:
         self.config = config
         
         # 编译正则表达式
-        flags = re.IGNORECASE if self.config.ignore_case else 0
-        self.chapter_regex = re.compile(self.config.chapter_pattern, flags)
+        flags = re.MULTILINE | re.DOTALL
+        if self.config.ignore_case:
+            flags |= re.IGNORECASE
         
-        if self.config.title_pattern:
-            self.title_regex = re.compile(self.config.title_pattern, flags)
-        else:
-            self.title_regex = None
+        # 编译所有章节模式
+        self.compiled_patterns = []
+        for pattern in self.config.chapter_patterns:
+            compiled_regex = re.compile(pattern.multiline_regex, flags)
+            self.compiled_patterns.append((pattern, compiled_regex))
     
     def split_book(self, input_file: str, output_dir: str = "./output", subdir_name: str = None) -> List[str]:
         """
@@ -100,12 +120,12 @@ class ChapterSplitter:
         """
         # 读取输入文件
         with open(input_file, 'r', encoding='utf-8') as f:
-            lines = f.readlines()
+            content = f.read()
         
         # 检测章节边界
-        chapter_boundaries = self._detect_chapter_boundaries(lines)
+        chapter_matches = self._detect_chapters(content)
         
-        if not chapter_boundaries:
+        if not chapter_matches:
             raise ValueError(f"未在文件 {input_file} 中检测到任何章节")
         
         # 自动生成子目录名称
@@ -118,19 +138,20 @@ class ChapterSplitter:
         
         # 拆分并保存章节
         output_files = []
-        for i, (start_line, end_line, chapter_info) in enumerate(chapter_boundaries):
-            chapter_num, chapter_title = chapter_info
+        for i, chapter_match in enumerate(chapter_matches):
+            chapter_title = chapter_match['title']
+            chapter_content = chapter_match['content']
             
             # 生成文件名
             filename = self._generate_filename(i + 1, chapter_title)
             file_path = os.path.join(full_output_dir, filename)
             
-            # 提取章节内容
-            chapter_content = self._extract_chapter_content(lines, start_line, end_line, chapter_title)
+            # 格式化章节内容
+            formatted_content = f"{chapter_title}\n\n{chapter_content}"
             
             # 保存文件
             with open(file_path, 'w', encoding='utf-8') as f:
-                f.write(chapter_content)
+                f.write(formatted_content)
             
             output_files.append(file_path)
             print(f"已生成章节文件: {file_path}")
@@ -139,158 +160,80 @@ class ChapterSplitter:
         
         return output_files
     
-    def _detect_chapter_boundaries(self, lines: List[str]) -> List[Tuple[int, int, Tuple[str, str]]]:
+    def _detect_chapters(self, content: str) -> List[dict]:
         """
-        检测章节边界
+        检测文本中的章节
         
         Args:
-            lines: 文件行列表
+            content: 完整文本内容
             
         Returns:
-            章节边界列表，每个元素为 (开始行号, 结束行号, (章节号, 章节标题))
+            章节匹配列表，每个元素包含 {'title': str, 'content': str, 'start': int, 'end': int}
         """
-        chapter_starts = []
+        # 尝试所有配置的模式
+        for pattern, regex in self.compiled_patterns:
+            matches = list(regex.finditer(content))
+            if matches:
+                print(f"使用模式 '{pattern.name}' 找到 {len(matches)} 个章节")
+                return self._extract_chapters_from_matches(content, matches, pattern)
         
-        # 首先找到所有章节开始位置
-        for i, line in enumerate(lines):
-            line_stripped = line.strip()
+        return []
+    
+    def _extract_chapters_from_matches(self, content: str, matches: List[re.Match], pattern: ChapterPattern) -> List[dict]:
+        """
+        从正则匹配结果提取章节信息
+        
+        Args:
+            content: 完整文本内容
+            matches: 正则匹配结果列表
+            pattern: 使用的章节模式
             
-            # 检测章节标识行
-            if self.chapter_regex.match(line_stripped):
-                # 提取章节信息
-                chapter_info = self._extract_chapter_info(lines, i)
-                if chapter_info:
-                    # 记录章节标识行位置和内容开始位置
-                    content_start = self._find_content_start(lines, i)
-                    chapter_starts.append((i, content_start, chapter_info))
+        Returns:
+            章节信息列表
+        """
+        chapters = []
         
-        # 构建章节边界
-        boundaries = []
-        for i, (chapter_line, content_start, chapter_info) in enumerate(chapter_starts):
-            if i < len(chapter_starts) - 1:
-                # 当前章节结束于下一章节标识行之前
-                next_chapter_line = chapter_starts[i + 1][0]
-                end_line = next_chapter_line - 1
+        for i, match in enumerate(matches):
+            # 提取标题
+            match_lines = match.group(0).split('\n')
+            if pattern.title_line_index < len(match_lines):
+                title = match_lines[pattern.title_line_index].strip()
             else:
-                # 最后一章节到文件结尾
-                end_line = len(lines) - 1
+                title = f"Chapter {i + 1}"
             
-            boundaries.append((content_start, end_line, chapter_info))
-        
-        return boundaries
-    
-    def _extract_chapter_info(self, lines: List[str], chapter_line_idx: int) -> Optional[Tuple[str, str]]:
-        """
-        提取章节号和标题
-        
-        Args:
-            lines: 文件行列表
-            chapter_line_idx: 章节标识行索引
+            # 计算内容开始位置
+            content_start = match.end()
             
-        Returns:
-            (章节号, 章节标题) 或 None
-        """
-        chapter_line = lines[chapter_line_idx].strip()
-        
-        # 提取章节号
-        chapter_match = self.chapter_regex.match(chapter_line)
-        if not chapter_match:
-            return None
-        
-        chapter_num = chapter_line
-        
-        # 寻找标题行
-        title = self._find_title_line(lines, chapter_line_idx)
-        if not title:
-            title = f"Unknown Title {chapter_line_idx + 1}"
-        
-        return (chapter_num, title)
-    
-    def _find_title_line(self, lines: List[str], chapter_line_idx: int) -> Optional[str]:
-        """
-        寻找章节标题行
-        
-        Args:
-            lines: 文件行列表
-            chapter_line_idx: 章节标识行索引
+            # 计算内容结束位置
+            if i < len(matches) - 1:
+                content_end = matches[i + 1].start()
+            else:
+                content_end = len(content)
             
-        Returns:
-            章节标题或None
-        """
-        search_start = chapter_line_idx + self.config.title_line_offset
-        search_end = min(
-            chapter_line_idx + self.config.max_title_search_lines + 1,
-            len(lines)
-        )
-        
-        for i in range(search_start, search_end):
-            if i >= len(lines):
-                break
+            # 提取原始内容
+            raw_content = content[content_start:content_end].strip()
             
-            line = lines[i].strip()
+            # 处理段落合并
+            content_lines = raw_content.split('\n')
             
-            # 跳过空行（如果配置允许）
-            if self.config.skip_empty_lines and not line:
-                continue
+            # 清理内容（去除开头和结尾的空行）
+            while content_lines and not content_lines[0].strip():
+                content_lines.pop(0)
+            while content_lines and not content_lines[-1].strip():
+                content_lines.pop()
             
-            # 找到非空行
-            if line:
-                # 如果有标题正则，验证格式
-                if self.title_regex and not self.title_regex.match(line):
-                    continue
-                
-                return line
-        
-        return None
-    
-    def _find_content_start(self, lines: List[str], chapter_line_idx: int) -> int:
-        """
-        找到章节内容开始行号
-        
-        Args:
-            lines: 文件行列表
-            chapter_line_idx: 章节标识行索引
+            # 合并段落（将多行合并为单行）
+            processed_lines = self._merge_paragraph_lines(content_lines)
+            chapter_content = ''.join(processed_lines).strip()
             
-        Returns:
-            内容开始行号
-        """
-        # 简单策略：跳过固定行数
-        content_start = chapter_line_idx + self.config.header_lines_count
+            chapters.append({
+                'title': title,
+                'content': chapter_content,
+                'start': match.start(),
+                'end': content_end
+            })
         
-        # 确保不超过文件范围
-        return min(content_start, len(lines))
-    
-    def _extract_chapter_content(self, lines: List[str], start_line: int, end_line: int, chapter_title: str) -> str:
-        """
-        提取章节内容
-        
-        Args:
-            lines: 文件行列表
-            start_line: 开始行号
-            end_line: 结束行号
-            chapter_title: 章节标题
-            
-        Returns:
-            格式化的章节内容
-        """
-        # 提取内容行
-        content_lines = lines[start_line:end_line + 1]
-        
-        # 清理内容（去除开头和结尾的空行）
-        while content_lines and not content_lines[0].strip():
-            content_lines.pop(0)
-        
-        while content_lines and not content_lines[-1].strip():
-            content_lines.pop()
-        
-        # 合并段落（将多行合并为单行）
-        processed_lines = self._merge_paragraph_lines(content_lines)
-        
-        # 构建最终内容：第一行是章节标题
-        result_lines = [chapter_title + '\n', '\n']
-        result_lines.extend(processed_lines)
-        
-        return ''.join(result_lines)
+        return chapters
     
     def _merge_paragraph_lines(self, lines: List[str]) -> List[str]:
         """

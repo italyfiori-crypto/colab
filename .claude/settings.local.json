@@ -9,7 +9,10 @@
       "Bash(ls:*)",
       "Bash(rm:*)",
       "Bash(cp:*)",
-      "WebFetch(domain:developers.weixin.qq.com)"
+      "WebFetch(domain:developers.weixin.qq.com)",
+      "Bash(python:*)",
+      "Bash(pip3 install:*)",
+      "Bash(grep:*)"
     ],
     "deny": []
   }
