@@ -8,7 +8,7 @@
     },
     {
       "name": "numeric_style",
-      "multiline_regex": "^Chapter (\\d+)\n([^\n]+)\n",
+      "multiline_regex": "^CHAPTER ([IVX]+)\n([^\n]+)\n\n",
       "title_line_index": 1,
       "content_start_offset": 2
     },

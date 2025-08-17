@@ -57,7 +57,7 @@ PROTECTED_PATTERNS = [
 
 # 长度控制常量 - 针对语音合成优化
 MAX_SENTENCE_LENGTH = 80      # 目标最大长度（适合语音合成）
-MIN_MERGE_LENGTH = 50      # 最大合并长度
+MIN_MERGE_LENGTH = 40      # 最大合并长度
 MAX_MERGE_LENGTH = 100      # 最大合并长度
 
 # 成对符号定义（支持所有类型引号和括号）
