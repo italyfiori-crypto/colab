@@ -41,5 +41,11 @@
     "model": "deepseek-ai/DeepSeek-V2.5",
     "timeout": 30,
     "max_retries": 5
+  },
+  "statistics": {
+    "output_filename": "meta.json",
+    "enabled": true,
+    "book_title": "",
+    "book_description": ""
   }
 }

@@ -367,6 +367,203 @@ class SubtitleTranslator:
                 f.write(f"{entry['english_text']}\n")
                 f.write(f"{entry['chinese_text']}\n\n")
     
+    def translate_chapter_titles(self, chapter_titles: List[str]) -> List[str]:
+        """
+        翻译章节标题列表（分批处理）
+        
+        Args:
+            chapter_titles: 英文章节标题列表
+            
+        Returns:
+            中文章节标题列表
+        """
+        if not chapter_titles:
+            return []
+        
+        print(f"🌏 正在翻译 {len(chapter_titles)} 个章节标题...")
+        
+        # 分批处理
+        translated_titles = [None] * len(chapter_titles)  # 预分配结果列表
+        total_batches = (len(chapter_titles) + self.config.batch_size - 1) // self.config.batch_size
+        
+        for i in range(0, len(chapter_titles), self.config.batch_size):
+            batch = chapter_titles[i:i + self.config.batch_size]
+            batch_num = i // self.config.batch_size + 1
+            
+            print(f"  翻译批次 {batch_num}/{total_batches} ({len(batch)} 个标题)")
+            
+            try:
+                # 翻译当前批次
+                batch_translated = self._translate_chapter_titles_batch(batch, i)
+                
+                # 将结果放入对应位置
+                for j, translated in enumerate(batch_translated):
+                    translated_titles[i + j] = translated
+                    
+            except Exception as e:
+                print(f"⚠️ 批次 {batch_num} 翻译失败: {e}")
+                # 翻译失败时，保留原标题
+                for j, original in enumerate(batch):
+                    translated_titles[i + j] = original
+            
+            # 添加延迟避免API限流
+            if i + self.config.batch_size < len(chapter_titles):
+                time.sleep(0.5)
+        
+        # 过滤掉None值（如果有的话）
+        result = [title if title is not None else original 
+                 for title, original in zip(translated_titles, chapter_titles)]
+        
+        print(f"✅ 章节标题翻译完成")
+        return result
+    
+    def _translate_chapter_titles_batch(self, batch_titles: List[str], start_index: int) -> List[str]:
+        """
+        翻译一批章节标题
+        
+        Args:
+            batch_titles: 当前批次的标题列表
+            start_index: 在原始列表中的起始索引
+            
+        Returns:
+            翻译后的标题列表
+        """
+        # 构建翻译提示词，使用全局编号
+        titles_text = '\n'.join([f"{start_index + i + 1}. {title}" 
+                                for i, title in enumerate(batch_titles)])
+        
+        prompt = f"""将英文章节标题翻译成中文，必须严格遵守格式要求。
+
+**格式要求（必须严格遵守）**：
+- 输出格式：编号. 中文翻译
+- 保持原有编号不变
+- 每行一个标题
+- 不要添加任何解释或其他文字
+- 不要改变编号顺序
+
+**翻译要求**：
+1. 准确传达章节主题
+2. 语言简洁优雅
+3. 符合中文表达习惯
+4. 保持文学性
+5. 标题中如果包含符号和数字， 翻译要保持不变
+
+**示例**：
+输入：
+1. Down the Rabbit-Hole(1)
+3. Down the Rabbit-Hole(2)
+2. The Pool of Tears
+
+输出：
+1. 掉进兔子洞(1)
+2. 掉进兔子洞(2)
+3. 眼泪池
+
+**待翻译章节标题**：
+{titles_text}
+
+**严格按照格式输出**："""
+        
+        try:
+            # 调用API进行翻译
+            response = self._call_api(prompt)
+            if not response:
+                print("❌ 批次翻译失败，返回原标题")
+                return batch_titles
+            
+            # 解析翻译结果，传入批次的起始编号
+            translated_titles = self._parse_chapter_titles_batch_response(
+                response, batch_titles, start_index)
+            
+            return translated_titles
+            
+        except Exception as e:
+            print(f"❌ 批次翻译失败: {e}")
+            return batch_titles
+    
+    def _parse_chapter_titles_batch_response(self, response: str, original_titles: List[str], start_index: int) -> List[str]:
+        """解析批次章节标题翻译响应"""
+        lines = response.strip().split('\n')
+        translated_titles = [None] * len(original_titles)
+        matched_indices = set()
+        
+        # 第一轮：精确匹配标准格式 "编号. 翻译内容"
+        for line in lines:
+            line = line.strip()
+            if not line:
+                continue
+            
+            # 尝试解析 "编号. 翻译内容" 格式
+            if '. ' in line:
+                parts = line.split('. ', 1)
+                if len(parts) == 2:
+                    try:
+                        global_index = int(parts[0].strip()) - 1  # 全局索引（0基）
+                        chinese_title = parts[1].strip()
+                        
+                        # 转换为批次内的相对索引
+                        relative_index = global_index - start_index
+                        
+                        if (0 <= relative_index < len(original_titles) and 
+                            relative_index not in matched_indices):
+                            translated_titles[relative_index] = chinese_title
+                            matched_indices.add(relative_index)
+                    except ValueError:
+                        continue
+        
+        # 第二轮：处理未匹配的标题，使用原标题
+        for i in range(len(original_titles)):
+            if i not in matched_indices:
+                translated_titles[i] = original_titles[i]  # 保持原标题
+        
+        # 过滤掉None值
+        result = [title if title is not None else original_titles[i] 
+                 for i, title in enumerate(translated_titles)]
+        
+        return result
+    
+    def _parse_chapter_titles_response(self, response: str, original_titles: List[str]) -> List[str]:
+        """解析章节标题翻译响应"""
+        lines = response.strip().split('\n')
+        translated_titles = []
+        matched_indices = set()
+        
+        # 第一轮：精确匹配标准格式 "编号. 翻译内容"
+        for line in lines:
+            line = line.strip()
+            if not line:
+                continue
+            
+            # 尝试解析 "编号. 翻译内容" 格式
+            if '. ' in line:
+                parts = line.split('. ', 1)
+                if len(parts) == 2:
+                    try:
+                        index = int(parts[0].strip()) - 1  # 转换为0基索引
+                        chinese_title = parts[1].strip()
+                        
+                        if 0 <= index < len(original_titles) and index not in matched_indices:
+                            # 确保translated_titles有足够长度
+                            while len(translated_titles) <= index:
+                                translated_titles.append("")
+                            
+                            translated_titles[index] = chinese_title
+                            matched_indices.add(index)
+                    except ValueError:
+                        continue
+        
+        # 第二轮：处理未匹配的标题，使用原标题
+        for i in range(len(original_titles)):
+            if i not in matched_indices:
+                # 确保translated_titles有足够长度
+                while len(translated_titles) <= i:
+                    translated_titles.append("")
+                
+                translated_titles[i] = original_titles[i]  # 保持原标题
+        
+        # 只返回有效长度的列表
+        return translated_titles[:len(original_titles)]
+    
     def test_connection(self) -> bool:
         """测试API连接"""
         print("正在测试 SiliconFlow API 连接...")

@@ -1,4 +1,3 @@
-@@ -1,214 +0,0 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
@@ -10,6 +9,7 @@ import argparse
 import sys
 import os
 import time
+import re
 from pathlib import Path
 
 # 添加模块路径
@@ -21,6 +21,122 @@ from modules.sub_chapter_splitter import SubChapterSplitter
 from modules.sentence_splitter import SentenceSplitter
 from modules.audio_generator import AudioGenerator, AudioGeneratorConfig
 from modules.subtitle_translator import SubtitleTranslator, SubtitleTranslatorConfig
+from modules.statistics_collector import StatisticsCollector
+
+
+def get_expected_audio_file(sentence_file: str, output_dir: str) -> str:
+    """
+    根据句子文件路径推理对应的音频文件路径
+    
+    Args:
+        sentence_file: 句子文件路径 (如 sentences/01_Down_the_Rabbit-Hole(1).txt)
+        output_dir: 输出目录
+        
+    Returns:
+        预期的音频文件路径
+    """
+    filename = os.path.basename(sentence_file)
+    audio_filename = os.path.splitext(filename)[0] + '.wav'
+    return os.path.join(output_dir, 'audio', audio_filename)
+
+
+def get_expected_subtitle_file(sentence_file: str, output_dir: str) -> str:
+    """
+    根据句子文件路径推理对应的字幕文件路径
+    
+    Args:
+        sentence_file: 句子文件路径 (如 sentences/01_Down_the_Rabbit-Hole(1).txt)
+        output_dir: 输出目录
+        
+    Returns:
+        预期的字幕文件路径
+    """
+    filename = os.path.basename(sentence_file)
+    subtitle_filename = os.path.splitext(filename)[0] + '.srt'
+    return os.path.join(output_dir, 'subtitles', subtitle_filename)
+
+
+def check_audio_exists(audio_file: str) -> bool:
+    """
+    检查音频文件是否存在
+    
+    Args:
+        audio_file: 音频文件路径
+        
+    Returns:
+        文件是否存在
+    """
+    return os.path.exists(audio_file) and os.path.getsize(audio_file) > 0
+
+
+def check_subtitle_has_chinese(subtitle_file: str) -> bool:
+    """
+    检查字幕文件是否已包含中文翻译
+    
+    Args:
+        subtitle_file: 字幕文件路径
+        
+    Returns:
+        是否包含中文翻译
+    """
+    if not os.path.exists(subtitle_file):
+        return False
+    
+    try:
+        with open(subtitle_file, 'r', encoding='utf-8') as f:
+            content = f.read()
+            # 检查是否包含中文字符
+            chinese_pattern = re.compile(r'[\u4e00-\u9fff]+')
+            return bool(chinese_pattern.search(content))
+    except Exception:
+        return False
+
+
+def filter_files_for_audio_generation(sentence_files: list, output_dir: str) -> tuple:
+    """
+    过滤需要生成音频的文件
+    
+    Args:
+        sentence_files: 句子文件列表
+        output_dir: 输出目录
+        
+    Returns:
+        (需要处理的文件列表, 跳过的文件数量)
+    """
+    files_to_process = []
+    skipped_count = 0
+    
+    for sentence_file in sentence_files:
+        audio_file = get_expected_audio_file(sentence_file, output_dir)
+        
+        if check_audio_exists(audio_file):
+            skipped_count += 1
+        else:
+            files_to_process.append(sentence_file)
+    
+    return files_to_process, skipped_count
+
+
+def filter_files_for_subtitle_translation(subtitle_files: list) -> tuple:
+    """
+    过滤需要翻译的字幕文件
+    
+    Args:
+        subtitle_files: 字幕文件列表
+        
+    Returns:
+        (需要处理的文件列表, 跳过的文件数量)
+    """
+    files_to_process = []
+    skipped_count = 0
+    
+    for subtitle_file in subtitle_files:
+        if check_subtitle_has_chinese(subtitle_file):
+            skipped_count += 1
+        else:
+            files_to_process.append(subtitle_file)
+    
+    return files_to_process, skipped_count
 
 
 def main():
@@ -118,51 +234,124 @@ def main():
         audio_time = 0
         if args.audio:
             print(f"\n🔊 开始音频生成处理...")
-            start_time = time.time()
-            try:
-                audio_config = AudioGeneratorConfig(voice=args.voice, speed=args.speed)
-                audio_generator = AudioGenerator(audio_config)
-                audio_files, subtitle_files = audio_generator.generate_audio_files(sentence_files, output_dir)
-                audio_time = time.time() - start_time
-                
-                print(f"\n✅ 音频生成完成! 生成 {len(audio_files)} 个音频文件和 {len(subtitle_files)} 个字幕文件 (耗时: {audio_time:.2f}秒)")
-            except Exception as e:
-                audio_time = time.time() - start_time
-                print(f"\n⚠️ 音频生成失败: {e} (耗时: {audio_time:.2f}秒)")
-                if args.verbose:
-                    import traceback
-                    traceback.print_exc()
-                print("继续执行其他步骤...")
+            
+            # 过滤需要生成音频的文件
+            files_to_process, skipped_count = filter_files_for_audio_generation(sentence_files, output_dir)
+            
+            if skipped_count > 0:
+                print(f"📋 跳过 {skipped_count} 个已存在的音频文件")
+            
+            if files_to_process:
+                print(f"🎵 需要生成 {len(files_to_process)} 个音频文件")
+                start_time = time.time()
+                try:
+                    audio_config = AudioGeneratorConfig(voice=args.voice, speed=args.speed)
+                    audio_generator = AudioGenerator(audio_config)
+                    audio_files, subtitle_files = audio_generator.generate_audio_files(files_to_process, output_dir)
+                    audio_time = time.time() - start_time
+                    
+                    total_audio_files = len(audio_files) + skipped_count
+                    total_subtitle_files = len(subtitle_files) + skipped_count
+                    print(f"\n✅ 音频生成完成! 总计 {total_audio_files} 个音频文件 (新生成 {len(audio_files)} 个) 和 {total_subtitle_files} 个字幕文件 (新生成 {len(subtitle_files)} 个) (耗时: {audio_time:.2f}秒)")
+                except Exception as e:
+                    audio_time = time.time() - start_time
+                    print(f"\n⚠️ 音频生成失败: {e} (耗时: {audio_time:.2f}秒)")
+                    if args.verbose:
+                        import traceback
+                        traceback.print_exc()
+                    print("继续执行其他步骤...")
+            else:
+                print(f"✅ 所有音频文件已存在，跳过音频生成步骤")
+                # 收集所有音频和字幕文件（包括已存在的）
+                for sentence_file in sentence_files:
+                    audio_file = get_expected_audio_file(sentence_file, output_dir)
+                    subtitle_file = get_expected_subtitle_file(sentence_file, output_dir)
+                    if check_audio_exists(audio_file):
+                        audio_files.append(audio_file)
+                    if os.path.exists(subtitle_file):
+                        subtitle_files.append(subtitle_file)
         
         # 执行字幕翻译（可选）
         translated_files = []
         translate_time = 0
         if args.translate and subtitle_files:
             print(f"\n🌏 开始字幕翻译处理...")
+            
+            # 过滤需要翻译的字幕文件
+            files_to_translate, skipped_count = filter_files_for_subtitle_translation(subtitle_files)
+            
+            if skipped_count > 0:
+                print(f"📋 跳过 {skipped_count} 个已包含中文翻译的字幕文件")
+            
+            if files_to_translate:
+                print(f"🌐 需要翻译 {len(files_to_translate)} 个字幕文件")
+                start_time = time.time()
+                try:
+                    # 配置翻译器
+                    translator_config = config.subtitle_translator                
+                    if not translator_config.api_key:
+                        raise RuntimeError("缺少 SiliconFlow API 密钥，请通过 --api-key 参数或配置文件提供")
+                    
+                    translator = SubtitleTranslator(translator_config)
+                    translated_files = translator.translate_subtitle_files(files_to_translate)
+                    translate_time = time.time() - start_time
+                    
+                    total_translated = len(translated_files) + skipped_count
+                    print(f"\n✅ 字幕翻译完成! 总计 {total_translated} 个字幕文件包含中文翻译 (新翻译 {len(translated_files)} 个) (耗时: {translate_time:.2f}秒)")
+                except Exception as e:
+                    translate_time = time.time() - start_time
+                    print(f"\n⚠️ 字幕翻译失败: {e} (耗时: {translate_time:.2f}秒)")
+                    if args.verbose:
+                        import traceback
+                        traceback.print_exc()
+                    print("继续执行其他步骤...")
+            else:
+                print(f"✅ 所有字幕文件已包含中文翻译，跳过翻译步骤")
+                translated_files = subtitle_files  # 所有文件都已翻译
+        elif args.translate and not subtitle_files:
+            print(f"\n⚠️ 未找到字幕文件，跳过翻译步骤（请先启用 --audio 生成字幕）")
+        
+        # 执行统计信息收集（如果启用且有音频文件）
+        statistics_time = 0
+        if config.statistics.enabled and audio_files:
+            print(f"\n📊 开始统计信息收集...")
             start_time = time.time()
             try:
-                # 配置翻译器
-                translator_config = config.subtitle_translator                
-                if not translator_config.api_key:
-                    raise RuntimeError("缺少 SiliconFlow API 密钥，请通过 --api-key 参数或配置文件提供")
+                statistics_collector = StatisticsCollector(config.statistics)
                 
-                translator = SubtitleTranslator(translator_config)
-                translated_files = translator.translate_subtitle_files(subtitle_files)
-                translate_time = time.time() - start_time
+                # 收集统计信息（如果有翻译器就传入用于翻译章节标题）
+                translator_for_stats = None
+                if args.translate and config.subtitle_translator.api_key:
+                    translator_for_stats = SubtitleTranslator(config.subtitle_translator)
                 
-                print(f"\n✅ 字幕翻译完成! 翻译 {len(translated_files)} 个字幕文件 (耗时: {translate_time:.2f}秒)")
+                statistics = statistics_collector.collect_statistics(
+                    sub_chapter_files=sub_chapter_files,
+                    audio_files=audio_files,
+                    output_dir=output_dir,
+                    translator=translator_for_stats
+                )
+                
+                statistics_time = time.time() - start_time
+                print(f"\n✅ 统计信息收集完成! (耗时: {statistics_time:.2f}秒)")
+                
+                if args.verbose and statistics:
+                    book_info = statistics.get('book', {})
+                    chapters_info = statistics.get('chapters', [])
+                    print(f"📖 书籍信息: {book_info.get('title', 'Unknown')} (共 {book_info.get('total_chapters', 0)} 章节, 总时长 {book_info.get('total_duration', 0):.1f}秒)")
+                    print(f"📊 收集了 {len(chapters_info)} 个章节的统计信息")
+                
             except Exception as e:
-                translate_time = time.time() - start_time
-                print(f"\n⚠️ 字幕翻译失败: {e} (耗时: {translate_time:.2f}秒)")
+                statistics_time = time.time() - start_time
+                print(f"\n⚠️ 统计信息收集失败: {e} (耗时: {statistics_time:.2f}秒)")
                 if args.verbose:
                     import traceback
                     traceback.print_exc()
                 print("继续执行其他步骤...")
-        elif args.translate and not subtitle_files:
-            print(f"\n⚠️ 未找到字幕文件，跳过翻译步骤（请先启用 --audio 生成字幕）")
+        elif config.statistics.enabled and not audio_files:
+            print(f"\n⚠️ 未找到音频文件，跳过统计收集步骤（请先启用 --audio 生成音频）")
         
         # 计算总耗时
-        total_time = chapter_time + sub_chapter_time + sentence_time + audio_time + translate_time
+        total_time = chapter_time + sub_chapter_time + sentence_time + audio_time + translate_time + statistics_time
         program_total_time = time.time() - program_start_time
         
         # 打印耗时汇总
@@ -174,6 +363,8 @@ def main():
             print(f"  音频生成: {audio_time:.2f}秒 ({audio_time/total_time*100:.1f}%)")
         if args.translate:
             print(f"  字幕翻译: {translate_time:.2f}秒 ({translate_time/total_time*100:.1f}%)")
+        if config.statistics.enabled and statistics_time > 0:
+            print(f"  统计收集: {statistics_time:.2f}秒 ({statistics_time/total_time*100:.1f}%)")
         print(f"  核心处理总耗时: {total_time:.2f}秒")
         print(f"  程序总耗时: {program_total_time:.2f}秒")
         

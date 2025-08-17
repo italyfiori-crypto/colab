@@ -11,6 +11,7 @@ from dataclasses import dataclass
 from .sub_chapter_splitter import SubChapterConfig
 from .sentence_splitter import SentenceSplitterConfig
 from .subtitle_translator import SubtitleTranslatorConfig
+from .statistics_collector import StatisticsCollectorConfig
 
 
 @dataclass
@@ -48,6 +49,9 @@ class AudiobookConfig:
     
     # 字幕翻译配置
     subtitle_translator: SubtitleTranslatorConfig
+    
+    # 统计收集配置
+    statistics: StatisticsCollectorConfig
     
     @classmethod
     def from_json_file(cls, config_path: str) -> 'AudiobookConfig':
@@ -89,5 +93,14 @@ class AudiobookConfig:
         else:
             # 如果配置文件中没有翻译配置，使用默认值
             config_data['subtitle_translator'] = SubtitleTranslatorConfig()
+        
+        # 处理统计收集配置
+        if 'statistics' in config_data:
+            statistics_config_data = config_data.pop('statistics')
+            statistics_config = StatisticsCollectorConfig(**statistics_config_data)
+            config_data['statistics'] = statistics_config
+        else:
+            # 如果配置文件中没有统计配置，使用默认值
+            config_data['statistics'] = StatisticsCollectorConfig()
         
         return cls(**config_data)
