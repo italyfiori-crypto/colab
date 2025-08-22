@@ -31,11 +31,6 @@ class StatisticsCollectorConfig:
     # 输出配置
     output_filename: str = "meta.json"
     enabled: bool = True
-    
-    # 书籍信息配置
-    book_title: str = ""  # 如果为空，从输入文件名推导
-    book_description: str = ""
-
 
 class StatisticsCollector:
     """统计收集器 - 收集书籍和章节统计信息"""
@@ -199,15 +194,6 @@ class StatisticsCollector:
     
     def _generate_book_info(self, chapters_info: List[Dict], output_dir: str) -> Dict:
         """生成书籍信息"""
-        # 推导书籍标题
-        book_title = self.config.book_title
-        if not book_title:
-            # 从输出目录名推导
-            output_dir_name = os.path.basename(output_dir.rstrip('/'))
-            if output_dir_name and output_dir_name != 'output':
-                book_title = output_dir_name.replace('_', ' ').title()
-            else:
-                book_title = "Unknown Book"
         
         # 统计总章节数（去重）
         unique_chapters = set()
@@ -218,9 +204,10 @@ class StatisticsCollector:
             total_duration += ch['duration']
         
         return {
-            "title": book_title,
-            "title_cn": "",  # 待翻译
-            "description": self.config.book_description,
+            "title": "",
+            "author": "",
+            "cover": "",
+            "description": "",
             "total_chapters": len(unique_chapters),
             "total_duration": round(total_duration, 2)
         }

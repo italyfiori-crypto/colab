@@ -13,10 +13,10 @@
       "content_start_offset": 2
     },
     {
-      "name": "simple_roman",
-      "multiline_regex": "^Chapter ([IVX]+)$",
-      "title_line_index": 0,
-      "content_start_offset": 1
+      "name": "prince",
+      "multiline_regex": "^([0-9]+)\n\n([^\n]+)\n\n",
+      "title_line_index": 2,
+      "content_start_offset": 3
     }
   ],
   "ignore_case": true,
@@ -44,8 +44,6 @@
   },
   "statistics": {
     "output_filename": "meta.json",
-    "enabled": true,
-    "book_title": "",
-    "book_description": ""
+    "enabled": true
   }
 }
