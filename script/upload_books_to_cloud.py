@@ -17,7 +17,7 @@ from pathlib import Path
 class WeChatCloudUploader:
     """微信云服务上传器"""
     
-    def __init__(self, app_id: str, app_secret: str, env_id: str, debug: bool = False):
+    def __init__(self, app_id: str, app_secret: str, env_id: str):
         """
         初始化上传器
         
@@ -25,12 +25,10 @@ class WeChatCloudUploader:
             app_id: 微信小程序AppID
             app_secret: 微信小程序AppSecret
             env_id: 微信云环境ID
-            debug: 是否开启调试模式
         """
         self.app_id = app_id
         self.app_secret = app_secret
         self.env_id = env_id
-        self.debug = debug
         
         # Access Token相关
         self.access_token = None
@@ -49,13 +47,20 @@ class WeChatCloudUploader:
         
     def _setup_logging(self):
         """配置日志系统"""
+        # 文件处理器 - 记录所有日志
+        file_handler = logging.FileHandler('upload_books.log', encoding='utf-8')
+        file_handler.setLevel(logging.INFO)
+        file_handler.setFormatter(logging.Formatter('%(asctime)s - %(levelname)s - %(message)s'))
+        
+        # 控制台处理器 - 只记录重要信息
+        console_handler = logging.StreamHandler()
+        console_handler.setLevel(logging.INFO)
+        console_handler.setFormatter(logging.Formatter('%(message)s'))
+        
+        # 配置根日志器
         logging.basicConfig(
             level=logging.INFO,
-            format='%(asctime)s - %(levelname)s - %(message)s',
-            handlers=[
-                logging.FileHandler('upload_books.log', encoding='utf-8'),
-                logging.StreamHandler()
-            ]
+            handlers=[file_handler, console_handler]
         )
         self.logger = logging.getLogger(__name__)
         
@@ -110,8 +115,10 @@ class WeChatCloudUploader:
         Returns:
             上传成功返回file_id，失败返回None
         """
+        filename = os.path.basename(local_path)
+        
         if not os.path.exists(local_path):
-            self.logger.error(f"本地文件不存在: {local_path}")
+            self.logger.error(f"❌ 本地文件不存在: {local_path}")
             return None
             
         try:
@@ -132,18 +139,15 @@ class WeChatCloudUploader:
             
             result = response.json()
             
-            # 详细记录API响应用于调试
-            self.logger.info(f"获取上传链接响应: {result}")
-            
             if result.get('errcode') != 0:
-                self.logger.error(f"获取上传链接失败: {result}")
+                self.logger.error(f"❌ 获取上传链接失败: {result}")
                 return None
             
             # 检查必要字段是否存在
             required_fields = ['url', 'file_id']
             for field in required_fields:
                 if field not in result:
-                    self.logger.error(f"API响应缺少必要字段 '{field}': {result}")
+                    self.logger.error(f"❌ API响应缺少必要字段 '{field}': {result}")
                     return None
                     
             upload_url = result['url']
@@ -161,31 +165,21 @@ class WeChatCloudUploader:
                     'file': (os.path.basename(local_path), f)               # 文件的二进制内容
                 }
                 
-                self.logger.info(f"上传参数: {list(files.keys())}")
-                if self.debug:
-                    form_debug = {k: v[1] if k != 'file' else f'<文件:{os.path.basename(local_path)}>' 
-                                for k, v in files.items()}
-                    self.logger.info(f"表单数据: {form_debug}")
-                
                 upload_response = requests.post(upload_url, files=files, timeout=60)
-                
-                self.logger.info(f"上传响应状态码: {upload_response.status_code}")
-                if self.debug:
-                    self.logger.info(f"上传响应内容: {upload_response.text}")
-                    
                 upload_response.raise_for_status()
             
+            self.logger.info(f"✅ 文件上传成功: {filename}")
             return file_id
             
         except requests.exceptions.RequestException as e:
-            self.logger.error(f"网络请求失败 {local_path}: {e}")
+            self.logger.error(f"❌ 网络请求失败 {os.path.basename(local_path)}: {e}")
             return None
         except KeyError as e:
-            self.logger.error(f"API响应字段缺失 {local_path}: 缺少字段 {e}")
+            self.logger.error(f"❌ API响应字段缺失 {os.path.basename(local_path)}: 缺少字段 {e}")
             self.logger.error(f"完整API响应: {locals().get('result', 'API响应未获取')}")
             return None
         except Exception as e:
-            self.logger.error(f"文件上传失败 {local_path}: {type(e).__name__}: {e}")
+            self.logger.error(f"❌ 文件上传失败 {os.path.basename(local_path)}: {type(e).__name__}: {e}")
             import traceback
             self.logger.error(f"详细错误信息: {traceback.format_exc()}")
             return None
@@ -225,14 +219,14 @@ class WeChatCloudUploader:
             
             result = response.json()
             if result.get('errcode') != 0:
-                self.logger.error(f"数据库插入失败: {result}")
+                self.logger.error(f"❌ 数据库插入失败: {result}")
                 return False
                 
-            self.logger.info(f"成功插入{len(records)}条记录到{collection}集合")
+            self.logger.info(f"✅ 成功插入{len(records)}条记录到{collection}集合")
             return True
             
         except Exception as e:
-            self.logger.error(f"数据库操作失败: {e}")
+            self.logger.error(f"❌ 数据库操作失败: {e}")
             return False
             
     def parse_book_data(self, book_dir: Path) -> Tuple[Dict, List[Dict]]:
@@ -262,14 +256,14 @@ class WeChatCloudUploader:
             '_id': book_id,
             'title': book_info['title'],
             'author': book_info.get('author', ''),
-            'cover': '',  # 稍后上传封面后填充
+            'cover_url': '',  # 稍后上传封面后填充
             'category': book_info.get('category', ''),  # 默认文学类
             'description': book_info.get('description', ''),
-            'difficulty': book_info.get('difficulty', ''),  # 默认中等难度
-            'total_chapters': book_info['total_chapters'],
+            'total_chapters': book_info.get('total_chapters', 0),
             'total_duration': book_info.get('total_duration', 0), 
             'is_active': True,
             'tags': book_info.get('tags', []),
+            'local_cover_file': book_info.get('local_cover_file', ''),
             'created_at': datetime.now().isoformat(),
             'updated_at': datetime.now().isoformat()
         }
@@ -277,15 +271,18 @@ class WeChatCloudUploader:
         # 构造chapters表数据
         chapters_data = []
         
-        for chapter_info in chapters_info:
+        for i, chapter_info in enumerate(chapters_info):
             chapter_data = {
-                '_id': f"{book_id}_{chapter_info['index']}_{chapter_info['sub_index']}",
+                '_id': f"{book_id}_{chapter_info['chapter_number']}_{i}",
                 'book_id': book_id,
                 'chapter_number': chapter_info['chapter_number'],
-                'title': chapter_info['title'],
+                'title': chapter_info['title_cn'] or chapter_info['title'],
                 'duration': chapter_info['duration'],
                 'is_active': True,
                 'audio_url': '',  # 稍后上传音频后填充
+                'subtitle_url': '',  # 稍后上传字幕后填充
+                'local_audio_file': chapter_info.get('local_audio_file', ''),
+                'local_subtitle_file': chapter_info.get('local_subtitle_file', ''),
                 'created_at': datetime.now().isoformat(),
                 'updated_at': datetime.now().isoformat()
             }
@@ -294,40 +291,58 @@ class WeChatCloudUploader:
             
         return book_data, chapters_data
         
-    def upload_book_assets(self, book_dir: Path, book_id: str) -> Tuple[str, List[str]]:
+    def upload_book_cover(self, book_dir: Path, book_id: str, book_data: Dict) -> str:
         """
-        上传书籍相关文件（封面和音频）
+        上传书籍封面文件
         
         Args:
             book_dir: 书籍目录
             book_id: 书籍ID
             
         Returns:
-            (cover_file_id, audio_file_ids) 元组
+            cover_file_id
         """
-        cover_file_id = ""
-        audio_file_ids = []
-        
         # 上传封面
-        cover_files = list(book_dir.glob("cover.*")) + list(book_dir.glob("*.jpg")) + list(book_dir.glob("*.png"))
-        if cover_files:
-            cover_file = cover_files[0]
-            cloud_path = f"books/{book_id}/cover{cover_file.suffix}"
+        cover_file = os.path.join(book_dir, book_data.get('local_cover_file', ''))
+        if os.path.exists(cover_file):
+            cloud_path = f"books/{book_id}/cover.jpg"
             cover_file_id = self.upload_file(str(cover_file), cloud_path)
-            if cover_file_id:
-                self.logger.info(f"封面上传成功: {cover_file_id}")
+        else:
+            self.logger.warning(f"⚠️  封面文件不存在: {cover_file}")
+            cover_file_id = ""
+
+        return cover_file_id
+        
+    def upload_chapter_files(self, book_dir: Path, book_id: str, chapter: Dict) -> Tuple[str, str]:
+        """
+        上传单个章节的音频和字幕文件
+        
+        Args:
+            book_dir: 书籍目录
+            book_id: 书籍ID
+            chapter: 章节数据
             
+        Returns:
+            (audio_file_id, subtitle_file_id) 元组
+        """
+        audio_file_id = ""
+        subtitle_file_id = ""
+        
         # 上传音频文件
-        audio_dir = book_dir / "audio"
-        if audio_dir.exists():
-            for audio_file in audio_dir.glob("*.wav"):
-                cloud_path = f"books/{book_id}/audio/{audio_file.name}"
-                file_id = self.upload_file(str(audio_file), cloud_path)
-                if file_id:
-                    audio_file_ids.append(file_id)
-                    
-        self.logger.info(f"音频文件上传完成，共{len(audio_file_ids)}个文件")
-        return cover_file_id, audio_file_ids
+        audio_file = chapter.get('local_audio_file', '')
+        if audio_file and os.path.exists(audio_file):
+            audio_filename = os.path.basename(audio_file)
+            audio_cloud_path = f"books/{book_id}/audio/{audio_filename}"
+            audio_file_id = self.upload_file(audio_file, audio_cloud_path)
+
+        # 上传字幕文件
+        subtitle_file = chapter.get('local_subtitle_file', '')
+        if subtitle_file and os.path.exists(subtitle_file):
+            subtitle_filename = os.path.basename(subtitle_file)
+            subtitle_cloud_path = f"books/{book_id}/subtitles/{subtitle_filename}"
+            subtitle_file_id = self.upload_file(subtitle_file, subtitle_cloud_path)
+
+        return audio_file_id, subtitle_file_id
         
     def upload_all_books(self) -> bool:
         """
@@ -337,69 +352,79 @@ class WeChatCloudUploader:
             成功返回True，失败返回False
         """
         if not self.output_dir.exists():
-            self.logger.error(f"输出目录不存在: {self.output_dir}")
+            self.logger.error(f"❌ 输出目录不存在: {self.output_dir}")
             return False
             
         book_dirs = [d for d in self.output_dir.iterdir() 
                     if d.is_dir() and (d / "meta.json").exists()]
                     
         if not book_dirs:
-            self.logger.error("未找到任何包含meta.json的书籍目录")
+            self.logger.error("❌ 未找到任何包含meta.json的书籍目录")
             return False
             
-        self.logger.info(f"发现{len(book_dirs)}本书籍: {[d.name for d in book_dirs]}")
+        self.logger.info(f"📚 发现{len(book_dirs)}本书籍: {[d.name for d in book_dirs]}")
         
-        all_books_data = []
-        all_chapters_data = []
+        success = True
         
         for book_dir in book_dirs:
             try:
                 book_id = book_dir.name
-                self.logger.info(f"处理书籍: {book_id}")
+                self.logger.info(f"\n📖 处理书籍: {book_id}")
                 
                 # 解析书籍数据
                 book_data, chapters_data = self.parse_book_data(book_dir)
                 
-                # 上传文件资源
-                cover_file_id, audio_file_ids = self.upload_book_assets(book_dir, book_id)
-                
-                # 更新封面URL
+                # 上传封面
+                cover_file_id = self.upload_book_cover(book_dir, book_id, book_data)
                 if cover_file_id:
-                    book_data['cover'] = cover_file_id
+                    book_data['cover_url'] = cover_file_id
                     
-                # 更新章节音频URL（简化处理，使用文件名匹配）
-                for chapter in chapters_data:
-                    chapter_audio_pattern = chapter['title'].replace(' ', '_')
-                    for audio_id in audio_file_ids:
-                        if chapter_audio_pattern in audio_id:
-                            chapter['audio_url'] = audio_id
-                            break
+                # 先插入书籍数据
+                self.logger.info(f"💾 插入书籍数据: {book_data['title']}")
+                if not self.add_database_records('books', [book_data]):
+                    self.logger.error(f"❌ 书籍数据插入失败: {book_id}")
+                    success = False
+                    continue
                 
-                all_books_data.append(book_data)
-                all_chapters_data.extend(chapters_data)
+                # 逐个处理章节，上传文件后立即插入数据库
+                for i, chapter in enumerate(chapters_data):
+                    try:
+                        # 上传章节文件
+                        audio_file_id, subtitle_file_id = self.upload_chapter_files(book_dir, book_id, chapter)
+                        
+                        # 更新章节文件URL
+                        if audio_file_id:
+                            chapter['audio_url'] = audio_file_id
+                        if subtitle_file_id:
+                            chapter['subtitle_url'] = subtitle_file_id
+                        
+                        # 清理本地文件路径
+                        del chapter['local_audio_file']
+                        del chapter['local_subtitle_file']
+                        
+                        # 立即插入章节数据
+                        self.logger.info(f"📝 插入章节 {i+1}/{len(chapters_data)}: {chapter['title']}")
+                        if not self.add_database_records('chapters', [chapter]):
+                            self.logger.error(f"❌ 章节数据插入失败: {chapter['title']}")
+                            success = False
+                            continue
+                            
+                    except Exception as e:
+                        self.logger.error(f"❌ 处理章节失败: {chapter.get('title', 'Unknown')} - {e}")
+                        success = False
+                        continue
                 
-                self.logger.info(f"书籍{book_id}数据准备完成")
+                # 清理书籍数据中的本地文件路径
+                del book_data['local_cover_file']
+                
+                self.logger.info(f"✅ 书籍{book_id}处理完成")
                 
             except Exception as e:
-                self.logger.error(f"处理书籍{book_dir.name}失败: {e}")
-                continue
-                
-        # 批量插入数据库
-        success = True
-        
-        if all_books_data:
-            self.logger.info(f"开始插入{len(all_books_data)}本书籍数据...")
-            if not self.add_database_records('books', all_books_data):
+                self.logger.error(f"❌ 处理书籍{book_dir.name}失败: {e}")
+                import traceback
+                self.logger.error(f"详细错误信息: {traceback.format_exc()}")
                 success = False
-                
-        if all_chapters_data:
-            self.logger.info(f"开始插入{len(all_chapters_data)}个章节数据...")
-            # 分批插入，避免单次请求过大
-            batch_size = 20
-            for i in range(0, len(all_chapters_data), batch_size):
-                batch = all_chapters_data[i:i+batch_size]
-                if not self.add_database_records('chapters', batch):
-                    success = False
+                continue
                     
         return success
 
@@ -427,27 +452,24 @@ def main():
     print(f"AppSecret: {'*' * len(app_secret)}")
     print(f"云环境ID: {env_id}")
     
-    # 询问是否开启调试模式
-    debug_mode = input("\n开启调试模式？(显示详细API响应) (y/N): ").strip().lower() == 'y'
-    
     confirm = input("\n确认开始上传？(y/N): ").strip().lower()
     if confirm != 'y':
         print("操作已取消")
         return
         
     # 创建上传器
-    uploader = WeChatCloudUploader(app_id, app_secret, env_id, debug=debug_mode)
+    uploader = WeChatCloudUploader(app_id, app_secret, env_id)
     
     # 测试连接
     try:
         token = uploader.get_access_token()
-        print(f"✓ 连接成功，Access Token: {token[:20]}...")
+        print(f"✅ 连接成功，Access Token: {token[:20]}...")
     except Exception as e:
-        print(f"✗ 连接失败: {e}")
+        print(f"❌ 连接失败: {e}")
         return
         
     # 开始上传
-    print("\n开始上传书籍数据...")
+    print("\n🚀 开始上传书籍数据...")
     start_time = time.time()
     
     try:
@@ -456,15 +478,15 @@ def main():
         elapsed_time = time.time() - start_time
         
         if success:
-            print(f"\n✓ 上传完成！耗时: {elapsed_time:.2f}秒")
-            print("请检查微信云控制台确认数据是否正确上传")
+            print(f"\n🎉 上传完成！耗时: {elapsed_time:.2f}秒")
+            print("📋 请检查微信云控制台确认数据是否正确上传")
         else:
-            print(f"\n✗ 上传过程中出现错误，请查看日志文件: upload_books.log")
+            print(f"\n❌ 上传过程中出现错误，请查看日志文件: upload_books.log")
             
     except Exception as e:
-        print(f"\n✗ 上传失败: {e}")
+        print(f"\n❌ 上传失败: {e}")
         
-    print("\n详细日志已保存到: upload_books.log")
+    print("\n📝 详细日志已保存到: upload_books.log")
 
 
 if __name__ == "__main__":

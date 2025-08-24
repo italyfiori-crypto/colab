@@ -91,58 +91,39 @@ class StatisticsCollector:
         """收集章节信息，从子章节文件提取章节名称"""
         chapters_info = []
         
-        # 创建音频文件映射，便于快速查找
-        audio_map = {}
-        for audio_file in audio_files:
-            filename = os.path.basename(audio_file)
-            # 移除扩展名，用作键
-            key = os.path.splitext(filename)[0]
-            audio_map[key] = audio_file
-        
         # 处理每个子章节文件
         for i, sub_chapter_file in enumerate(sorted(sub_chapter_files)):
             try:
+                # 提取章节标题（读取文件第一行）
+                chapter_title = self._extract_chapter_title(sub_chapter_file)
+                
+                # 查找对应的音频文件
                 filename = os.path.basename(sub_chapter_file)
                 filekey = os.path.splitext(filename)[0]
-                
-                # 子章节文件格式：01_Down_the_Rabbit-Hole(1).txt
-                sub_chapter_pattern = re.compile(r'^(\d+)_(.+?)\((\d+)\)\.txt$')
-                match = sub_chapter_pattern.match(filename)
-                
-                if match:                    
-                    # 提取章节标题（读取文件第一行）
-                    chapter_title = self._extract_chapter_title(sub_chapter_file)
-                    
-                    # 查找对应的音频文件
-                    audio_file = os.path.join(os.path.abspath(output_dir), "audio", f'{filekey}.wav')
+                audio_file = os.path.join(output_dir, "audio", f'{filekey}.wav')
 
-                    # 查找对应的字幕文件
-                    subtitle_file = os.path.join(os.path.abspath(output_dir), "subtitles", f'{filekey}.srt')
+                # 查找对应的字幕文件
+                subtitle_file = os.path.join(output_dir, "subtitles", f'{filekey}.srt')
 
-                    
-                    # 计算音频时长
-                    duration = 0.0
-                    if audio_file and os.path.exists(audio_file):
-                        duration = self._get_audio_duration(audio_file)
-                    else:
-                        print(f"⚠️ 未找到对应音频文件: {audio_file}")
-                    
-                    chapter_info = {
-                        "local_subtitle_file": subtitle_file,
-                        "local_audio_file": audio_file,
-
-                        "chapter_number": i + 1,
-                        "title": chapter_title,
-                        "subtitle_url": "",
-                        "audio_url": "",
-                        "duration": duration,
-                        "is_active": True,
-                    }
-                    
-                    chapters_info.append(chapter_info)
+                # 计算音频时长
+                duration = 0.0
+                if audio_file and os.path.exists(audio_file):
+                    duration = self._get_audio_duration(audio_file)
                 else:
-                    print(f"⚠️ 子章节文件名格式不匹配: {filename}")
-                    
+                    print(f"⚠️ 未找到对应音频文件: {audio_file}")
+                
+                chapter_info = {
+                    "local_subtitle_file": subtitle_file,
+                    "local_audio_file": audio_file,
+                    "chapter_number": i + 1,
+                    "title": chapter_title,
+                    "subtitle_url": "",
+                    "audio_url": "",
+                    "duration": duration,
+                    "is_active": True,
+                }
+                
+                chapters_info.append(chapter_info)                    
             except Exception as e:
                 print(f"⚠️ 处理子章节文件失败 {filename}: {e}")
                 continue
@@ -188,17 +169,10 @@ class StatisticsCollector:
         # 统计总章节时长
         total_duration = sum(ch['duration'] for ch in chapters_info)
         
-        # 获取封面文件路径
-        cover_file_exts = ["jpg", "png", "jpeg"]
-        for ext in cover_file_exts:
-            local_cover_file = os.path.join(os.path.abspath(output_dir), f"cover.{ext}")
-            if os.path.exists(local_cover_file):
-                break
-
         return {
             "title": "",
             "author": "",
-            "local_cover_file": local_cover_file,
+            "local_cover_file": 'cover.jpg',
             "cover_url": "",
             "category": "",
             "description": "",
