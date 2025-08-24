@@ -67,6 +67,7 @@
   title: string,            // 书名
   author: string,           // 作者
   cover_url: string,        // 封面图URL
+  cover_md5: string.        // 封面图md5
   category: string,         // 分类 (literature/business/script/news)
   description: string,      // 描述
   difficulty: string,       // 难度 (easy/medium/hard)
@@ -103,7 +104,9 @@
   chapter_number: number,    // 章节序号
   title: string,             // 章节标题
   subtitle_url: string,      // 字幕路径
+  subtitle_md5: string,      // 字幕文件md
   audio_url: string,         // 音频路径
+  audio_md5: string,         // 音频文件md5
   duration: number,          // 音频时长
   is_active: boolean,        // 是否启用
   

@@ -100,10 +100,10 @@ class StatisticsCollector:
                 # 查找对应的音频文件
                 filename = os.path.basename(sub_chapter_file)
                 filekey = os.path.splitext(filename)[0]
-                audio_file = os.path.join(output_dir, "audio", f'{filekey}.wav')
+                audio_file = os.path.join("audio", f'{filekey}.wav')
 
                 # 查找对应的字幕文件
-                subtitle_file = os.path.join(output_dir, "subtitles", f'{filekey}.srt')
+                subtitle_file = os.path.join("subtitles", f'{filekey}.srt')
 
                 # 计算音频时长
                 duration = 0.0
