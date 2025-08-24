@@ -535,12 +535,13 @@ class WeChatCloudUploader:
             'category': book_info.get('category', ''),  # 默认文学类
             'description': book_info.get('description', ''),
             'total_chapters': book_info.get('total_chapters', 0),
-            'total_duration': book_info.get('total_duration', 0), 
+            'total_duration': int(book_info.get('total_duration', 0)), 
             'is_active': True,
             'tags': book_info.get('tags', []),
             'local_cover_file': cover_file_path,
             'created_at': datetime.now().isoformat(),
-            'updated_at': datetime.now().isoformat()
+            'updated_at': datetime.now().isoformat(),
+            'done': book_info.get('done', False)
         }
         
         # 构造chapters表数据
@@ -560,7 +561,7 @@ class WeChatCloudUploader:
                 'book_id': book_id,
                 'chapter_number': chapter_info['chapter_number'],
                 'title': chapter_info['title_cn'] or chapter_info['title'],
-                'duration': chapter_info['duration'],
+                'duration': int(chapter_info['duration']) if chapter_info['duration'] else 0,
                 'is_active': True,
                 'audio_url': '',  # 稍后上传音频后填充
                 'audio_md5': audio_md5,  # 新增音频MD5字段
@@ -761,6 +762,13 @@ class WeChatCloudUploader:
         try:
             # 解析书籍数据
             book_data, chapters_data = self.parse_book_data(book_dir)
+
+            # 如果书籍已处理完成，则跳过
+            if book_data and book_data['done']:
+                stats['skipped_books'] += 1
+                stats['skipped_chapters'] += len(chapters_data)
+                self.logger.info(f"⏭️ 书籍已处理完成，跳过: {book_id}")
+                return True
             
             # 查询数据库中的书籍记录
             existing_books = self.query_database('books', {'_id': book_id})
