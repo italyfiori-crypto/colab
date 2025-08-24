@@ -9,19 +9,12 @@
 import os
 import json
 import re
+import wave
 from typing import List, Dict, Optional, TYPE_CHECKING
 from dataclasses import dataclass
 
 if TYPE_CHECKING:
     from .subtitle_translator import SubtitleTranslator
-
-try:
-    import librosa
-    LIBROSA_AVAILABLE = True
-except ImportError:
-    import wave
-    LIBROSA_AVAILABLE = False
-    print("⚠️ librosa未安装，使用wave库计算音频时长")
 
 
 @dataclass
@@ -64,7 +57,7 @@ class StatisticsCollector:
         print(f"\n📊 开始收集统计信息...")
         
         # 收集章节信息
-        chapters_info = self._collect_chapters_info(sub_chapter_files, audio_files)
+        chapters_info = self._collect_chapters_info(sub_chapter_files, audio_files, output_dir)
         
         # 翻译章节标题
         if translator and chapters_info:
@@ -94,7 +87,7 @@ class StatisticsCollector:
         print(f"✅ 统计信息收集完成！保存到: {os.path.join(output_dir, self.config.output_filename)}")
         return statistics
     
-    def _collect_chapters_info(self, sub_chapter_files: List[str], audio_files: List[str]) -> List[Dict]:
+    def _collect_chapters_info(self, sub_chapter_files: List[str], audio_files: List[str], output_dir: str) -> List[Dict]:
         """收集章节信息，从子章节文件提取章节名称"""
         chapters_info = []
         
@@ -107,37 +100,43 @@ class StatisticsCollector:
             audio_map[key] = audio_file
         
         # 处理每个子章节文件
-        for sub_chapter_file in sorted(sub_chapter_files):
+        for i, sub_chapter_file in enumerate(sorted(sub_chapter_files)):
             try:
                 filename = os.path.basename(sub_chapter_file)
+                filekey = os.path.splitext(filename)[0]
+                
                 # 子章节文件格式：01_Down_the_Rabbit-Hole(1).txt
                 sub_chapter_pattern = re.compile(r'^(\d+)_(.+?)\((\d+)\)\.txt$')
                 match = sub_chapter_pattern.match(filename)
                 
-                if match:
-                    chapter_index = int(match.group(1))
-                    sub_chapter_index = int(match.group(3))
-                    
+                if match:                    
                     # 提取章节标题（读取文件第一行）
                     chapter_title = self._extract_chapter_title(sub_chapter_file)
                     
                     # 查找对应的音频文件
-                    audio_key = os.path.splitext(filename)[0]  # 移除.txt扩展名
-                    audio_file = audio_map.get(audio_key)
+                    audio_file = os.path.join(os.path.abspath(output_dir), "audio", f'{filekey}.wav')
+
+                    # 查找对应的字幕文件
+                    subtitle_file = os.path.join(os.path.abspath(output_dir), "subtitles", f'{filekey}.srt')
+
                     
                     # 计算音频时长
                     duration = 0.0
                     if audio_file and os.path.exists(audio_file):
                         duration = self._get_audio_duration(audio_file)
                     else:
-                        print(f"⚠️ 未找到对应音频文件: {audio_key}.wav")
+                        print(f"⚠️ 未找到对应音频文件: {audio_file}")
                     
                     chapter_info = {
-                        "index": chapter_index,
-                        "sub_index": sub_chapter_index,
+                        "local_subtitle_file": subtitle_file,
+                        "local_audio_file": audio_file,
+
+                        "chapter_number": i + 1,
                         "title": chapter_title,
-                        "title_cn": "",  # 待翻译
-                        "duration": duration
+                        "subtitle_url": "",
+                        "audio_url": "",
+                        "duration": duration,
+                        "is_active": True,
                     }
                     
                     chapters_info.append(chapter_info)
@@ -147,9 +146,6 @@ class StatisticsCollector:
             except Exception as e:
                 print(f"⚠️ 处理子章节文件失败 {filename}: {e}")
                 continue
-        
-        # 按章节索引和子章节索引排序
-        chapters_info.sort(key=lambda x: (x['index'], x['sub_index']))
         
         return chapters_info
     
@@ -177,17 +173,11 @@ class StatisticsCollector:
     def _get_audio_duration(self, audio_file: str) -> float:
         """获取音频文件时长（秒）"""
         try:
-            if LIBROSA_AVAILABLE:
-                # 使用librosa
-                duration = librosa.get_duration(path=audio_file)
+            with wave.open(audio_file, 'rb') as wav_file:
+                frames = wav_file.getnframes()
+                sample_rate = wav_file.getframerate()
+                duration = frames / float(sample_rate)
                 return round(duration, 2)
-            else:
-                # 使用wave库
-                with wave.open(audio_file, 'rb') as wav_file:
-                    frames = wav_file.getnframes()
-                    sample_rate = wav_file.getframerate()
-                    duration = frames / float(sample_rate)
-                    return round(duration, 2)
         except Exception as e:
             print(f"⚠️ 无法获取音频时长 {os.path.basename(audio_file)}: {e}")
             return 0.0
@@ -195,21 +185,28 @@ class StatisticsCollector:
     def _generate_book_info(self, chapters_info: List[Dict], output_dir: str) -> Dict:
         """生成书籍信息"""
         
-        # 统计总章节数（去重）
-        unique_chapters = set()
-        total_duration = 0.0
+        # 统计总章节时长
+        total_duration = sum(ch['duration'] for ch in chapters_info)
         
-        for ch in chapters_info:
-            unique_chapters.add(ch['index'])
-            total_duration += ch['duration']
-        
+        # 获取封面文件路径
+        cover_file_exts = ["jpg", "png", "jpeg"]
+        for ext in cover_file_exts:
+            local_cover_file = os.path.join(os.path.abspath(output_dir), f"cover.{ext}")
+            if os.path.exists(local_cover_file):
+                break
+
         return {
             "title": "",
             "author": "",
-            "cover": "",
+            "local_cover_file": local_cover_file,
+            "cover_url": "",
+            "category": "",
             "description": "",
-            "total_chapters": len(unique_chapters),
-            "total_duration": round(total_duration, 2)
+            "difficulty": "medium",
+            "total_chapters": len(chapters_info),
+            "total_duration": round(total_duration, 2),
+            "is_active": True,
+            "tags": [],
         }
     
     def _save_statistics(self, statistics: Dict, output_dir: str):

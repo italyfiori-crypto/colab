@@ -175,6 +175,8 @@ class WeChatCloudUploader:
                     
                 upload_response.raise_for_status()
             
+            return file_id
+            
         except requests.exceptions.RequestException as e:
             self.logger.error(f"网络请求失败 {local_path}: {e}")
             return None
@@ -261,50 +263,31 @@ class WeChatCloudUploader:
             'title': book_info['title'],
             'author': book_info.get('author', ''),
             'cover': '',  # 稍后上传封面后填充
-            'category': 'literature',  # 默认文学类
+            'category': book_info.get('category', ''),  # 默认文学类
             'description': book_info.get('description', ''),
-            'difficulty': 'medium',  # 默认中等难度
-            'totalChapters': book_info['total_chapters'],
-            'estimatedTime': int(book_info['total_duration'] / 60),  # 转换为分钟
-            'vocabularyCount': 0,  # 暂时设为0
-            'popularity': 50,  # 默认受欢迎程度
-            'isActive': True,
-            'tags': [],
-            'publisher': '',
-            'publishDate': '',
-            'createdAt': datetime.now().isoformat(),
-            'updatedAt': datetime.now().isoformat()
+            'difficulty': book_info.get('difficulty', ''),  # 默认中等难度
+            'total_chapters': book_info['total_chapters'],
+            'total_duration': book_info.get('total_duration', 0), 
+            'is_active': True,
+            'tags': book_info.get('tags', []),
+            'created_at': datetime.now().isoformat(),
+            'updated_at': datetime.now().isoformat()
         }
         
         # 构造chapters表数据
         chapters_data = []
-        chapters_dir = book_dir / "chapters"
-        sub_chapters_dir = book_dir / "sub_chapters"
         
         for chapter_info in chapters_info:
-            # 读取章节内容
-            chapter_content = ""
-            sub_chapter_file = sub_chapters_dir / f"{chapter_info['title']}.txt"
-            
-            if sub_chapter_file.exists():
-                with open(sub_chapter_file, 'r', encoding='utf-8') as f:
-                    chapter_content = f.read().strip()
-            
             chapter_data = {
                 '_id': f"{book_id}_{chapter_info['index']}_{chapter_info['sub_index']}",
-                'bookId': book_id,
-                'chapterNumber': chapter_info['index'],
-                'subChapterNumber': chapter_info['sub_index'],
+                'book_id': book_id,
+                'chapter_number': chapter_info['chapter_number'],
                 'title': chapter_info['title'],
-                'titleCn': chapter_info.get('title_cn', ''),
-                'content': chapter_content,
-                'wordIds': [],  # 暂时为空
-                'estimatedTime': int(chapter_info['duration'] / 60),  # 转换为分钟
-                'wordCount': len(chapter_content.split()) if chapter_content else 0,
-                'isActive': True,
-                'audioUrl': '',  # 稍后上传音频后填充
-                'createdAt': datetime.now().isoformat(),
-                'updatedAt': datetime.now().isoformat()
+                'duration': chapter_info['duration'],
+                'is_active': True,
+                'audio_url': '',  # 稍后上传音频后填充
+                'created_at': datetime.now().isoformat(),
+                'updated_at': datetime.now().isoformat()
             }
             
             chapters_data.append(chapter_data)
@@ -389,7 +372,7 @@ class WeChatCloudUploader:
                     chapter_audio_pattern = chapter['title'].replace(' ', '_')
                     for audio_id in audio_file_ids:
                         if chapter_audio_pattern in audio_id:
-                            chapter['audioUrl'] = audio_id
+                            chapter['audio_url'] = audio_id
                             break
                 
                 all_books_data.append(book_data)
@@ -432,7 +415,7 @@ def main():
     # 获取用户输入
     app_id = input("请输入AppID (默认: wx7040936883aa6dad): ").strip() or "wx7040936883aa6dad"
     app_secret = input("请输入AppSecret: ").strip() or "94051e8239a7a5181f32695c3c4895d9"
-    env_id = input("请输入云环境ID: ").strip()
+    env_id = input("请输入云环境ID: ").strip() or "cloud1-1gpp78j208f0f610"
     
     if not app_secret or not env_id:
         print("错误: AppSecret和云环境ID不能为空")

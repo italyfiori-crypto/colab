@@ -29,7 +29,7 @@
   level: number,            // 用户等级 (1-10)
   totalPoints: number,      // 总积分
   studyDays: number,        // 连续学习天数
-  totalStudyTime: number,   // 总学习时长(分钟)
+  totalStudyTime: number,   // 总学习时长(秒)
   
   // 学习偏好 (合并到用户表)
   displayMode: string,      // 显示模式 (both/chinese-mask/english-mask)
@@ -66,23 +66,18 @@
   _id: string,              // 书籍ID (主键)
   title: string,            // 书名
   author: string,           // 作者
-  cover: string,            // 封面图URL
+  cover_url: string,        // 封面图URL
   category: string,         // 分类 (literature/business/script/news)
   description: string,      // 描述
   difficulty: string,       // 难度 (easy/medium/hard)
-  totalChapters: number,    // 总章节数
-  estimatedTime: number,    // 预估学习时长(分钟)
-  vocabularyCount: number,  // 词汇量
-  popularity: number,       // 受欢迎程度 (0-100)
-  isActive: boolean,        // 是否上架
+  total_chapters: number,   // 总章节数
+  total_duration: number,   // 音频时长
+  is_active: boolean,       // 是否上架
   tags: string[],           // 标签数组
   
-  // 简化元数据
-  publisher: string,        // 出版社
-  publishDate: string,      // 出版日期 (YYYY-MM-DD)
-  
-  createdAt: Date,
-  updatedAt: Date
+  // 简化元数据  
+  created_at: Date,
+  updated_at: Date
 }
 ```
 
@@ -90,9 +85,9 @@
 ```javascript
 [
   { _id: 1 },                         // 主键索引
-  { category: 1, isActive: 1 },       // 分类筛选
+  { category: 1, is_active: 1 },       // 分类筛选
   { difficulty: 1, category: 1 },     // 难度筛选
-  { popularity: -1, isActive: 1 },    // 热门排序
+  { popularity: -1, is_active: 1 },    // 热门排序
   { tags: 1 }                         // 标签查询
 ]
 ```
@@ -103,18 +98,17 @@
 
 ```javascript
 {
-  _id: string,              // 章节ID (主键)
-  bookId: string,           // 所属书籍ID
-  chapterNumber: number,    // 章节序号
-  title: string,            // 章节标题
-  content: string,          // 章节内容 (纯文本)
-  wordIds: string[],        // 关联单词ID列表
-  estimatedTime: number,    // 预估阅读时长(分钟)
-  wordCount: number,        // 单词数
-  isActive: boolean,        // 是否启用
+  _id: string,               // 章节ID (主键)
+  book_id: string,           // 所属书籍ID
+  chapter_number: number,    // 章节序号
+  title: string,             // 章节标题
+  subtitle_url: string,      // 字幕路径
+  audio_url: string,         // 音频路径
+  duration: number,          // 音频时长
+  is_active: boolean,        // 是否启用
   
-  createdAt: Date,
-  updatedAt: Date
+  created_at: Date,
+  updated_at: Date
 }
 ```
 
@@ -122,8 +116,8 @@
 ```javascript
 [
   { _id: 1 },                      // 主键索引
-  { bookId: 1, chapterNumber: 1 }, // 书籍章节查询
-  { bookId: 1, isActive: 1 }       // 活跃章节查询
+  { book_d: 1, chapter_number: 1 }, // 书籍章节查询
+  { book_d: 1, is_active: 1 }       // 活跃章节查询
 ]
 ```
 
@@ -147,7 +141,6 @@
   difficulty: string,       // 难度 (easy/medium/hard)
   frequency: string,        // 使用频率 (high/medium/low) 
   audioUrl: string,         // 发音音频URL
-  bookIds: string[],        // 关联书籍ID列表
   
   // 相关词汇 (可选)
   synonyms: string[],       // 同义词
@@ -179,7 +172,7 @@
   bookId: string,           // 书籍ID
   currentChapter: number,   // 当前章节
   progress: number,         // 进度百分比(0-100)
-  studyTime: number,        // 累计学习时长(分钟)
+  studyTime: number,        // 累计学习时长(秒)
   status: string,           // 学习状态 (studying/completed/paused)
   chaptersCompleted: number[], // 已完成章节列表
   
@@ -255,9 +248,9 @@
   description: string,      // 计划描述
   totalWords: number,       // 当天总单词数
   wordIds: string[],        // 单词ID列表
-  targetTime: number,       // 目标学习时长(分钟)
+  targetTime: number,       // 目标学习时长(秒)
   difficulty: string,       // 整体难度
-  isActive: boolean,        // 是否启用
+  is_active: boolean,        // 是否启用
   
   createdAt: Date,
   updatedAt: Date
@@ -269,7 +262,7 @@
 [
   { _id: 1 },               // 主键索引
   { date: -1 },             // 日期查询
-  { isActive: 1, date: -1 } // 活跃计划查询
+  { is_active: 1, date: -1 } // 活跃计划查询
 ]
 ```
 
