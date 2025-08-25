@@ -22,6 +22,7 @@ from modules.sentence_splitter import SentenceSplitter
 from modules.audio_generator import AudioGenerator, AudioGeneratorConfig
 from modules.subtitle_translator import SubtitleTranslator, SubtitleTranslatorConfig
 from modules.statistics_collector import StatisticsCollector
+from modules.audio_compressor import AudioCompressor
 
 
 def get_expected_audio_file(sentence_file: str, output_dir: str) -> str:
@@ -171,6 +172,9 @@ def main():
     # 字幕翻译参数
     parser.add_argument('--translate', action='store_true', help='启用字幕翻译')
     
+    # 音频压缩参数
+    parser.add_argument('--compress', action='store_true', help='启用音频压缩')
+    
     args = parser.parse_args()
     
     # 验证输入文件
@@ -310,6 +314,37 @@ def main():
                 translated_files = subtitle_files  # 所有文件都已翻译
         elif args.translate and not subtitle_files:
             print(f"\n⚠️ 未找到字幕文件，跳过翻译步骤（请先启用 --audio 生成字幕）")
+
+        # 执行音频压缩（可选）
+        compression_time = 0
+        if args.compress and audio_files:
+            print(f"\n🗜️ 开始音频压缩处理...")
+            start_time = time.time()
+            try:
+                # 获取压缩配置
+                compression_config = config.audio_compression
+                compressor = AudioCompressor(compression_config.__dict__)
+                
+                # 压缩音频文件
+                compression_results = compressor.compress_book_audio(output_dir)
+                compression_time = time.time() - start_time
+                
+                print(f"\n✅ 音频压缩完成! (耗时: {compression_time:.2f}秒)")
+                
+                if args.verbose and compression_results:
+                    print(f"📊 压缩统计:")
+                    for format_name, stats in compression_results.items():
+                        print(f"  {format_name.upper()}: {stats['files_success']}/{stats['files_processed']} 文件, 压缩比 {stats['compression_ratio']:.1f}%")
+                
+            except Exception as e:
+                compression_time = time.time() - start_time
+                print(f"\n⚠️ 音频压缩失败: {e} (耗时: {compression_time:.2f}秒)")
+                if args.verbose:
+                    import traceback
+                    traceback.print_exc()
+                print("继续执行其他步骤...")
+        elif args.compress and not audio_files:
+            print(f"\n⚠️ 未找到音频文件，跳过压缩步骤（请先启用 --audio 生成音频）")
         
         # 执行统计信息收集（如果启用且有音频文件）
         statistics_time = 0

@@ -100,21 +100,18 @@ class StatisticsCollector:
                 # 查找对应的音频文件
                 filename = os.path.basename(sub_chapter_file)
                 filekey = os.path.splitext(filename)[0]
-                audio_file = os.path.join("audio", f'{filekey}.wav')
-
-                # 查找对应的字幕文件
-                subtitle_file = os.path.join("subtitles", f'{filekey}.srt')
-
+                
                 # 计算音频时长
                 duration = 0.0
+                audio_file = os.path.join(output_dir, "audio", "compressed", f'{filekey}.mp3')
                 if audio_file and os.path.exists(audio_file):
                     duration = self._get_audio_duration(audio_file)
                 else:
                     print(f"⚠️ 未找到对应音频文件: {audio_file}")
                 
                 chapter_info = {
-                    "local_subtitle_file": subtitle_file,
-                    "local_audio_file": audio_file,
+                    "local_subtitle_file": os.path.join("subtitles", f'{filekey}.srt'),
+                    "local_audio_file": os.path.join("audio", "compressed", f'{filekey}.mp3'),
                     "chapter_number": i + 1,
                     "title": chapter_title,
                     "subtitle_url": "",

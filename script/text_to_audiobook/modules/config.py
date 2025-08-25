@@ -15,6 +15,35 @@ from .statistics_collector import StatisticsCollectorConfig
 
 
 @dataclass
+class AudioCompressionConfig:
+    """音频压缩配置类"""
+    
+    # 启用的压缩格式列表
+    enabled_formats: List[str] = None
+    
+    # 输出子目录
+    output_subdir: str = "compressed"
+    
+    # 格式配置字典
+    formats: dict = None
+    
+    def __post_init__(self):
+        """初始化默认值"""
+        if self.enabled_formats is None:
+            self.enabled_formats = ["mp3"]
+        
+        if self.formats is None:
+            self.formats = {
+                "mp3": {
+                    "format": "mp3",
+                    "bitrate": "64k",
+                    "codec": "mp3",
+                    "extension": ".mp3"
+                }
+            }
+
+
+@dataclass
 class ChapterPattern:
     """章节模式配置类"""
     
@@ -52,6 +81,9 @@ class AudiobookConfig:
     
     # 统计收集配置
     statistics: StatisticsCollectorConfig
+    
+    # 音频压缩配置
+    audio_compression: AudioCompressionConfig
     
     @classmethod
     def from_json_file(cls, config_path: str) -> 'AudiobookConfig':
@@ -102,5 +134,14 @@ class AudiobookConfig:
         else:
             # 如果配置文件中没有统计配置，使用默认值
             config_data['statistics'] = StatisticsCollectorConfig()
+        
+        # 处理音频压缩配置
+        if 'audio_compression' in config_data:
+            compression_config_data = config_data.pop('audio_compression')
+            compression_config = AudioCompressionConfig(**compression_config_data)
+            config_data['audio_compression'] = compression_config
+        else:
+            # 如果配置文件中没有压缩配置，使用默认值
+            config_data['audio_compression'] = AudioCompressionConfig()
         
         return cls(**config_data)
