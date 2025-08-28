@@ -3,3 +3,4 @@ test_output/
 data/
 script/modules/__pycache__/
 *.pyc
+node_modules/

@@ -4,7 +4,7 @@
   <view class="book-info-section">
     <view class="book-detail-card">
       <view class="book-cover-large">
-        <image class="cover-image" src="{{bookInfo.cover}}" mode="aspectFill" lazy-load="true"></image>
+        <image class="cover-image" src="{{bookInfo.cover_url}}" mode="aspectFill" lazy-load="true"></image>
       </view>
       <view class="book-detail-info">
         <text class="book-title">{{bookInfo.title}}</text>
@@ -13,13 +13,13 @@
         <!-- 统计信息 -->
         <view class="book-stats">
           <view class="stat-item">
-            <text class="stat-value">{{bookInfo.stats.chapters}}</text>
+            <text class="stat-value">{{bookInfo.total_chapters}}章</text>
           </view>
           <view class="stat-item">
-            <text class="stat-value">{{bookInfo.stats.duration}}</text>
+            <text class="stat-value">{{bookInfo.total_duration}}</text>
           </view>
           <view class="stat-item">
-            <text class="stat-value">{{bookInfo.stats.vocabulary}}</text>
+            <text class="stat-value">{{bookInfo.difficulty}}</text>
           </view>
         </view>
         
@@ -74,8 +74,8 @@
         data-chapter="{{item}}"
       >
         <view class="chapter-info">
-          <text class="chapter-title">{{item.title}}</text>
-          <text class="chapter-meta">词汇量: {{item.vocabulary}} | 时长: {{item.duration}}</text>
+          <text class="chapter-title">第{{item.chapter_number}}章 - {{item.title}}</text>
+          <text class="chapter-meta">时长: {{item.duration}}</text>
         </view>
         
         <view class="chapter-status">

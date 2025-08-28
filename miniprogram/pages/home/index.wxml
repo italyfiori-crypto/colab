@@ -16,7 +16,7 @@
   </view>
 
   <!-- 最近学习 -->
-  <view class="section recent-section">
+  <view class="section recent-section" wx:if="{{recentBooks && recentBooks.length > 0}}">
     <view class="section-header">
       <text class="section-title">最近学习</text>
     </view>
@@ -25,13 +25,14 @@
       <view class="books-list">
         <view 
           wx:for="{{recentBooks}}" 
-          wx:key="id" 
+          wx:key="_id" 
           class="book-card"
           bindtap="onBookTap"
+          data-book-id="{{item._id}}"
           data-book="{{item}}"
         >
           <view class="book-cover-wrapper">
-            <image class="book-cover" src="{{item.cover}}" mode="aspectFill" lazy-load="true"></image>
+            <image class="book-cover" src="{{item.cover_url}}" mode="aspectFill" lazy-load="true"></image>
           </view>
           <view class="book-info">
             <text class="book-title">{{item.title}}</text>
@@ -51,7 +52,7 @@
   <!-- 分类书籍 -->
   <view class="section category-section">
     <view class="section-header">
-      <text class="section-title">分类书籍</text>
+      <text class="section-title">书籍列表</text>
     </view>
     
     <!-- 分类标签 -->
@@ -59,10 +60,10 @@
       <view class="category-tabs">
         <button 
           wx:for="{{categories}}" 
-          wx:key="id"
+          wx:key="name"
           class="category-tab {{item.active ? 'active' : ''}}"
           bindtap="onCategoryTap"
-          data-category="{{item.id}}"
+          data-category="{{item.name}}"
         >
           {{item.name}}
         </button>
@@ -73,13 +74,14 @@
     <view class="books-grid">
       <view 
         wx:for="{{currentCategoryBooks}}" 
-        wx:key="id"
+        wx:key="_id"
         class="book-grid-item"
         bindtap="onBookTap"
+        data-book-id="{{item._id}}"
         data-book="{{item}}"
       >
         <view class="book-cover-wrapper">
-          <image class="book-cover" src="{{item.cover}}" mode="aspectFill" lazy-load="true"></image>
+          <image class="book-cover" src="{{item.cover_url}}" mode="aspectFill" lazy-load="true"></image>
         </view>
         <view class="book-info">
           <text class="book-title">{{item.title}}</text>

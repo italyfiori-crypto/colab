@@ -1,13 +1,11 @@
 // home页面逻辑
-const homeData = require('../../mock/homeData.js');
-
 Page({
   data: {
     searchKeyword: '',
     recentBooks: [],
     categories: [],
     currentCategoryBooks: [],
-    currentCategory: 'literature',
+    currentCategory: '文学名著',
     currentTab: 'home'
   },
 
@@ -16,15 +14,81 @@ Page({
   },
 
   // 加载页面数据
-  loadData() {
-    const { recentBooks, categories, categoryBooks } = homeData;
-    
-    // 设置最近学习书籍
-    this.setData({
-      recentBooks: recentBooks,
-      categories: categories,
-      currentCategoryBooks: categoryBooks[this.data.currentCategory]
-    });
+  async loadData() {
+    try {
+      console.log('🔄 [DEBUG] 开始加载首页数据, 当前分类:', this.data.currentCategory)
+      wx.showLoading({ title: '加载中...' })
+
+      const requestData = {
+        type: 'getHomeData',
+        category: this.data.currentCategory
+      }
+      console.log('📤 [DEBUG] 发送请求数据:', requestData)
+
+      const result = await wx.cloud.callFunction({
+        name: 'homeData',
+        data: requestData
+      })
+
+      console.log('📥 [DEBUG] 收到响应:', result)
+
+      if (result.result.code === 0) {
+        const { recentBooks, categoryBooks, categories } = result.result.data
+        console.log('✅ [DEBUG] 数据解析成功:')
+        console.log('  - 最近阅读:', recentBooks?.length || 0, '本')
+        console.log('  - 分类书籍:', categoryBooks?.length || 0, '本')
+        console.log('  - 分类列表:', categories?.length || 0, '个')
+
+        this.setData({
+          recentBooks: recentBooks,
+          currentCategoryBooks: categoryBooks,
+          categories: categories
+        })
+        console.log('💾 [DEBUG] 数据已更新到页面状态')
+      } else {
+        console.error('❌ [DEBUG] 服务端返回错误:', result.result)
+        wx.showToast({
+          title: '加载失败: ' + result.result.message,
+          icon: 'error'
+        })
+      }
+    } catch (err) {
+      console.error('❌ [DEBUG] 加载首页数据失败:', err)
+      wx.showToast({
+        title: '网络错误',
+        icon: 'error'
+      })
+    } finally {
+      wx.hideLoading()
+    }
+  },
+
+  // 单独加载最近阅读
+  async loadRecentBooks() {
+    try {
+      console.log('🔄 [DEBUG] 开始加载最近阅读数据')
+      const requestData = { type: 'getRecentBooks' }
+      console.log('📤 [DEBUG] 发送请求数据:', requestData)
+
+      const result = await wx.cloud.callFunction({
+        name: 'homeData',
+        data: requestData
+      })
+
+      console.log('📥 [DEBUG] 最近阅读响应:', result)
+
+      if (result.result.code === 0) {
+        console.log('✅ [DEBUG] 最近阅读数据:', result.result.data?.length || 0, '本')
+        this.setData({
+          recentBooks: result.result.data
+        })
+        console.log('💾 [DEBUG] 最近阅读数据已更新到页面状态')
+      } else {
+        console.error('❌ [DEBUG] 最近阅读服务端返回错误:', result.result)
+      }
+    } catch (err) {
+      console.error('❌ [DEBUG] 加载最近阅读失败:', err)
+    }
   },
 
   // 搜索输入处理
@@ -35,16 +99,48 @@ Page({
   },
 
   // 搜索确认处理
-  onSearchConfirm(e) {
+  async onSearchConfirm(e) {
     const keyword = e.detail.value.trim();
     if (keyword) {
-      // 这里可以实现搜索功能
-      console.log('搜索关键词:', keyword);
-      wx.showToast({
-        title: `搜索: ${keyword}`,
-        icon: 'none',
-        duration: 1500
-      });
+      try {
+        console.log('🔍 [DEBUG] 开始搜索, 关键词:', keyword)
+        wx.showLoading({ title: '搜索中...' })
+
+        const requestData = {
+          type: 'searchBooks',
+          keyword: keyword
+        }
+        console.log('📤 [DEBUG] 发送搜索请求:', requestData)
+
+        const result = await wx.cloud.callFunction({
+          name: 'homeData',
+          data: requestData
+        })
+
+        console.log('📥 [DEBUG] 搜索响应:', result)
+        wx.hideLoading()
+
+        if (result.result.code === 0) {
+          console.log('✅ [DEBUG] 搜索结果:', result.result.data?.length || 0, '本')
+          wx.showToast({
+            title: `找到${result.result.data.length}本书`,
+            icon: 'none',
+            duration: 1500
+          });
+          // TODO: 跳转到搜索结果页面
+        } else {
+          console.error('❌ [DEBUG] 搜索服务端返回错误:', result.result)
+        }
+      } catch (err) {
+        wx.hideLoading()
+        console.error('❌ [DEBUG] 搜索失败:', err)
+        wx.showToast({
+          title: '搜索失败',
+          icon: 'error'
+        })
+      }
+    } else {
+      console.log('⚠️ [DEBUG] 搜索关键词为空，跳过搜索')
     }
   },
 
@@ -58,40 +154,114 @@ Page({
   },
 
   // 分类标签点击处理
-  onCategoryTap(e) {
-    const categoryId = e.currentTarget.dataset.category;
-    
+  async onCategoryTap(e) {
+    const categoryName = e.currentTarget.dataset.category;
+    console.log('🏷️ [DEBUG] 点击分类标签:', categoryName)
+
     // 更新分类状态
     const categories = this.data.categories.map(cat => ({
       ...cat,
-      active: cat.id === categoryId
+      active: cat.name === categoryName
     }));
-
-    // 获取对应分类的书籍数据
-    const categoryBooks = homeData.categoryBooks[categoryId] || [];
 
     this.setData({
       categories: categories,
-      currentCategory: categoryId,
-      currentCategoryBooks: categoryBooks
+      currentCategory: categoryName
     });
+    console.log('💾 [DEBUG] 分类状态已更新')
+
+    try {
+      wx.showLoading({ title: '加载中...' })
+
+      const requestData = {
+        type: 'getCategoryBooks',
+        category: categoryName
+      }
+      console.log('📤 [DEBUG] 发送分类请求:', requestData)
+
+      const result = await wx.cloud.callFunction({
+        name: 'homeData',
+        data: requestData
+      })
+
+      console.log('📥 [DEBUG] 分类响应:', result)
+      wx.hideLoading()
+
+      if (result.result.code === 0) {
+        console.log('✅ [DEBUG] 分类书籍数据:', result.result.data?.length || 0, '本')
+        this.setData({
+          currentCategoryBooks: result.result.data
+        })
+        console.log('💾 [DEBUG] 分类书籍数据已更新到页面状态')
+      } else {
+        console.error('❌ [DEBUG] 分类服务端返回错误:', result.result)
+      }
+    } catch (err) {
+      wx.hideLoading()
+      console.error('❌ [DEBUG] 切换分类失败:', err)
+      wx.showToast({
+        title: '加载失败',
+        icon: 'error'
+      })
+    }
   },
 
-  // 书籍点击处理
-  onBookTap(e) {
+  // 书籍点击处理 - 添加到最近阅读
+  async onBookTap(e) {
+    const bookId = e.currentTarget.dataset.bookId;
     const book = e.currentTarget.dataset.book;
-    console.log('点击书籍:', book);
-    
-    // 跳转到书籍详情页
-    wx.navigateTo({
-      url: `/pages/book-detail/index?bookId=${book.id}`
-    });
+
+    console.log('📖 [DEBUG] 点击书籍:', bookId, book?.title || '未知书籍');
+
+    try {
+      // 1. 添加到最近阅读列表
+      console.log('🔄 [DEBUG] 开始添加到最近阅读')
+      wx.showLoading({ title: '加载中...' });
+
+      const requestData = {
+        type: 'addToRecent',
+        book_id: bookId
+      }
+      console.log('📤 [DEBUG] 发送添加到最近阅读请求:', requestData)
+
+      const result = await wx.cloud.callFunction({
+        name: 'homeData',
+        data: requestData
+      });
+
+      console.log('📥 [DEBUG] 添加到最近阅读响应:', result)
+      wx.hideLoading();
+
+      if (result.result.code === 0) {
+        console.log('✅ [DEBUG] 成功添加到最近阅读')
+        // 2. 刷新最近阅读列表
+        this.loadRecentBooks();
+      } else {
+        console.error('❌ [DEBUG] 添加到最近阅读失败:', result.result)
+      }
+
+      // 3. 跳转到书籍详情页
+      console.log('🔄 [DEBUG] 跳转到书籍详情页:', bookId)
+      wx.navigateTo({
+        url: `/pages/book-detail/index?bookId=${bookId}`
+      });
+
+    } catch (err) {
+      wx.hideLoading();
+      console.error('❌ [DEBUG] 处理书籍点击失败:', err);
+
+      // 即使添加到最近阅读失败，也要跳转到详情页
+      console.log('🔄 [DEBUG] 异常情况下跳转到书籍详情页:', bookId)
+      wx.navigateTo({
+        url: `/pages/book-detail/index?bookId=${bookId}`
+      });
+    }
   },
 
   // 底部导航标签点击处理
   onTabTap(e) {
     const tab = e.currentTarget.dataset.tab;
-    
+
     this.setData({
       currentTab: tab
     });
@@ -120,6 +290,7 @@ Page({
 
   // 页面显示时触发
   onShow() {
+    console.log('🔄 [DEBUG] 页面显示, 设置当前标签为首页')
     // 确保当前标签页为首页
     this.setData({
       currentTab: 'home'
@@ -128,13 +299,15 @@ Page({
 
   // 下拉刷新
   onPullDownRefresh() {
+    console.log('🔄 [DEBUG] 触发下拉刷新')
     // 重新加载数据
-    this.loadData();
-    
-    // 延迟关闭下拉刷新
-    setTimeout(() => {
+    this.loadData().then(() => {
+      console.log('✅ [DEBUG] 下拉刷新数据加载成功')
       wx.stopPullDownRefresh();
-    }, 1000);
+    }).catch((err) => {
+      console.error('❌ [DEBUG] 下拉刷新数据加载失败:', err)
+      wx.stopPullDownRefresh();
+    });
   },
 
   // 页面分享

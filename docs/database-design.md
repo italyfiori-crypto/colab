@@ -27,24 +27,19 @@
   nickname: string,         // 用户昵称
   avatar: string,           // 头像URL
   level: number,            // 用户等级 (1-10)
-  totalPoints: number,      // 总积分
-  studyDays: number,        // 连续学习天数
-  totalStudyTime: number,   // 总学习时长(秒)
+  study_days: number,       // 连续学习天数
+  total_study_time: number, // 总学习时长(秒)
   
   // 学习偏好 (合并到用户表)
-  displayMode: string,      // 显示模式 (both/chinese-mask/english-mask)
-  dailyGoal: number,        // 每日目标单词数 (默认20)
-  autoPlay: boolean,        // 自动播放发音 (默认true)
+  display_mode: string,     // 显示模式 (both/chinese-mask/english-mask)
   
   // 统计信息 (合并到用户表)
-  totalWords: number,       // 学习过的总单词数
-  masteredWords: number,    // 已掌握单词数  
-  booksCompleted: number,   // 完成的书籍数
-  averageAccuracy: number,  // 平均正确率
+  total_words: number,      // 学习过的总单词数
+  mastered_words: number,   // 已掌握单词数  
   
-  createdAt: Date,
-  lastLoginAt: Date,
-  updatedAt: Date
+  created_at: Date,
+  last_login_at: Date,
+  updated_at: Date
 }
 ```
 
@@ -52,8 +47,8 @@
 ```javascript
 [
   { _id: 1 },                        // 主键索引
-  { level: -1, totalPoints: -1 },    // 排行榜查询
-  { lastLoginAt: -1 }                // 活跃度查询
+  { level: -1 },                     // 等级查询
+  { last_login_at: -1 }              // 活跃度查询
 ]
 ```
 
@@ -67,7 +62,7 @@
   title: string,            // 书名
   author: string,           // 作者
   cover_url: string,        // 封面图URL
-  cover_md5: string.        // 封面图md5
+  cover_md5: string,        // 封面图md5
   category: string,         // 分类 (literature/business/script/news)
   description: string,      // 描述
   difficulty: string,       // 难度 (easy/medium/hard)
@@ -88,7 +83,7 @@
   { _id: 1 },                         // 主键索引
   { category: 1, is_active: 1 },       // 分类筛选
   { difficulty: 1, category: 1 },     // 难度筛选
-  { popularity: -1, is_active: 1 },    // 热门排序
+  { is_active: 1, created_at: -1 },   // 上架时间排序
   { tags: 1 }                         // 标签查询
 ]
 ```
@@ -104,7 +99,7 @@
   chapter_number: number,    // 章节序号
   title: string,             // 章节标题
   subtitle_url: string,      // 字幕路径
-  subtitle_md5: string,      // 字幕文件md
+  subtitle_md5: string,      // 字幕文件md5
   audio_url: string,         // 音频路径
   audio_md5: string,         // 音频文件md5
   duration: number,          // 音频时长
@@ -119,8 +114,8 @@
 ```javascript
 [
   { _id: 1 },                      // 主键索引
-  { book_d: 1, chapter_number: 1 }, // 书籍章节查询
-  { book_d: 1, is_active: 1 }       // 活跃章节查询
+  { book_id: 1, chapter_number: 1 }, // 书籍章节查询
+  { book_id: 1, is_active: 1 }       // 活跃章节查询
 ]
 ```
 
@@ -143,14 +138,10 @@
   
   difficulty: string,       // 难度 (easy/medium/hard)
   frequency: string,        // 使用频率 (high/medium/low) 
-  audioUrl: string,         // 发音音频URL
+  audio_url: string,        // 发音音频URL
   
-  // 相关词汇 (可选)
-  synonyms: string[],       // 同义词
-  antonyms: string[],       // 反义词
-  
-  createdAt: Date,
-  updatedAt: Date
+  created_at: Date,
+  updated_at: Date
 }
 ```
 
@@ -160,7 +151,6 @@
   { _id: 1 },                         // 主键索引
   { word: 1 },                        // 单词查询 (唯一)
   { difficulty: 1, frequency: 1 },    // 难度频率筛选
-  { bookIds: 1 }                      // 书籍关联查询
 ]
 ```
 
@@ -170,20 +160,14 @@
 
 ```javascript
 {
-  _id: string,              // 进度ID (userId_bookId)
-  userId: string,           // 用户ID
-  bookId: string,           // 书籍ID
-  currentChapter: number,   // 当前章节
-  progress: number,         // 进度百分比(0-100)
-  studyTime: number,        // 累计学习时长(秒)
-  status: string,           // 学习状态 (studying/completed/paused)
-  chaptersCompleted: number[], // 已完成章节列表
+  _id: string,                  // 进度ID (userId_bookId)
+  user_id: string,              // 用户ID
+  book_id: string,              // 书籍ID
+  current_chapter: number,      // 当前章节
+  chapters_completed: number[], // 已完成章节列表
   
-  startedAt: Date,          // 开始学习时间
-  lastStudyAt: Date,        // 最后学习时间
-  completedAt: Date,        // 完成时间 (可选)
-  createdAt: Date,
-  updatedAt: Date
+  created_at: Date,
+  updated_at: Date
 }
 ```
 
@@ -191,40 +175,28 @@
 ```javascript
 [
   { _id: 1 },                       // 主键索引
-  { userId: 1, lastStudyAt: -1 },   // 用户最近学习查询
-  { userId: 1, status: 1 }          // 用户状态筛选
+  { user_id: 1, updated_at: -1 },   // 用户最近学习查询
+  { user_id: 1 }                    // 用户查询
 ]
 ```
 
 ### 2.6 单词学习记录表 (word_records)
 
-**功能**: 记录用户对单词的学习情况，支持艾宾浩斯遗忘曲线
+**功能**: 记录用户单词学习状态，专为艾宾浩斯记忆曲线优化
 
 ```javascript
 {
-  _id: string,              // 记录ID (userId_wordId)
-  userId: string,           // 用户ID
-  wordId: string,           // 单词ID
-  status: string,           // 学习状态 (new/learning/mastered)
+  _id: string,              // 记录ID (user_id_word_id)
+  user_id: string,          // 用户ID
+  word_id: string,          // 单词ID
   
-  // 学习统计 (简化)
-  correctCount: number,     // 答对次数
-  totalCount: number,       // 总测试次数
-  accuracy: number,         // 正确率 (0-100)
+  // 记忆状态 (简化)
+  level: number,            // 记忆等级 0-7 (0=新词, 1-6=复习阶段, 7=已掌握)
   
-  // 时间记录
-  firstStudyAt: Date,       // 首次学习时间
-  lastStudyAt: Date,        // 最后学习时间
-  masteredAt: Date,         // 掌握时间 (可选)
-  nextReviewAt: Date,       // 下次复习时间
-  
-  // 复习管理 (艾宾浩斯)
-  reviewLevel: number,      // 复习等级 (1-7)
-  studyCount: number,       // 学习次数
-  source: string,           // 学习来源 (book/daily/review)
-  
-  createdAt: Date,
-  updatedAt: Date
+  // 时间管理 (核心)
+  learn_at: Date            // 首次学习时间
+  last_review_at: Date,     // 最后复习时间
+  next_review_at: Date,     // 下次复习时间 (艾宾浩斯间隔)
 }
 ```
 
@@ -232,40 +204,36 @@
 ```javascript
 [
   { _id: 1 },                        // 主键索引
-  { userId: 1, status: 1 },          // 用户状态查询
-  { userId: 1, nextReviewAt: 1 },    // 复习时间查询
-  { userId: 1, lastStudyAt: -1 }     // 最近学习查询
+  { user_id: 1, next_review_at: 1 }, // 复习计划查询
+  { user_id: 1, level: 1 }           // 按掌握程度查询
 ]
 ```
 
 ### 2.7 每日学习计划表 (daily_plans)
 
-**功能**: 存储每日学习计划配置
+**功能**: 管理每日单词学习计划，支持新学和复习
 
 ```javascript
 {
-  _id: string,              // 计划ID (date)
-  date: string,             // 日期 YYYY-MM-DD
-  dayKey: string,           // 天数标识 day1/day2...
-  title: string,            // 计划标题
-  description: string,      // 计划描述
-  totalWords: number,       // 当天总单词数
-  wordIds: string[],        // 单词ID列表
-  targetTime: number,       // 目标学习时长(秒)
-  difficulty: string,       // 整体难度
-  is_active: boolean,        // 是否启用
+  _id: string,              // 计划ID (user_id_plan_date)
+  user_id: string,          // 用户ID
+  plan_date: string,        // 计划日期 YYYY-MM-DD
   
-  createdAt: Date,
-  updatedAt: Date
+  // 学习计划 (简化)
+  new_words: string[],      // 新学单词ID列表
+  review_words: string[],   // 复习单词ID列表
+  
+  created_at: Date,
+  updated_at: Date
 }
 ```
 
 **索引设计**:
 ```javascript
 [
-  { _id: 1 },               // 主键索引
-  { date: -1 },             // 日期查询
-  { is_active: 1, date: -1 } // 活跃计划查询
+  { _id: 1 },                        // 主键索引
+  { user_id: 1, plan_date: -1 },     // 用户计划历史
+  { user_id: 1, completed: 1 }       // 完成状态查询
 ]
 ```
 
@@ -304,7 +272,7 @@ books (书籍)
 ## 5. 数据完整性约束
 
 ### 5.1 必填字段
-- 所有表的 `_id`、`createdAt`、`updatedAt` 为必填
+- 所有表的 `_id`、`created_at`、`updated_at` 为必填
 - 用户表的 `nickname` 为必填
 - 书籍表的 `title`、`author`、`category` 为必填
 - 单词表的 `word`、`translations` 为必填
@@ -312,12 +280,39 @@ books (书籍)
 ### 5.2 唯一约束
 - `users._id` (openid)
 - `vocabularies.word` (单词唯一)
-- `user_progress._id` (userId_bookId)
-- `word_records._id` (userId_wordId)
+- `user_progress._id` (user_id_book_id)
+- `word_records._id` (user_id_word_id)
+- `daily_plans._id` (user_id_plan_date)
 
 ### 5.3 引用完整性
-- 所有 `userId` 必须存在于 `users` 表中
-- 所有 `bookId` 必须存在于 `books` 表中  
-- 所有 `wordId` 必须存在于 `vocabularies` 表中
+- 所有 `user_id` 必须存在于 `users` 表中
+- 所有 `book_id` 必须存在于 `books` 表中  
+- 所有 `word_id` 必须存在于 `vocabularies` 表中
 
-这个优化后的数据库设计既简化了结构，又保持了完整的功能支持，更适合小程序的快速开发和维护需求。
+## 6. 艾宾浩斯记忆曲线算法设计
+
+### 6.1 记忆等级定义
+- `level: 0` - 新词，从未学习
+- `level: 1-6` - 复习阶段，对应不同的复习间隔
+- `level: 7` - 已掌握，无需频繁复习
+
+### 6.2 复习间隔算法
+```
+复习间隔 = base_interval * (2 ^ (level - 1)) * random_factor
+其中：
+- base_interval = 1天 (基础间隔)
+- random_factor = 0.8-1.2 (随机因子，增加个性化)
+```
+
+### 6.3 学习流程
+1. **新学单词**: `level = 0` → `level = 1`, 设置 `next_review_at = 当前时间 + 1天`
+2. **答对**: `level += 1`, 增加 `correct_count`, 延长 `next_review_at`
+3. **答错**: `level = max(1, level - 1)`, 重置 `correct_count = 0`, 缩短复习间隔
+4. **掌握条件**: `level >= 7 且 correct_count >= 3`
+
+### 6.4 每日计划生成
+1. 查询 `next_review_at <= 今天` 的单词作为 `review_words`
+2. 根据 `target_new_count` 从词库中选择新词作为 `new_words`
+3. 创建或更新当日的 `daily_plans` 记录
+
+这个优化后的数据库设计专为艾宾浩斯记忆曲线算法优化，结构简洁且高效，更适合小程序的快速开发和维护需求。

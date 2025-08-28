@@ -114,8 +114,8 @@ class AudioCompressor:
             compressed_size = os.path.getsize(output_path)
             compression_ratio = (1 - compressed_size / original_size) * 100
             
-            self.logger.info(f"压缩完成: {input_path} -> {output_path}")
-            self.logger.info(f"压缩比: {compression_ratio:.1f}% ({original_size} -> {compressed_size} bytes)")
+            self.logger.debug(f"压缩完成: {input_path} -> {output_path}")
+            self.logger.debug(f"压缩比: {compression_ratio:.1f}% ({original_size} -> {compressed_size} bytes)")
             
             # 更新统计信息
             self.compression_stats['total_files'] += 1
@@ -150,7 +150,7 @@ class AudioCompressor:
         results = {}
         
         for format_name in enabled_formats:
-            self.logger.info(f"开始压缩为 {format_name.upper()} 格式...")
+            self.logger.debug(f"开始压缩为 {format_name.upper()} 格式...")
             
             # 创建格式特定的输出目录
             format_output_dir = os.path.join(book_dir, output_subdir, format_name)
@@ -205,11 +205,11 @@ class AudioCompressor:
             
             results[format_name] = format_stats
             
-            self.logger.info(f"{format_name.upper()} 格式压缩完成:")
-            self.logger.info(f"  处理文件: {format_stats['files_processed']}")
-            self.logger.info(f"  成功: {format_stats['files_success']}")
-            self.logger.info(f"  失败: {format_stats['files_failed']}")
-            self.logger.info(f"  压缩比: {format_stats['compression_ratio']:.1f}%")
+            self.logger.debug(f"{format_name.upper()} 格式压缩完成:")
+            self.logger.debug(f"  处理文件: {format_stats['files_processed']}")
+            self.logger.debug(f"  成功: {format_stats['files_success']}")
+            self.logger.debug(f"  失败: {format_stats['files_failed']}")
+            self.logger.debug(f"  压缩比: {format_stats['compression_ratio']:.1f}%")
         
         return results
 
@@ -261,6 +261,6 @@ class AudioCompressor:
                     if os.path.isfile(file_path):
                         os.remove(file_path)
                 os.rmdir(temp_dir)
-                self.logger.info(f"清理临时文件完成: {temp_dir}")
+                self.logger.debug(f"清理临时文件完成: {temp_dir}")
         except Exception as e:
             self.logger.warning(f"清理临时文件失败: {str(e)}")
