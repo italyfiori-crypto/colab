@@ -15,7 +15,9 @@
       "Bash(grep:*)",
       "Bash(timeout:*)",
       "Bash(cat:*)",
-      "mcp__ide__getDiagnostics"
+      "mcp__ide__getDiagnostics",
+      "Bash(sed:*)",
+      "Bash(touch:*)"
     ],
     "deny": []
   }

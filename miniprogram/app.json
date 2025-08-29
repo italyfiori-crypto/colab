@@ -1,13 +1,11 @@
 {
   "pages": [
     "pages/home/index",
-    "pages/vocabulary/index",
     "pages/book-detail/index",
     "pages/article-detail/index",
     "pages/article-vocabulary/index",
-    "pages/profile/index",
-    "pages/index/index",
-    "pages/example/index"
+    "pages/vocabulary/index",
+    "pages/profile/index"
   ],
   "window": {
     "backgroundColor": "#F6F6F6",

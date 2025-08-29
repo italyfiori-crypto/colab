@@ -1,10 +1,11 @@
-const articleDetailData = require('../../mock/articleDetailData.js');
-
 Page({
     data: {
-        // 文章信息
-        articleId: null,
+        // 章节信息
+        chapterId: null,
+        bookId: null,
+        chapterData: {},
         title: '',
+        book_title: '',
 
         // 字幕数据
         subtitles: [],
@@ -17,7 +18,7 @@ Page({
         // 音频控制
         isPlaying: false,
         currentTime: 0,
-        duration: 168, // 2分48秒，与Alice音频长度匹配
+        duration: 0, // 从数据库获取
         playSpeed: 1,
         speedOptions: [0.7, 0.85, 1.0, 1.25],
         isLooping: false, // 循环播放当前字幕
@@ -26,28 +27,35 @@ Page({
         showSettings: false,
         isFavorited: false,
         showVocabulary: false,
+        loading: true,
 
         // 单词卡片数据
         vocabularyTitle: '',
         vocabularyWords: [],
 
-        // UI状态相关的数据，图标现在直接在模板中使用本地文件
+        // 进度相关
+        isCompleted: false,
+        isProgressUpdated: false
     },
 
     onLoad(options) {
-        const articleId = options.id;
-        this.setData({ articleId });
-
-        // 设置标题
-        wx.setNavigationBarTitle({
-            title: '英语学习'
+        const chapterId = options.chapterId;
+        const bookId = options.bookId;
+        const chapterTitle = options.chapterTitle ? decodeURIComponent(options.chapterTitle) : '';
+        
+        this.setData({ 
+            chapterId,
+            bookId,
+            title: chapterTitle
         });
 
-        // 加载字幕数据
-        this.loadSubtitleData();
+        // 设置导航栏标题
+        wx.setNavigationBarTitle({
+            title: chapterTitle || '英语学习'
+        });
 
-        // 创建音频对象
-        this.createAudioContext();
+        // 加载章节详情数据
+        this.loadChapterData();
 
         // 加载收藏状态
         this.loadFavoriteStatus();
@@ -67,33 +75,231 @@ Page({
         }
     },
 
-    // 加载字幕数据
-    loadSubtitleData() {
-        console.log('开始加载字幕数据...');
+    // 加载章节数据
+    async loadChapterData() {
+        try {
+            this.setData({ loading: true });
+            
+            wx.showLoading({
+                title: '加载中...'
+            });
+
+            // 调用云函数获取章节详情
+            const result = await wx.cloud.callFunction({
+                name: 'articleDetailData',
+                data: {
+                    type: 'getChapterDetail',
+                    chapterId: this.data.chapterId
+                }
+            });
+
+            wx.hideLoading();
+
+            if (result.result.code === 0) {
+                const chapterData = result.result.data;
+                
+                this.setData({
+                    chapterData,
+                    title: chapterData.title,
+                    book_title: chapterData.book_title,
+                    duration: chapterData.duration,
+                    isCompleted: chapterData.is_completed,
+                    loading: false
+                });
+
+                // 设置导航栏标题
+                wx.setNavigationBarTitle({
+                    title: chapterData.title || '英语学习'
+                });
+
+                // 立即加载字幕数据
+                if (chapterData.subtitle_url) {
+                    this.loadSubtitlesFromCloud(chapterData.subtitle_url);
+                } else {
+                    // 如果没有字幕URL，提示用户
+                    wx.showToast({
+                        title: '该章节暂无字幕数据',
+                        icon: 'none',
+                        duration: 2000
+                    });
+                }
+
+                // 音频URL存储，播放时再加载
+                this.audioUrl = chapterData.audio_url;
+                this.audioContext = null; // 初始时不创建音频对象
+
+            } else {
+                wx.showToast({
+                    title: result.result.message || '获取章节数据失败',
+                    icon: 'none',
+                    duration: 2000
+                });
+                this.setData({ loading: false });
+            }
+
+        } catch (error) {
+            wx.hideLoading();
+            console.error('加载章节数据失败:', error);
+            wx.showToast({
+                title: '网络异常，请重试',
+                icon: 'none',
+                duration: 2000
+            });
+            this.setData({ loading: false });
+        }
+    },
+
+    // 从云存储加载字幕数据
+    loadSubtitlesFromCloud(subtitleUrl) {
+        if (!subtitleUrl) {
+            console.error('字幕URL为空');
+            wx.showToast({
+                title: '字幕数据不存在',
+                icon: 'none',
+                duration: 2000
+            });
+            return;
+        }
+
+        console.log('开始从云存储加载字幕数据:', subtitleUrl);
+        
         wx.showLoading({
             title: '加载字幕中...'
         });
-        
-        // 使用articleDetailData中的方法从SRT文件加载字幕
-        articleDetailData.loadSubtitlesFromSRT()
-            .then(subtitles => {
-                this.setData({ subtitles });
+
+        // 从云存储下载SRT文件
+        wx.cloud.downloadFile({
+            fileID: subtitleUrl,
+            success: res => {
                 wx.hideLoading();
-                wx.showToast({
-                    title: '字幕加载成功',
-                    icon: 'success',
-                    duration: 1500
-                });
-            })
-            .catch(error => {
-                console.error('字幕加载失败:', error);
+                console.log('字幕文件下载成功:', res.tempFilePath);
+                
+                // 解析SRT文件内容
+                this.parseSRTFile(res.tempFilePath);
+            },
+            fail: err => {
                 wx.hideLoading();
+                console.error('字幕文件下载失败:', err);
                 wx.showToast({
                     title: '字幕加载失败',
                     icon: 'none',
+                    duration: 2000
+                });
+            }
+        });
+    },
+
+    // 解析SRT文件
+    parseSRTFile(filePath) {
+        console.log('开始解析SRT文件:', filePath);
+        
+        const fs = wx.getFileSystemManager();
+        
+        try {
+            // 读取文件内容
+            const fileContent = fs.readFileSync(filePath, 'utf8');
+            console.log('SRT文件内容读取成功');
+            
+            // 解析SRT格式内容
+            const subtitles = this.parseSRTContent(fileContent);
+            
+            if (subtitles && subtitles.length > 0) {
+                this.setData({ subtitles });
+                wx.showToast({
+                    title: `字幕加载成功 (${subtitles.length}条)`,
+                    icon: 'success',
                     duration: 1500
                 });
+                console.log('字幕解析完成:', subtitles.length, '条');
+            } else {
+                this.setData({ subtitles: [] });
+                wx.showToast({
+                    title: '字幕文件格式错误',
+                    icon: 'none',
+                    duration: 2000
+                });
+            }
+        } catch (error) {
+            console.error('SRT文件解析失败:', error);
+            this.setData({ subtitles: [] });
+            wx.showToast({
+                title: '字幕文件解析失败',
+                icon: 'none',
+                duration: 2000
             });
+        }
+    },
+
+    // 解析SRT内容
+    parseSRTContent(content) {
+        if (!content || typeof content !== 'string') {
+            return [];
+        }
+
+        console.log('解析SRT内容，长度:', content.length);
+        
+        const subtitles = [];
+        const blocks = content.trim().split(/\n\s*\n/); // 按空行分割字幕块
+
+        for (let i = 0; i < blocks.length; i++) {
+            const block = blocks[i].trim();
+            if (!block) continue;
+
+            const lines = block.split('\n');
+            if (lines.length < 3) continue;
+
+            try {
+                const index = parseInt(lines[0]); // 字幕序号
+                const timeRange = lines[1]; // 时间范围
+                const english = lines[2] || ''; // 英文内容
+                const chinese = lines[3] || ''; // 中文内容（可选）
+
+                // 解析开始时间
+                const startTime = this.parseSRTTimeToSeconds(timeRange.split(' --> ')[0]);
+                
+                if (startTime !== null) {
+                    subtitles.push({
+                        index,
+                        timeText: this.formatSecondsToTime(startTime),
+                        time: startTime,
+                        english: english.trim(),
+                        chinese: chinese.trim()
+                    });
+                }
+            } catch (error) {
+                console.warn('解析字幕块失败:', block, error);
+            }
+        }
+
+        return subtitles;
+    },
+
+    // 将SRT时间格式转换为秒 (HH:MM:SS,mmm)
+    parseSRTTimeToSeconds(timeStr) {
+        if (!timeStr) return null;
+        
+        try {
+            const parts = timeStr.split(':');
+            const hours = parseInt(parts[0]) || 0;
+            const minutes = parseInt(parts[1]) || 0;
+            const secondsParts = parts[2].split(',');
+            const seconds = parseInt(secondsParts[0]) || 0;
+            const milliseconds = parseInt(secondsParts[1]) || 0;
+
+            return hours * 3600 + minutes * 60 + seconds + milliseconds / 1000;
+        } catch (error) {
+            console.warn('时间格式解析失败:', timeStr, error);
+            return null;
+        }
+    },
+
+    // 将秒转换为显示时间格式
+    formatSecondsToTime(seconds) {
+        if (seconds == null || seconds < 0) return '0:00';
+        
+        const minutes = Math.floor(seconds / 60);
+        const secs = Math.floor(seconds % 60);
+        return `${minutes}:${secs.toString().padStart(2, '0')}`;
     },
 
 
@@ -104,10 +310,11 @@ Page({
 
 
 
+
     // 创建音频上下文
-    createAudioContext() {
+    createAudioContext(audioUrl) {
         this.audioContext = wx.createInnerAudioContext();
-        this.audioContext.src = 'mock/chapter_01.wav'; // 使用相对路径访问代码包文件
+        this.audioContext.src = audioUrl; // 使用数据库中的音频URL
         this.audioContext.autoplay = false;
 
         // 监听音频事件
@@ -133,6 +340,9 @@ Page({
         this.audioContext.onEnded(() => {
             this.setData({ isPlaying: false });
             this.stopUpdateTimer();
+            
+            // 播放完成后更新学习进度
+            this.updateLearningProgress();
         });
 
         this.audioContext.onError((error) => {
@@ -205,11 +415,52 @@ Page({
 
     // 播放/暂停
     onPlayPause() {
+        if (!this.audioContext) {
+            // 首次播放时创建音频对象
+            this.createAudioContextOnDemand();
+            return;
+        }
+
         if (this.data.isPlaying) {
             this.audioContext.pause();
         } else {
             this.audioContext.play();
         }
+    },
+
+    // 按需创建音频上下文
+    createAudioContextOnDemand() {
+        console.log('按需创建音频上下文:', this.audioUrl);
+        
+        if (!this.audioUrl) {
+            wx.showToast({
+                title: '该章节暂无音频数据',
+                icon: 'none',
+                duration: 2000
+            });
+            return;
+        }
+
+        wx.showLoading({
+            title: '加载音频中...'
+        });
+
+        this.createAudioContext(this.audioUrl);
+
+        // 音频准备好后自动播放
+        this.audioContext.onCanplay(() => {
+            wx.hideLoading();
+            this.audioContext.play();
+        });
+
+        this.audioContext.onError(() => {
+            wx.hideLoading();
+            wx.showToast({
+                title: '音频加载失败',
+                icon: 'none',
+                duration: 2000
+            });
+        });
     },
 
     // 上一句
@@ -277,7 +528,7 @@ Page({
         this.setData({ isFavorited });
 
         // 保存收藏状态到本地存储
-        wx.setStorageSync(`favorite_${this.data.articleId}`, isFavorited);
+        wx.setStorageSync(`favorite_${this.data.chapterId}`, isFavorited);
 
         wx.showToast({
             title: isFavorited ? '已收藏' : '已取消收藏',
@@ -288,18 +539,53 @@ Page({
 
     // 加载收藏状态
     loadFavoriteStatus() {
-        const isFavorited = wx.getStorageSync(`favorite_${this.data.articleId}`) || false;
+        const isFavorited = wx.getStorageSync(`favorite_${this.data.chapterId}`) || false;
         this.setData({ isFavorited });
     },
 
     // 单词按钮 - 显示单词卡片
-    onDict() {
-        // 设置单词卡片数据
-        this.setData({
-            vocabularyTitle: '南非能源危机 单词',
-            vocabularyWords: articleDetailData.vocabulary || [],
-            showVocabulary: true
-        });
+    async onDict() {
+        try {
+            wx.showLoading({
+                title: '加载单词中...'
+            });
+
+            // 调用云函数获取章节单词
+            const result = await wx.cloud.callFunction({
+                name: 'articleDetailData',
+                data: {
+                    type: 'getChapterVocabularies',
+                    chapterId: this.data.chapterId
+                }
+            });
+
+            wx.hideLoading();
+
+            if (result.result.code === 0) {
+                const { chapter_title, vocabularies } = result.result.data;
+                
+                this.setData({
+                    vocabularyTitle: `${chapter_title} 单词`,
+                    vocabularyWords: vocabularies,
+                    showVocabulary: true
+                });
+            } else {
+                wx.showToast({
+                    title: result.result.message || '获取单词失败',
+                    icon: 'none',
+                    duration: 2000
+                });
+            }
+
+        } catch (error) {
+            wx.hideLoading();
+            console.error('加载单词失败:', error);
+            wx.showToast({
+                title: '网络异常，请重试',
+                icon: 'none',
+                duration: 2000
+            });
+        }
     },
 
 
@@ -476,5 +762,46 @@ Page({
         // 计算居中偏移量（负值表示向上偏移，让目标元素显示在中心）
         const centerOffset = -(containerHeight / 3 - 60); // 60是大概的字幕项高度的一半        
         this.setData({ scrollOffset: centerOffset });
+    },
+
+    // 更新学习进度
+    async updateLearningProgress() {
+        if (this.data.isProgressUpdated || !this.data.chapterId || !this.data.bookId) {
+            return;
+        }
+
+        try {
+            console.log('更新学习进度:', this.data.chapterId);
+
+            // 调用云函数更新学习进度
+            const result = await wx.cloud.callFunction({
+                name: 'articleDetailData',
+                data: {
+                    type: 'updateUserProgress',
+                    bookId: this.data.bookId,
+                    chapterId: this.data.chapterId
+                }
+            });
+
+            if (result.result.code === 0) {
+                this.setData({ 
+                    isProgressUpdated: true,
+                    isCompleted: true 
+                });
+                
+                wx.showToast({
+                    title: '学习进度已更新',
+                    icon: 'success',
+                    duration: 1500
+                });
+                
+                console.log('学习进度更新成功');
+            } else {
+                console.error('学习进度更新失败:', result.result.message);
+            }
+
+        } catch (error) {
+            console.error('更新学习进度异常:', error);
+        }
     }
 });
