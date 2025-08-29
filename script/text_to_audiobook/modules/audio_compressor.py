@@ -74,9 +74,9 @@ class AudioCompressor:
                 return False
             
             # 获取压缩格式配置
-            format_config = self.config.get('formats', {}).get(format_name)
+            format_config = self.config.get('format', {})
             if not format_config:
-                format_config = self.default_formats.get(format_name, self.default_formats['mp3'])
+                format_config = self.default_formats['mp3']
             
             # 加载音频文件
             audio = AudioSegment.from_file(input_path)
@@ -144,58 +144,56 @@ class AudioCompressor:
             self.logger.error(f"音频目录不存在: {audio_dir}")
             return {}
         
-        # 获取配置
-        enabled_formats = self.config.get('enabled_formats', ['mp3'])
+        # 使用单一MP3格式配置
+        format_name = 'mp3'
         
         results = {}
-        
-        for format_name in enabled_formats:
-            self.logger.debug(f"开始压缩为 {format_name.upper()} 格式...")
+        self.logger.debug(f"开始压缩为 {format_name.upper()} 格式...")
             
-            # 创建格式特定的输出目录
-            format_output_dir = os.path.join(book_dir, output_subdir, format_name)
-            os.makedirs(format_output_dir, exist_ok=True)
+        # 创建输出目录
+        format_output_dir = os.path.join(book_dir, output_subdir)
+        os.makedirs(format_output_dir, exist_ok=True)
             
-            format_stats = {
-                'format': format_name,
-                'files_processed': 0,
-                'files_success': 0,
-                'files_failed': 0,
-                'total_original_size': 0,
-                'total_compressed_size': 0,
-                'compression_ratio': 0.0
-            }
+        format_stats = {
+            'format': format_name,
+            'files_processed': 0,
+            'files_success': 0,
+            'files_failed': 0,
+            'total_original_size': 0,
+            'total_compressed_size': 0,
+            'compression_ratio': 0.0
+        }
             
-            # 获取格式扩展名
-            extension = self.default_formats[format_name]['extension']
+        # 获取格式扩展名
+        extension = self.config.get('format', {}).get('extension', '.mp3')
             
-            # 遍历音频文件
-            for audio_file in os.listdir(audio_dir):
-                if not audio_file.lower().endswith(('.wav', '.mp3', '.m4a', '.flac')):
-                    continue
+        # 遍历音频文件
+        for audio_file in os.listdir(audio_dir):
+            if not audio_file.lower().endswith(('.wav', '.mp3', '.m4a', '.flac')):
+                continue
+            
+            input_path = os.path.join(audio_dir, audio_file)
+            
+            # 生成输出文件名（保持原文件名，改变扩展名）
+            base_name = os.path.splitext(audio_file)[0]
+            output_file = base_name + extension
+            output_path = os.path.join(format_output_dir, output_file)
                 
-                input_path = os.path.join(audio_dir, audio_file)
+            format_stats['files_processed'] += 1
                 
-                # 生成输出文件名（保持原文件名，改变扩展名）
-                base_name = os.path.splitext(audio_file)[0]
-                output_file = base_name + extension
-                output_path = os.path.join(format_output_dir, output_file)
+            # 记录原始大小
+            original_size = os.path.getsize(input_path)
+            format_stats['total_original_size'] += original_size
+            
+            # 压缩音频
+            if self.compress_audio(input_path, output_path, format_name):
+                format_stats['files_success'] += 1
                 
-                format_stats['files_processed'] += 1
-                
-                # 记录原始大小
-                original_size = os.path.getsize(input_path)
-                format_stats['total_original_size'] += original_size
-                
-                # 压缩音频
-                if self.compress_audio(input_path, output_path, format_name):
-                    format_stats['files_success'] += 1
-                    
-                    # 记录压缩后大小
-                    compressed_size = os.path.getsize(output_path)
-                    format_stats['total_compressed_size'] += compressed_size
-                else:
-                    format_stats['files_failed'] += 1
+                # 记录压缩后大小
+                compressed_size = os.path.getsize(output_path)
+                format_stats['total_compressed_size'] += compressed_size
+            else:
+                format_stats['files_failed'] += 1
             
             # 计算压缩比
             if format_stats['total_original_size'] > 0:
@@ -203,13 +201,13 @@ class AudioCompressor:
                     1 - format_stats['total_compressed_size'] / format_stats['total_original_size']
                 ) * 100
             
-            results[format_name] = format_stats
+        results[format_name] = format_stats
             
-            self.logger.debug(f"{format_name.upper()} 格式压缩完成:")
-            self.logger.debug(f"  处理文件: {format_stats['files_processed']}")
-            self.logger.debug(f"  成功: {format_stats['files_success']}")
-            self.logger.debug(f"  失败: {format_stats['files_failed']}")
-            self.logger.debug(f"  压缩比: {format_stats['compression_ratio']:.1f}%")
+        self.logger.debug(f"{format_name.upper()} 格式压缩完成:")
+        self.logger.debug(f"  处理文件: {format_stats['files_processed']}")
+        self.logger.debug(f"  成功: {format_stats['files_success']}")
+        self.logger.debug(f"  失败: {format_stats['files_failed']}")
+        self.logger.debug(f"  压缩比: {format_stats['compression_ratio']:.1f}%")
         
         return results
 

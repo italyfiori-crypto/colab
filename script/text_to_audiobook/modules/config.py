@@ -18,28 +18,20 @@ from .statistics_collector import StatisticsCollectorConfig
 class AudioCompressionConfig:
     """音频压缩配置类"""
     
-    # 启用的压缩格式列表
-    enabled_formats: List[str] = None
-    
     # 输出子目录
-    output_subdir: str = "compressed"
+    output_subdir: str = "compressed_audio"
     
-    # 格式配置字典
-    formats: dict = None
+    # 格式配置
+    format: dict = None
     
     def __post_init__(self):
         """初始化默认值"""
-        if self.enabled_formats is None:
-            self.enabled_formats = ["mp3"]
-        
-        if self.formats is None:
-            self.formats = {
-                "mp3": {
-                    "format": "mp3",
-                    "bitrate": "64k",
-                    "codec": "mp3",
-                    "extension": ".mp3"
-                }
+        if self.format is None:
+            self.format = {
+                "format": "mp3",
+                "bitrate": "64k",
+                "codec": "mp3",
+                "extension": ".mp3"
             }
 
 

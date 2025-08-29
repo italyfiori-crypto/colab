@@ -47,19 +47,12 @@
     "enabled": true
   },
   "audio_compression": {
-    "enabled_formats": [
-      "mp3",
-      "aac",
-      "opus"
-    ],
-    "output_subdir": "compressed",
-    "formats": {
-      "mp3": {
-        "format": "mp3",
-        "bitrate": "128k",
-        "codec": "mp3",
-        "extension": ".mp3"
-      }
+    "output_subdir": "compressed_audio",
+    "format": {
+      "format": "mp3",
+      "bitrate": "64k",
+      "codec": "mp3",
+      "extension": ".mp3"
     }
   }
 }
