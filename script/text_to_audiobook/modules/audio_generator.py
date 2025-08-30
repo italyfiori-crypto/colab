@@ -132,14 +132,20 @@ class AudioGenerator:
         audio_file = os.path.join(audio_dir, f"{base_name}.{self.config.audio_format}")
         subtitle_file = os.path.join(subtitle_dir, f"{base_name}.{self.config.subtitle_format}")
         
-        # 合并所有句子生成单个音频文件
-        full_text = " ".join(sentences)
-        if self._generate_sentence_audio(full_text, audio_file):
-            # 生成字幕文件
-            audio_duration = self._get_audio_duration(audio_file)
-            self._generate_subtitle_file(sentences, audio_duration, subtitle_file)
-            return audio_file, subtitle_file
+        # 为每个句子单独生成音频并获取真实时长
+        temp_audio_files, durations = self._generate_individual_audios(sentences, base_name, audio_dir)
+        
+        if temp_audio_files and durations:
+            # 将单句音频合并为完整音频文件
+            if self._merge_audio_files(temp_audio_files, audio_file):
+                # 使用真实时长生成精确字幕文件
+                self._generate_subtitle_file(sentences, durations, subtitle_file)
+                return audio_file, subtitle_file
+            else:
+                print(f"❌ 音频合并失败: {base_name}")
+                return None, None
         else:
+            print(f"❌ 单句音频生成失败: {base_name}")
             return None, None
     
     def _generate_sentence_audio(self, text: str, output_path: str) -> bool:
@@ -194,27 +200,117 @@ class AudioGenerator:
             print(f"❌ 获取音频时长失败: {e}")
             return 0.0
     
-    def _generate_subtitle_file(self, sentences: List[str], total_duration: float, output_path: str):
+    def _generate_individual_audios(self, sentences: List[str], base_name: str, audio_dir: str) -> Tuple[List[str], List[float]]:
+        """
+        为每个句子单独生成音频文件
+        
+        Args:
+            sentences: 句子列表
+            base_name: 基础文件名
+            audio_dir: 音频输出目录
+            
+        Returns:
+            (音频文件列表, 对应的时长列表)
+        """
+        audio_files = []
+        durations = []
+        
+        for i, sentence in enumerate(sentences):
+            # 生成临时音频文件名
+            temp_audio_file = os.path.join(audio_dir, f"{base_name}_temp_{i:03d}.{self.config.audio_format}")
+            
+            try:
+                # 生成单句音频
+                if self._generate_sentence_audio(sentence, temp_audio_file):
+                    # 获取实际时长
+                    duration = self._get_audio_duration(temp_audio_file)
+                    if duration > 0:
+                        audio_files.append(temp_audio_file)
+                        durations.append(duration)
+                    else:
+                        print(f"⚠️ 句子音频时长为0: {sentence[:30]}...")
+                        # 如果获取时长失败，删除临时文件
+                        if os.path.exists(temp_audio_file):
+                            os.remove(temp_audio_file)
+                else:
+                    print(f"⚠️ 句子音频生成失败: {sentence[:30]}...")
+                    
+            except Exception as e:
+                print(f"❌ 处理句子失败 [{i}]: {e}")
+                # 清理可能创建的临时文件
+                if os.path.exists(temp_audio_file):
+                    os.remove(temp_audio_file)
+                continue
+        
+        return audio_files, durations
+    
+    def _merge_audio_files(self, audio_files: List[str], output_path: str) -> bool:
+        """
+        将多个音频文件合并为一个完整的音频文件
+        
+        Args:
+            audio_files: 要合并的音频文件列表
+            output_path: 输出音频文件路径
+            
+        Returns:
+            合并是否成功
+        """
+        if not audio_files:
+            return False
+        
+        try:
+            # 读取所有音频文件
+            audio_chunks = []
+            for audio_file in audio_files:
+                audio_data, sample_rate = sf.read(audio_file)
+                # 确保采样率一致
+                if sample_rate != self.config.sample_rate:
+                    print(f"⚠️ 采样率不匹配: {audio_file} ({sample_rate} vs {self.config.sample_rate})")
+                audio_chunks.append(audio_data)
+            
+            # 合并音频数据
+            if audio_chunks:
+                merged_audio = np.concatenate(audio_chunks)
+                sf.write(output_path, merged_audio, self.config.sample_rate)
+                
+                # 清理临时文件
+                for temp_file in audio_files:
+                    try:
+                        os.remove(temp_file)
+                    except Exception as e:
+                        print(f"⚠️ 清理临时文件失败: {e}")
+                
+                return True
+            else:
+                return False
+                
+        except Exception as e:
+            print(f"❌ 音频合并失败: {e}")
+            return False
+    
+    def _generate_subtitle_file(self, sentences: List[str], durations: List[float], output_path: str):
         """
         生成字幕文件（SRT格式）
         
         Args:
             sentences: 句子列表
-            total_duration: 总音频时长
+            durations: 每个句子对应的真实时长列表
             output_path: 输出字幕文件路径
         """
-        if not sentences:
+        if not sentences or not durations:
             return
         
-        # 计算每个句子的时长（简单平均分配）
-        sentence_duration = total_duration / len(sentences)
+        # 确保句子和时长列表长度匹配
+        if len(sentences) != len(durations):
+            print(f"⚠️ 句子数量({len(sentences)})与时长数量({len(durations)})不匹配")
+            return
         
         srt_content = []
         current_time = 0.0
         
-        for i, sentence in enumerate(sentences, 1):
+        for i, (sentence, duration) in enumerate(zip(sentences, durations), 1):
             start_time = current_time
-            end_time = current_time + sentence_duration
+            end_time = current_time + duration
             
             # 格式化时间戳
             start_timestamp = self._format_timestamp(start_time)
