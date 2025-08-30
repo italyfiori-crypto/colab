@@ -6,7 +6,11 @@ Page({
     categories: [],
     currentCategoryBooks: [],
     currentCategory: '文学名著',
-    currentTab: 'home'
+    currentTab: 'home',
+    // 搜索结果相关
+    searchResults: [],
+    showSearchResults: false,
+    searchLoading: false
   },
 
   onLoad() {
@@ -93,9 +97,18 @@ Page({
 
   // 搜索输入处理
   onSearchInput(e) {
+    const keyword = e.detail.value;
     this.setData({
-      searchKeyword: e.detail.value
+      searchKeyword: keyword
     });
+    
+    // 如果搜索框被清空，恢复正常状态
+    if (!keyword.trim()) {
+      this.setData({
+        showSearchResults: false,
+        searchResults: []
+      });
+    }
   },
 
   // 搜索确认处理
@@ -104,6 +117,10 @@ Page({
     if (keyword) {
       try {
         console.log('🔍 [DEBUG] 开始搜索, 关键词:', keyword)
+        
+        this.setData({
+          searchLoading: true
+        })
         wx.showLoading({ title: '搜索中...' })
 
         const requestData = {
@@ -118,29 +135,47 @@ Page({
         })
 
         console.log('📥 [DEBUG] 搜索响应:', result)
-        wx.hideLoading()
 
         if (result.result.code === 0) {
           console.log('✅ [DEBUG] 搜索结果:', result.result.data?.length || 0, '本')
+          
+          // 保存搜索结果并显示搜索结果区域
+          this.setData({
+            searchResults: result.result.data,
+            showSearchResults: true,
+            searchLoading: false
+          })
+          
           wx.showToast({
             title: `找到${result.result.data.length}本书`,
             icon: 'none',
             duration: 1500
           });
-          // TODO: 跳转到搜索结果页面
         } else {
           console.error('❌ [DEBUG] 搜索服务端返回错误:', result.result)
+          this.setData({
+            searchLoading: false
+          })
         }
       } catch (err) {
-        wx.hideLoading()
         console.error('❌ [DEBUG] 搜索失败:', err)
+        this.setData({
+          searchLoading: false
+        })
         wx.showToast({
           title: '搜索失败',
           icon: 'error'
         })
+      } finally {
+        wx.hideLoading()
       }
     } else {
-      console.log('⚠️ [DEBUG] 搜索关键词为空，跳过搜索')
+      // 搜索关键词为空，恢复正常状态
+      console.log('⚠️ [DEBUG] 搜索关键词为空，恢复正常状态')
+      this.setData({
+        showSearchResults: false,
+        searchResults: []
+      })
     }
   },
 
