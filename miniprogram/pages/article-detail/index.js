@@ -64,7 +64,7 @@ Page({
     onUnload() {
         // 保存当前播放进度
         this.saveCurrentProgress();
-        
+
         // 清理音频
         if (this.audioContext) {
             this.audioContext.destroy();
@@ -210,11 +210,6 @@ Page({
 
             if (subtitles && subtitles.length > 0) {
                 this.setData({ subtitles });
-                wx.showToast({
-                    title: `字幕加载成功 (${subtitles.length}条)`,
-                    icon: 'success',
-                    duration: 1500
-                });
                 console.log('字幕解析完成:', subtitles.length, '条');
             } else {
                 this.setData({ subtitles: [] });
@@ -511,7 +506,7 @@ Page({
             this.createAudioContextOnDemand();
             return;
         }
-        
+
         const index = e.currentTarget.dataset.index;
         const time = this.data.subtitles[index].time;
 
@@ -532,7 +527,7 @@ Page({
         if (!this.audioContext) {
             return;
         }
-        
+
         const time = e.detail.value;
 
         // 设置手动控制标志
@@ -739,7 +734,7 @@ Page({
         // 如果音频对象已存在，立即应用速度并强制重新播放
         if (this.audioContext) {
             this.audioContext.playbackRate = newSpeed;
-            
+
             // 如果正在播放，先暂停再播放以让速度立即生效
             if (isPlaying) {
                 this.audioContext.pause();
@@ -799,7 +794,7 @@ Page({
 
         try {
             const currentTime = this.audioContext.currentTime || this.data.currentTime;
-            
+
             await wx.cloud.callFunction({
                 name: 'articleDetailData',
                 data: {
@@ -841,14 +836,6 @@ Page({
             });
 
             if (result.result.code === 0) {
-                if (isCompleted) {
-                    wx.showToast({
-                        title: '章节学习完成！',
-                        icon: 'success',
-                        duration: 1500
-                    });
-                }
-
                 console.log('学习进度更新成功');
             } else {
                 console.error('学习进度更新失败:', result.result.message);

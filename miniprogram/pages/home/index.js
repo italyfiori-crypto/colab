@@ -101,7 +101,7 @@ Page({
     this.setData({
       searchKeyword: keyword
     });
-    
+
     // 如果搜索框被清空，恢复正常状态
     if (!keyword.trim()) {
       this.setData({
@@ -117,7 +117,7 @@ Page({
     if (keyword) {
       try {
         console.log('🔍 [DEBUG] 开始搜索, 关键词:', keyword)
-        
+
         this.setData({
           searchLoading: true
         })
@@ -138,19 +138,13 @@ Page({
 
         if (result.result.code === 0) {
           console.log('✅ [DEBUG] 搜索结果:', result.result.data?.length || 0, '本')
-          
+
           // 保存搜索结果并显示搜索结果区域
           this.setData({
             searchResults: result.result.data,
             showSearchResults: true,
             searchLoading: false
           })
-          
-          wx.showToast({
-            title: `找到${result.result.data.length}本书`,
-            icon: 'none',
-            duration: 1500
-          });
         } else {
           console.error('❌ [DEBUG] 搜索服务端返回错误:', result.result)
           this.setData({
@@ -177,15 +171,6 @@ Page({
         searchResults: []
       })
     }
-  },
-
-  // 查看全部最近学习
-  onViewAllRecent() {
-    wx.showToast({
-      title: '查看全部最近学习',
-      icon: 'none',
-      duration: 1500
-    });
   },
 
   // 分类标签点击处理
