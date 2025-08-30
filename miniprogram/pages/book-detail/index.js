@@ -134,7 +134,10 @@ Page({
 
   // 页面显示时
   onShow() {
-    // 可以在这里刷新数据或更新状态
+    // 刷新书籍数据以获取最新进度
+    if (this.data.bookInfo._id) {
+      this.loadBookDetail(this.data.bookInfo._id);
+    }
   },
 
   // 下拉刷新

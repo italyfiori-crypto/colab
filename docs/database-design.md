@@ -163,8 +163,15 @@
   _id: string,                  // 进度ID (userId_bookId)
   user_id: string,              // 用户ID
   book_id: string,              // 书籍ID
-  current_chapter: number,      // 当前章节
-  chapters_completed: number[], // 已完成章节列表
+  current_chapter: number,      // 当前章节序号
+  
+  // 章节进度详情 - 记录每个章节的播放时间和完成状态
+  chapter_progress: {
+    [chapter_id]: {
+      time: number,             // 当前播放时间(秒)
+      completed: boolean        // 是否完成
+    }
+  },
   
   created_at: Date,
   updated_at: Date

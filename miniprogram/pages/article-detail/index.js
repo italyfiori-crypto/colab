@@ -65,13 +65,23 @@ Page({
     },
 
     onUnload() {
+        // 保存当前播放进度
+        this.saveCurrentProgress();
+        
         // 清理音频
         if (this.audioContext) {
             this.audioContext.destroy();
+            this.audioContext = null;
         }
         // 清理定时器
         if (this.updateTimer) {
             clearInterval(this.updateTimer);
+            this.updateTimer = null;
+        }
+        // 清理手动控制定时器
+        if (this.manualControlTimer) {
+            clearTimeout(this.manualControlTimer);
+            this.manualControlTimer = null;
         }
     },
 
@@ -337,8 +347,8 @@ Page({
             this.setData({ isPlaying: false });
             this.stopUpdateTimer();
 
-            // 播放完成后更新学习进度
-            this.updateLearningProgress();
+            // 播放完成后标记章节完成并更新学习进度
+            this.updateLearningProgress(true); // true表示章节完成
         });
 
         this.audioContext.onError((error) => {
@@ -462,7 +472,7 @@ Page({
     // 上一句
     onPrevious() {
         const { currentIndex, subtitles } = this.data;
-        if (currentIndex > 0) {
+        if (currentIndex > 0 && this.audioContext) {
             const newIndex = currentIndex - 1;
             const time = subtitles[newIndex].time;
 
@@ -482,7 +492,7 @@ Page({
     // 下一句
     onNext() {
         const { currentIndex, subtitles } = this.data;
-        if (currentIndex < subtitles.length - 1) {
+        if (currentIndex < subtitles.length - 1 && this.audioContext) {
             const newIndex = currentIndex + 1;
             const time = subtitles[newIndex].time;
 
@@ -501,6 +511,12 @@ Page({
 
     // 点击字幕
     onSubtitleTap(e) {
+        if (!this.audioContext) {
+            // 如果音频还未加载，创建音频上下文
+            this.createAudioContextOnDemand();
+            return;
+        }
+        
         const index = e.currentTarget.dataset.index;
         const time = this.data.subtitles[index].time;
 
@@ -518,6 +534,10 @@ Page({
 
     // 进度条改变
     onProgressChange(e) {
+        if (!this.audioContext) {
+            return;
+        }
+        
         const time = e.detail.value;
 
         // 设置手动控制标志
@@ -776,36 +796,68 @@ Page({
         this.setData({ scrollOffset: centerOffset });
     },
 
-    // 更新学习进度
-    async updateLearningProgress() {
-        if (this.data.isProgressUpdated || !this.data.chapterId || !this.data.bookId) {
+    // 保存当前播放进度
+    async saveCurrentProgress() {
+        if (!this.data.chapterId || !this.data.bookId || !this.audioContext) {
             return;
         }
 
         try {
-            console.log('更新学习进度:', this.data.chapterId);
+            const currentTime = this.audioContext.currentTime || this.data.currentTime;
+            
+            await wx.cloud.callFunction({
+                name: 'articleDetailData',
+                data: {
+                    type: 'saveChapterProgress',
+                    bookId: this.data.bookId,
+                    chapterId: this.data.chapterId,
+                    currentTime: currentTime,
+                    completed: false
+                }
+            });
+
+            console.log(`章节进度已保存: ${currentTime}秒`);
+        } catch (error) {
+            console.error('保存章节进度失败:', error);
+        }
+    },
+
+    // 更新学习进度
+    async updateLearningProgress(isCompleted = false) {
+        if (!this.data.chapterId || !this.data.bookId) {
+            return;
+        }
+
+        try {
+            console.log('更新学习进度:', this.data.chapterId, isCompleted ? '(完成)' : '(进度)');
+
+            const currentTime = this.audioContext ? this.audioContext.currentTime : this.data.currentTime;
 
             // 调用云函数更新学习进度
             const result = await wx.cloud.callFunction({
                 name: 'articleDetailData',
                 data: {
-                    type: 'updateUserProgress',
+                    type: 'saveChapterProgress',
                     bookId: this.data.bookId,
-                    chapterId: this.data.chapterId
+                    chapterId: this.data.chapterId,
+                    currentTime: currentTime || 0,
+                    completed: isCompleted
                 }
             });
 
             if (result.result.code === 0) {
-                this.setData({
-                    isProgressUpdated: true,
-                    isCompleted: true
-                });
+                if (isCompleted) {
+                    this.setData({
+                        isProgressUpdated: true,
+                        isCompleted: true
+                    });
 
-                wx.showToast({
-                    title: '学习进度已更新',
-                    icon: 'success',
-                    duration: 1500
-                });
+                    wx.showToast({
+                        title: '章节学习完成！',
+                        icon: 'success',
+                        duration: 1500
+                    });
+                }
 
                 console.log('学习进度更新成功');
             } else {

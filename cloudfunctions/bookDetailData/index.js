@@ -9,8 +9,7 @@ const db = cloud.database()
 const FILTER_OPTIONS = [
   { value: 'all', label: '全部章节' },
   { value: 'completed', label: '已学习' },
-  { value: 'available', label: '可学习' },
-  { value: 'locked', label: '未解锁' }
+  { value: 'available', label: '可学习' }
 ]
 
 exports.main = async (event, context) => {
@@ -98,7 +97,7 @@ async function getBookDetail(bookId, user_id) {
       userProgress = res.data
       console.log('📥 [DEBUG] 用户进度查询结果:', {
         current_chapter: userProgress.current_chapter,
-        completed_count: userProgress.chapters_completed.length
+        chapter_progress_count: Object.keys(userProgress.chapter_progress || {}).length
       })
     } else {
       console.log('📥 [DEBUG] 用户进度为空，使用默认值')
@@ -107,14 +106,19 @@ async function getBookDetail(bookId, user_id) {
     console.log('📥 [DEBUG] 用户学习进度不存在，使用默认值:', err.message)
   })
 
+  // 4. 计算用户进度 - 基于已完成的章节数量
+  let completedChaptersCount = 0
+  if (userProgress && userProgress.chapter_progress) {
+    completedChaptersCount = Object.values(userProgress.chapter_progress)
+      .filter(progress => progress.completed).length
+  }
 
-  // 4. 计算用户进度
-  const progressPercent = userProgress && book.total_chapters > 0
-    ? Math.round((userProgress.chapters_completed.length / book.total_chapters) * 100)
+  const progressPercent = book.total_chapters > 0
+    ? Math.round((completedChaptersCount / book.total_chapters) * 100)
     : 0
 
   console.log('📊 [DEBUG] 计算学习进度:', {
-    completed: userProgress ? userProgress.chapters_completed.length : 0,
+    completed: completedChaptersCount,
     total: book.total_chapters,
     percent: progressPercent
   })
@@ -125,20 +129,32 @@ async function getBookDetail(bookId, user_id) {
     progress: progressPercent
   }
 
-  // 6. 为章节添加学习状态
+  // 6. 为章节添加学习状态 - 使用新的chapter_progress结构
   console.log('🔄 [DEBUG] 开始处理章节状态')
   const chapters = chaptersResult.data.map(chapter => {
-    const isCompleted = userProgress && userProgress.chapters_completed.includes(chapter.chapter_number)
+    const chapterProgress = userProgress && userProgress.chapter_progress
+      ? userProgress.chapter_progress[chapter._id]
+      : null
 
     let status, progress = 0
-    if (isCompleted) {
-      status = 'completed'
-      progress = 100
-    } else if (userProgress && chapter.chapter_number === userProgress.current_chapter) {
-      status = 'in-progress'
-      progress = 75
+
+    if (chapterProgress) {
+      if (chapterProgress.completed) {
+        status = 'completed'
+        progress = 100
+      } else if (chapterProgress.time > 0) {
+        status = 'in-progress'
+        // 计算真实进度百分比
+        progress = chapter.duration > 0
+          ? Math.round((chapterProgress.time / chapter.duration) * 100)
+          : 0
+      } else {
+        status = 'available'
+        progress = 0
+      }
     } else {
       status = 'available'
+      progress = 0
     }
 
     return {

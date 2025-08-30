@@ -6,11 +6,11 @@ cloud.init({ env: cloud.DYNAMIC_CURRENT_ENV }) // 使用当前云环境
 const db = cloud.database()
 
 exports.main = async (event, context) => {
-  const { type, chapterId, bookId } = event
+  const { type, chapterId, bookId, currentTime, completed } = event
   const { OPENID } = cloud.getWXContext()
   const user_id = OPENID
 
-  console.log('📖 [DEBUG] articleDetailData云函数开始执行:', { type, chapterId, bookId, user_id })
+  console.log('📖 [DEBUG] articleDetailData云函数开始执行:', { type, chapterId, bookId, user_id, currentTime, completed })
 
   try {
     switch (type) {
@@ -18,8 +18,8 @@ exports.main = async (event, context) => {
         return await getChapterDetail(chapterId, user_id)
       case 'getChapterVocabularies':
         return await getChapterVocabularies(chapterId, user_id)
-      case 'updateUserProgress':
-        return await updateUserProgress(user_id, bookId, chapterId)
+      case 'saveChapterProgress':
+        return await saveChapterProgress(user_id, bookId, chapterId, currentTime, completed)
       default:
         console.log('❌ [DEBUG] 未知操作类型:', type)
         return {
@@ -308,9 +308,10 @@ async function getChapterVocabularies(chapterId, user_id) {
   }
 }
 
-// 更新用户学习进度
-async function updateUserProgress(user_id, bookId, chapterId) {
-  console.log('🔄 [DEBUG] 开始更新用户学习进度:', { user_id, bookId, chapterId })
+
+// 保存章节学习进度
+async function saveChapterProgress(user_id, bookId, chapterId, currentTime, completed) {
+  console.log('🔄 [DEBUG] 开始保存章节进度:', { user_id, bookId, chapterId, currentTime, completed })
 
   if (!user_id || !bookId || !chapterId) {
     console.log('❌ [DEBUG] 参数验证失败:', { user_id, bookId, chapterId })
@@ -321,107 +322,75 @@ async function updateUserProgress(user_id, bookId, chapterId) {
   }
 
   try {
-    // 1. 获取章节信息
-    console.log('📤 [DEBUG] 查询章节信息:', chapterId)
-    const chapterResult = await db.collection('chapters').doc(chapterId).get()
-
-    if (!chapterResult.data) {
-      console.log('❌ [DEBUG] 章节不存在:', chapterId)
-      return {
-        code: -1,
-        message: '章节不存在'
-      }
-    }
-
-    const chapter = chapterResult.data
-    const chapterNumber = chapter.chapter_number
-
-    // 2. 获取或创建用户进度记录（参考homeData写法）
     const progressId = `${user_id}_${bookId}`
-    console.log('📤 [DEBUG] 查询用户进度记录:', progressId)
+    const now = new Date()
 
+    // 获取现有进度记录
     let userProgress = null
     await db.collection('user_progress').doc(progressId).get().then(res => {
       if (res.data) {
         userProgress = res.data
-        console.log('✅ [DEBUG] 查询现有进度记录成功:', {
-          current_chapter: userProgress.current_chapter,
-          completed_count: userProgress.chapters_completed.length
-        })
-      } else {
-        console.log('📥 [DEBUG] 用户进度记录为空，将创建新记录')
       }
     }).catch(err => {
-      console.log('📥 [DEBUG] 用户进度记录不存在，将创建新记录:', err.message)
+      console.log('📥 [DEBUG] 用户进度记录不存在，将创建新记录')
     })
 
-    const now = new Date()
-
     if (userProgress) {
-      // 3. 更新现有进度记录
-      const newCompletedChapters = [...userProgress.chapters_completed]
+      // 如果章节进度不存在或未完成，则更新章节进度
+      if (userProgress.chapter_progress && userProgress.chapter_progress[chapterId] &&
+        userProgress.chapter_progress[chapterId].completed == true) {
+        console.log('✅ [DEBUG] 章节进度已存在且已完成, chapterId:', chapterId)
+      } else {
+        // 更新现有记录
+        const chapterProgress = userProgress.chapter_progress || {}
+        chapterProgress[chapterId] = {
+          time: currentTime || 0,
+          completed: completed || false
+        }
 
-      // 如果章节尚未完成，则添加到已完成列表
-      if (!newCompletedChapters.includes(chapterNumber)) {
-        newCompletedChapters.push(chapterNumber)
-        console.log('🔄 [DEBUG] 添加章节到已完成列表:', chapterNumber)
+        await db.collection('user_progress').doc(progressId).update({
+          data: {
+            chapter_progress: chapterProgress,
+            updated_at: now
+          }
+        })
+
+        console.log('✅ [DEBUG] 章节进度更新成功')
+      }
+    } else {
+      // 创建新记录
+      const chapterProgress = {}
+      chapterProgress[chapterId] = {
+        time: currentTime || 0,
+        completed: completed || false
       }
 
-      // 更新当前章节为下一章节
-      const nextChapter = chapterNumber + 1
-
-      console.log('🔄 [DEBUG] 更新现有进度记录')
-      await db.collection('user_progress').doc(progressId).update({
-        data: {
-          chapters_completed: newCompletedChapters,
-          current_chapter: nextChapter,
-          updated_at: now
-        }
-      }).then(res => {
-        console.log('✅ [DEBUG] 更新现有进度记录成功:', res)
-      }).catch(err => {
-        console.error('❌ [DEBUG] 更新现有进度记录失败:', err)
-        throw err
-      })
-
-      console.log('✅ [DEBUG] 用户进度更新成功:', {
-        completed_count: newCompletedChapters.length,
-        next_chapter: nextChapter
-      })
-
-    } else {
-      // 4. 创建新的进度记录
-      console.log('🆕 [DEBUG] 创建新的进度记录')
       await db.collection('user_progress').add({
         data: {
           _id: progressId,
           user_id: user_id,
           book_id: bookId,
-          current_chapter: chapterNumber + 1,
-          chapters_completed: [chapterNumber],
+          current_chapter: 1,
+          chapter_progress: chapterProgress,
           created_at: now,
           updated_at: now
         }
-      }).then(res => {
-        console.log('✅ [DEBUG] 创建新的进度记录成功:', res)
-      }).catch(err => {
-        console.error('❌ [DEBUG] 创建新的进度记录失败:', err)
-        throw err
       })
 
-      console.log('✅ [DEBUG] 新进度记录创建成功')
+      console.log('✅ [DEBUG] 新的章节进度记录创建成功')
     }
 
     return {
       code: 0,
-      message: '学习进度更新成功'
+      message: '章节进度保存成功'
     }
 
   } catch (error) {
-    console.error('❌ [DEBUG] 更新用户学习进度失败:', error)
+    console.error('❌ [DEBUG] 保存章节进度失败:', error)
     return {
       code: -1,
-      message: '更新学习进度失败: ' + error.message
+      message: '保存章节进度失败: ' + error.message
     }
   }
 }
+
