@@ -3,7 +3,6 @@
     "pages/home/index",
     "pages/book-detail/index",
     "pages/article-detail/index",
-    "pages/article-vocabulary/index",
     "pages/vocabulary/index",
     "pages/profile/index"
   ],
