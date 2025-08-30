@@ -170,7 +170,6 @@ class StatisticsCollector:
             "title": "",
             "author": "",
             "local_cover_file": 'cover.jpg',
-            "cover_url": "",
             "category": "",
             "description": "",
             "difficulty": "medium",

@@ -358,7 +358,7 @@ Page({
                 this.setData({ currentTime });
                 this.updateCurrentSubtitle(currentTime);
             }
-        }, 100);
+        }, 50); // 提高到50ms间隔，增强真机同步精度
     },
 
     // 停止更新定时器
