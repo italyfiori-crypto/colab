@@ -18,8 +18,8 @@
         bindtap="onSubtitleTap"
       >
         <view class="subtitle-time" style="display: none;">{{item.timeText}}</view>
-        <view class="subtitle-english">{{item.english}}</view>
-        <view class="subtitle-chinese" wx:if="{{showChinese}}">{{item.chinese}}</view>
+        <view class="subtitle-english" wx:if="{{subtitleMode === 'en' || subtitleMode === 'both'}}">{{item.english}}</view>
+        <view class="subtitle-chinese" wx:if="{{subtitleMode === 'zh' || subtitleMode === 'both'}}">{{item.chinese}}</view>
       </view>
     </view>
   </scroll-view>
@@ -44,7 +44,7 @@
       </view>
       
       <!-- 倍速设置 -->
-      <view class="top-control-btn" bindtap="onSettings">
+      <view class="top-control-btn" bindtap="onSpeedChange">
         <image class="top-control-icon" src="/resource/icons/gauge.svg" mode="aspectFit"></image>
       </view>
     </view>
@@ -87,56 +87,6 @@
     </view>
   </view>
 
-  <!-- 设置弹窗 -->
-  <view class="modal-overlay {{showSettings ? 'show' : ''}}" bindtap="onCloseSettings">
-    <view class="settings-modal" catchtap="stopPropagation">
-      <view class="modal-header">
-        <text class="modal-title">播放设置</text>
-        <view class="close-btn" bindtap="onCloseSettings">
-          <image class="close-icon" src="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjQiIGhlaWdodD0iMjQiIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHBhdGggZD0iTTE5IDYuNDE4MjZMMTcuNTgxNyA1TDEyIDEwLjU4MTdMNi40MTgzNiA1TDUgNi40MTgyNkwxMC41ODE3IDEyTDUgMTcuNTgxN0w2LjQxODM2IDE5TDEyIDEzLjQxODNMMTcuNTgxNyAxOUwxOSAxNy41ODE3TDEzLjQxODMgMTJMMTkgNi40MTgyNloiIGZpbGw9IiM5OTkiLz4KPC9zdmc+Cg==" mode="aspectFit"></image>
-        </view>
-      </view>
-      
-      <view class="modal-content">
-        <!-- 播放速度 -->
-        <view class="setting-item">
-          <text class="setting-label">播放速度</text>
-          <view class="speed-options">
-            <view 
-              wx:for="{{speedOptions}}" 
-              wx:key="*this"
-              class="speed-btn {{playSpeed === item ? 'active' : ''}}"
-              data-speed="{{item}}"
-              bindtap="onSpeedChange"
-            >
-              {{item}}x
-            </view>
-          </view>
-        </view>
-        
-        <!-- 字幕显示 -->
-        <view class="setting-item">
-          <text class="setting-label">字幕显示</text>
-          <view class="subtitle-options">
-            <view 
-              class="subtitle-btn {{showChinese ? '' : 'active'}}"
-              bindtap="onSubtitleModeChange"
-              data-mode="en"
-            >
-              仅英语
-            </view>
-            <view 
-              class="subtitle-btn {{showChinese ? 'active' : ''}}"
-              bindtap="onSubtitleModeChange"
-              data-mode="both"
-            >
-              双语
-            </view>
-          </view>
-        </view>
-      </view>
-    </view>
-  </view>
 
   <!-- 单词卡片弹出层 -->
   <view class="vocabulary-overlay {{showVocabulary ? 'show' : ''}}" bindtap="onCloseVocabulary">

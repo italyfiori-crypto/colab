@@ -11,7 +11,7 @@ Page({
         subtitles: [],
         currentIndex: 0,
         currentSubtitleId: '',
-        showChinese: true,
+        subtitleMode: 'both', // 'en': 仅英语, 'zh': 仅中文, 'both': 双语
         scrollOffset: 0,
         containerHeight: 0,
 
@@ -22,9 +22,9 @@ Page({
         playSpeed: 1,
         speedOptions: [0.7, 0.85, 1.0, 1.25],
         isLooping: false, // 循环播放当前字幕
+        manualControl: false, // 手动控制标志
 
         // UI状态
-        showSettings: false,
         isFavorited: false,
         showVocabulary: false,
         loading: true,
@@ -42,8 +42,8 @@ Page({
         const chapterId = options.chapterId;
         const bookId = options.bookId;
         const chapterTitle = options.chapterTitle ? decodeURIComponent(options.chapterTitle) : '';
-        
-        this.setData({ 
+
+        this.setData({
             chapterId,
             bookId,
             title: chapterTitle
@@ -79,7 +79,7 @@ Page({
     async loadChapterData() {
         try {
             this.setData({ loading: true });
-            
+
             wx.showLoading({
                 title: '加载中...'
             });
@@ -97,7 +97,7 @@ Page({
 
             if (result.result.code === 0) {
                 const chapterData = result.result.data;
-                
+
                 this.setData({
                     chapterData,
                     title: chapterData.title,
@@ -162,7 +162,7 @@ Page({
         }
 
         console.log('开始从云存储加载字幕数据:', subtitleUrl);
-        
+
         wx.showLoading({
             title: '加载字幕中...'
         });
@@ -173,7 +173,7 @@ Page({
             success: res => {
                 wx.hideLoading();
                 console.log('字幕文件下载成功:', res.tempFilePath);
-                
+
                 // 解析SRT文件内容
                 this.parseSRTFile(res.tempFilePath);
             },
@@ -192,17 +192,17 @@ Page({
     // 解析SRT文件
     parseSRTFile(filePath) {
         console.log('开始解析SRT文件:', filePath);
-        
+
         const fs = wx.getFileSystemManager();
-        
+
         try {
             // 读取文件内容
             const fileContent = fs.readFileSync(filePath, 'utf8');
             console.log('SRT文件内容读取成功');
-            
+
             // 解析SRT格式内容
             const subtitles = this.parseSRTContent(fileContent);
-            
+
             if (subtitles && subtitles.length > 0) {
                 this.setData({ subtitles });
                 wx.showToast({
@@ -237,7 +237,7 @@ Page({
         }
 
         console.log('解析SRT内容，长度:', content.length);
-        
+
         const subtitles = [];
         const blocks = content.trim().split(/\n\s*\n/); // 按空行分割字幕块
 
@@ -256,7 +256,7 @@ Page({
 
                 // 解析开始时间
                 const startTime = this.parseSRTTimeToSeconds(timeRange.split(' --> ')[0]);
-                
+
                 if (startTime !== null) {
                     subtitles.push({
                         index,
@@ -277,7 +277,7 @@ Page({
     // 将SRT时间格式转换为秒 (HH:MM:SS,mmm)
     parseSRTTimeToSeconds(timeStr) {
         if (!timeStr) return null;
-        
+
         try {
             const parts = timeStr.split(':');
             const hours = parseInt(parts[0]) || 0;
@@ -296,20 +296,11 @@ Page({
     // 将秒转换为显示时间格式
     formatSecondsToTime(seconds) {
         if (seconds == null || seconds < 0) return '0:00';
-        
+
         const minutes = Math.floor(seconds / 60);
         const secs = Math.floor(seconds % 60);
         return `${minutes}:${secs.toString().padStart(2, '0')}`;
     },
-
-
-
-
-
-
-
-
-
 
     // 创建音频上下文
     createAudioContext(audioUrl) {
@@ -317,9 +308,14 @@ Page({
         this.audioContext.src = audioUrl; // 使用数据库中的音频URL
         this.audioContext.autoplay = false;
 
+        // 立即应用当前播放速度
+        this.audioContext.playbackRate = this.data.playSpeed;
+
         // 监听音频事件
         this.audioContext.onCanplay(() => {
             console.log('音频可以播放');
+            // 确保播放速度设置生效
+            this.audioContext.playbackRate = this.data.playSpeed;
         });
 
         this.audioContext.onPlay(() => {
@@ -340,7 +336,7 @@ Page({
         this.audioContext.onEnded(() => {
             this.setData({ isPlaying: false });
             this.stopUpdateTimer();
-            
+
             // 播放完成后更新学习进度
             this.updateLearningProgress();
         });
@@ -375,7 +371,7 @@ Page({
 
     // 更新当前字幕
     updateCurrentSubtitle(currentTime) {
-        const { subtitles, isLooping, currentIndex } = this.data;
+        const { subtitles, isLooping, currentIndex, manualControl } = this.data;
         let newIndex = 0;
 
         for (let i = 0; i < subtitles.length; i++) {
@@ -386,8 +382,8 @@ Page({
             }
         }
 
-        // 循环播放逻辑
-        if (isLooping && currentIndex < subtitles.length) {
+        // 循环播放逻辑 - 只在非手动控制时执行
+        if (isLooping && !manualControl && currentIndex < subtitles.length) {
             const currentSubtitle = subtitles[currentIndex];
             const nextSubtitle = subtitles[currentIndex + 1];
 
@@ -431,7 +427,7 @@ Page({
     // 按需创建音频上下文
     createAudioContextOnDemand() {
         console.log('按需创建音频上下文:', this.audioUrl);
-        
+
         if (!this.audioUrl) {
             wx.showToast({
                 title: '该章节暂无音频数据',
@@ -469,6 +465,10 @@ Page({
         if (currentIndex > 0) {
             const newIndex = currentIndex - 1;
             const time = subtitles[newIndex].time;
+
+            // 设置手动控制标志
+            this.setManualControl();
+
             this.audioContext.seek(time);
             this.setScrollAlignment();
             this.setData({
@@ -485,6 +485,10 @@ Page({
         if (currentIndex < subtitles.length - 1) {
             const newIndex = currentIndex + 1;
             const time = subtitles[newIndex].time;
+
+            // 设置手动控制标志
+            this.setManualControl();
+
             this.audioContext.seek(time);
             this.setScrollAlignment();
             this.setData({
@@ -499,6 +503,10 @@ Page({
     onSubtitleTap(e) {
         const index = e.currentTarget.dataset.index;
         const time = this.data.subtitles[index].time;
+
+        // 设置手动控制标志
+        this.setManualControl();
+
         this.audioContext.seek(time);
         this.setScrollAlignment();
         this.setData({
@@ -511,6 +519,10 @@ Page({
     // 进度条改变
     onProgressChange(e) {
         const time = e.detail.value;
+
+        // 设置手动控制标志
+        this.setManualControl();
+
         this.audioContext.seek(time);
         this.setData({ currentTime: time });
         this.updateCurrentSubtitle(time);
@@ -563,7 +575,7 @@ Page({
 
             if (result.result.code === 0) {
                 const { chapter_title, vocabularies } = result.result.data;
-                
+
                 this.setData({
                     vocabularyTitle: `${chapter_title} 单词`,
                     vocabularyWords: vocabularies,
@@ -677,27 +689,50 @@ Page({
         });
     },
 
-    // 字幕设置 - 切换单英语和双语模式
+    // 字幕设置 - 循环切换三种模式
     onSubtitleSettings() {
-        const { showChinese } = this.data;
-        this.setData({ showChinese: !showChinese });
+        const { subtitleMode } = this.data;
+        const modes = ['en', 'zh', 'both'];
+        const currentIndex = modes.indexOf(subtitleMode);
+        const nextIndex = (currentIndex + 1) % modes.length;
+        const newMode = modes[nextIndex];
+
+        this.setData({ subtitleMode: newMode });
+
+        const modeNames = {
+            'en': '英语模式',
+            'zh': '中文模式',
+            'both': '双语模式'
+        };
 
         wx.showToast({
-            title: showChinese ? '英语模式' : '双语模式',
+            title: modeNames[newMode],
             icon: 'none',
             duration: 1000
         });
     },
 
     // 播放速度控制 - 循环切换速度
-    onSettings() {
-        const { playSpeed, speedOptions } = this.data;
+    onSpeedChange() {
+        const { playSpeed, speedOptions, isPlaying } = this.data;
         const currentIndex = speedOptions.indexOf(playSpeed);
         const nextIndex = (currentIndex + 1) % speedOptions.length;
         const newSpeed = speedOptions[nextIndex];
 
         this.setData({ playSpeed: newSpeed });
-        this.audioContext.playbackRate = newSpeed;
+
+        // 如果音频对象已存在，立即应用速度并强制重新播放
+        if (this.audioContext) {
+            this.audioContext.playbackRate = newSpeed;
+            
+            // 如果正在播放，先暂停再播放以让速度立即生效
+            if (isPlaying) {
+                this.audioContext.pause();
+                setTimeout(() => {
+                    this.audioContext.play();
+                }, 50); // 短暂延迟确保暂停生效
+            }
+        }
 
         wx.showToast({
             title: `播放速度: ${newSpeed}x`,
@@ -706,40 +741,17 @@ Page({
         });
     },
 
-    // 关闭设置
-    onCloseSettings() {
-        this.setData({ showSettings: false });
-    },
+    // 设置手动控制标志
+    setManualControl() {
+        this.setData({ manualControl: true });
 
-    // 阻止冒泡
-    stopPropagation() {
-        // 空函数，阻止冒泡
-    },
-
-    // 播放速度改变
-    onSpeedChange(e) {
-        const speed = parseFloat(e.currentTarget.dataset.speed);
-        this.setData({ playSpeed: speed });
-        this.audioContext.playbackRate = speed;
-
-        wx.showToast({
-            title: `播放速度: ${speed}x`,
-            icon: 'none',
-            duration: 1000
-        });
-    },
-
-    // 字幕模式改变
-    onSubtitleModeChange(e) {
-        const mode = e.currentTarget.dataset.mode;
-        const showChinese = mode === 'both';
-        this.setData({ showChinese });
-
-        wx.showToast({
-            title: showChinese ? '双语模式' : '英语模式',
-            icon: 'none',
-            duration: 1000
-        });
+        // 2秒后清除手动控制标志，允许循环播放恢复
+        if (this.manualControlTimer) {
+            clearTimeout(this.manualControlTimer);
+        }
+        this.manualControlTimer = setTimeout(() => {
+            this.setData({ manualControl: false });
+        }, 2000);
     },
 
     // 获取容器高度
@@ -784,17 +796,17 @@ Page({
             });
 
             if (result.result.code === 0) {
-                this.setData({ 
+                this.setData({
                     isProgressUpdated: true,
-                    isCompleted: true 
+                    isCompleted: true
                 });
-                
+
                 wx.showToast({
                     title: '学习进度已更新',
                     icon: 'success',
                     duration: 1500
                 });
-                
+
                 console.log('学习进度更新成功');
             } else {
                 console.error('学习进度更新失败:', result.result.message);
