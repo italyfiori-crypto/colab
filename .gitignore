@@ -4,3 +4,4 @@ data/
 script/modules/__pycache__/
 *.pyc
 node_modules/
+ECDICT/

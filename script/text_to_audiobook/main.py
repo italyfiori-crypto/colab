@@ -23,6 +23,7 @@ from modules.audio_generator import AudioGenerator, AudioGeneratorConfig
 from modules.subtitle_translator import SubtitleTranslator, SubtitleTranslatorConfig
 from modules.statistics_collector import StatisticsCollector
 from modules.audio_compressor import AudioCompressor
+from modules.vocabulary_manager import VocabularyManager, VocabularyManagerConfig
 
 
 def get_expected_audio_file(sentence_file: str, output_dir: str) -> str:
@@ -149,19 +150,21 @@ def main():
 示例用法:
   %(prog)s data/greens.txt
   %(prog)s data/book.txt --output-dir ./my_output
-  %(prog)s data/book.txt --audio --translate --api-key YOUR_API_KEY
+  %(prog)s data/book.txt --audio --translate --vocabulary
+  %(prog)s data/book.txt --vocabulary --master-vocab ./my_vocab.json
   %(prog)s data/book.txt --config my_config.json --verbose
   
 默认配置文件: text_to_audiobook/config.json
 默认输出目录: ./output
-输出格式: chapters/, sub_chapters/, sentences/, audio/, subtitles/ 目录
+默认总词汇表: script/text_to_audiobook/vocabulary/master_vocabulary.json
+输出格式: chapters/, sub_chapters/, sentences/, audio/, subtitles/, vocabulary/ 目录
         """
     )
     
     # 核心参数
     parser.add_argument('input_file',help='输入文本文件路径')
     parser.add_argument('--output-dir', default='./output', help='输出目录路径 (默认: ./output)')
-    parser.add_argument('--config', default='text_to_audiobook/config.json', help='配置文件路径 (默认: text_to_audiobook/config.json)')
+    parser.add_argument('--config', help='配置文件路径 (默认: text_to_audiobook/config.json)')
     parser.add_argument('--verbose','-v',action='store_true',help='显示详细信息')
     
     # 音频生成参数
@@ -175,6 +178,13 @@ def main():
     # 音频压缩参数
     parser.add_argument('--compress', action='store_true', help='启用音频压缩')
     
+    # 词汇处理参数
+    parser.add_argument('--vocabulary', action='store_true', help='启用词汇提取和分级')
+    parser.add_argument('--master-vocab', help='总词汇表文件路径 (默认: script/text_to_audiobook/vocabulary/master_vocabulary.json)')
+    
+    # 统计参数
+    parser.add_argument('--stats', help='启用统计信息收集')
+
     args = parser.parse_args()
     
     # 验证输入文件
@@ -195,7 +205,8 @@ def main():
     
     try:
         # 加载配置
-        config_path = Path(args.config)
+        config_path = os.path.join(os.path.dirname(__file__), 'config.json') if not args.config else args.config
+        config_path = Path(config_path)
         if not os.path.exists(config_path):
             print(f"错误: 配置文件不存在: {config_path}")
             return 1
@@ -346,9 +357,59 @@ def main():
         elif args.compress and not audio_files:
             print(f"\n⚠️ 未找到音频文件，跳过压缩步骤（请先启用 --audio 生成音频）")
         
+        # 执行词汇提取（可选）
+        vocabulary_time = 0
+        chapter_vocab_files = []
+        if args.vocabulary and sentence_files:
+            print(f"\n📚 开始词汇提取和分级处理...")
+            start_time = time.time()
+            try:
+                # 获取书籍名称
+                book_name = os.path.splitext(os.path.basename(args.input_file))[0]
+                
+                # 配置词汇管理器
+                vocab_config = VocabularyManagerConfig()
+                
+                # 设置API密钥（如果需要）
+                if config.subtitle_translator.api_key:
+                    vocab_config.enrichment.siliconflow_api_key = config.subtitle_translator.api_key
+                
+                vocab_manager = VocabularyManager(vocab_config)
+                
+                # 处理词汇
+                chapter_vocab_files = vocab_manager.process_book_vocabulary(
+                    sentence_files=sentence_files,
+                    output_dir=output_dir,
+                    book_name=book_name,
+                    master_vocab_path=args.master_vocab
+                )
+                
+                vocabulary_time = time.time() - start_time
+                print(f"\n✅ 词汇处理完成! 生成 {len(chapter_vocab_files)} 个章节词汇文件 (耗时: {vocabulary_time:.2f}秒)")
+                
+                # 显示词汇统计
+                if args.verbose:
+                    stats = vocab_manager.get_vocabulary_stats(args.master_vocab or vocab_config.default_master_vocab_path)
+                    if stats:
+                        print(f"📊 总词汇表统计:")
+                        print(f"  总词汇数: {stats.get('total_words', 0)}")
+                        if 'level_distribution' in stats:
+                            for level_name, count in stats['level_distribution'].items():
+                                print(f"  {level_name}: {count}词")
+                
+            except Exception as e:
+                vocabulary_time = time.time() - start_time
+                print(f"\n⚠️ 词汇处理失败: {e} (耗时: {vocabulary_time:.2f}秒)")
+                if args.verbose:
+                    import traceback
+                    traceback.print_exc()
+                print("继续执行其他步骤...")
+        elif args.vocabulary and not sentence_files:
+            print(f"\n⚠️ 未找到句子文件，跳过词汇处理步骤")
+        
         # 执行统计信息收集（如果启用且有音频文件）
         statistics_time = 0
-        if config.statistics.enabled and audio_files:
+        if args.stats and audio_files:
             print(f"\n📊 开始统计信息收集...")
             start_time = time.time()
             try:
@@ -386,7 +447,7 @@ def main():
             print(f"\n⚠️ 未找到音频文件，跳过统计收集步骤（请先启用 --audio 生成音频）")
         
         # 计算总耗时
-        total_time = chapter_time + sub_chapter_time + sentence_time + audio_time + translate_time + statistics_time
+        total_time = chapter_time + sub_chapter_time + sentence_time + audio_time + translate_time + vocabulary_time + statistics_time
         program_total_time = time.time() - program_start_time
         
         # 打印耗时汇总
@@ -398,6 +459,8 @@ def main():
             print(f"  音频生成: {audio_time:.2f}秒 ({audio_time/total_time*100:.1f}%)")
         if args.translate:
             print(f"  字幕翻译: {translate_time:.2f}秒 ({translate_time/total_time*100:.1f}%)")
+        if args.vocabulary:
+            print(f"  词汇处理: {vocabulary_time:.2f}秒 ({vocabulary_time/total_time*100:.1f}%)")
         if config.statistics.enabled and statistics_time > 0:
             print(f"  统计收集: {statistics_time:.2f}秒 ({statistics_time/total_time*100:.1f}%)")
         print(f"  核心处理总耗时: {total_time:.2f}秒")
@@ -426,6 +489,12 @@ def main():
                 print("翻译的字幕文件:")
                 for file_path in translated_files:
                     print(f"  - {os.path.basename(file_path)} (已包含中文翻译)")
+            
+            # 显示词汇文件信息（如果处理）
+            if args.vocabulary and chapter_vocab_files:
+                print("生成的章节词汇文件:")
+                for file_path in chapter_vocab_files:
+                    print(f"  - {os.path.basename(file_path)}")
         
         return 0
         

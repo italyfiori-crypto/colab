@@ -1,0 +1,103 @@
+{
+  "metadata": {
+    "description": "英语单词分级标准 - 面向中国学生",
+    "levels": {
+      "0": "小学词汇 (Elementary)",
+      "1": "初中基础 (Junior Basic)", 
+      "2": "初中进阶 (Junior Advanced)",
+      "3": "高中词汇 (High School)",
+      "4": "大学四级 (CET-4)",
+      "5": "大学六级/雅思 (CET-6/IELTS)",
+      "6": "学术专业 (Academic)"
+    },
+    "total_words": 1000
+  },
+  "levels": {
+    "0": {
+      "name": "小学",
+      "description": "小学阶段必备词汇，日常生活基础词汇",
+      "target_count": 500,
+      "words": [
+        "a", "an", "the", "and", "or", "but", "is", "am", "are", "was", "were",
+        "i", "you", "he", "she", "it", "we", "they", "me", "him", "her", "us", "them",
+        "my", "your", "his", "her", "its", "our", "their",
+        "cat", "dog", "bird", "fish", "apple", "banana", "book", "pen", "car", "house",
+        "red", "blue", "green", "yellow", "big", "small", "good", "bad", "happy", "sad",
+        "run", "walk", "eat", "drink", "play", "work", "go", "come", "see", "look",
+        "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten",
+        "mother", "father", "boy", "girl", "man", "woman", "child", "baby", "friend", "teacher"
+      ]
+    },
+    "1": {
+      "name": "初中基础",
+      "description": "初中基础词汇，学习生活常用词汇",
+      "target_count": 800,
+      "words": [
+        "about", "after", "again", "against", "all", "also", "another", "any", "around", "because",
+        "before", "between", "both", "during", "each", "even", "every", "first", "from", "into",
+        "last", "many", "more", "most", "much", "new", "now", "only", "other", "own",
+        "right", "same", "should", "since", "some", "still", "such", "than", "that", "these",
+        "those", "through", "time", "very", "way", "well", "where", "which", "while", "will",
+        "adventure", "beautiful", "different", "important", "understand", "believe", "create",
+        "family", "school", "student", "learn", "study", "read", "write", "think", "know", "tell"
+      ]
+    },
+    "2": {
+      "name": "初中进阶", 
+      "description": "初中进阶词汇，扩展表达能力",
+      "target_count": 700,
+      "words": [
+        "discover", "explore", "mystery", "character", "situation", "experience", "develop",
+        "success", "fail", "achieve", "improve", "increase", "decrease", "continue", "stop",
+        "environment", "nature", "science", "technology", "culture", "society", "government",
+        "education", "health", "medicine", "business", "company", "market", "economy",
+        "communication", "information", "knowledge", "skill", "ability", "talent", "quality"
+      ]
+    },
+    "3": {
+      "name": "高中",
+      "description": "高中核心词汇，学术基础词汇", 
+      "target_count": 1000,
+      "words": [
+        "consequence", "elaborate", "magnificent", "tremendous", "sophisticated", "fundamental",
+        "individual", "particular", "specific", "general", "various", "several", "numerous",
+        "significant", "essential", "necessary", "possible", "available", "appropriate",
+        "effective", "efficient", "successful", "professional", "traditional", "modern",
+        "analyze", "evaluate", "demonstrate", "illustrate", "indicate", "suggest", "propose",
+        "establish", "maintain", "require", "provide", "support", "contribute", "participate"
+      ]
+    },
+    "4": {
+      "name": "大学四级",
+      "description": "CET-4核心词汇，大学基础词汇",
+      "target_count": 1200,
+      "words": [
+        "academic", "eliminate", "hypothesis", "inevitable", "substantial", "comprehensive",
+        "authority", "capacity", "facility", "institution", "mechanism", "phenomenon", "procedure",
+        "administration", "implementation", "investigation", "organization", "publication",
+        "accumulate", "concentrate", "constitute", "demonstrate", "emphasize", "establish",
+        "inevitable", "maintenance", "predominant", "preliminary", "subsequent", "temporary"
+      ]
+    },
+    "5": {
+      "name": "大学六级",
+      "description": "CET-6/雅思词汇，高级学术词汇",
+      "target_count": 800,
+      "words": [
+        "elaborate", "comprehensively", "unprecedented", "ambiguous", "controversy", "explicit",
+        "infrastructure", "intellectual", "interpretation", "manipulation", "sophisticated",
+        "surveillance", "terminology", "transformed", "ultimately", "undertaken", "utilization"
+      ]
+    },
+    "6": {
+      "name": "学术专业",
+      "description": "学术专业词汇，托福/GRE词汇",
+      "target_count": 500,
+      "words": [
+        "metamorphosis", "epistemology", "paradigmatic", "quintessential", "ubiquitous",
+        "empirical", "heuristic", "idiosyncratic", "juxtaposition", "lexicography",
+        "methodology", "nomenclature", "orthography", "pedagogical", "phenomenological"
+      ]
+    }
+  }
+}
