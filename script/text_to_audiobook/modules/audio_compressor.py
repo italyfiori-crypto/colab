@@ -128,7 +128,7 @@ class AudioCompressor:
             self.logger.error(f"压缩失败 {input_path}: {str(e)}")
             return False
 
-    def compress_book_audio(self, book_dir: str, output_subdir: str = "compressed") -> Dict:
+    def compress_book_audio(self, book_dir: str, output_subdir: str = "compressed_audio") -> Dict:
         """
         压缩整本书的音频文件
         

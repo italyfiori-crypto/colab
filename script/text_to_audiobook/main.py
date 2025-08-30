@@ -326,7 +326,7 @@ def main():
                 compressor = AudioCompressor(compression_config.__dict__)
                 
                 # 压缩音频文件
-                compression_results = compressor.compress_book_audio(output_dir)
+                compression_results = compressor.compress_book_audio(output_dir, compression_config.output_subdir)
                 compression_time = time.time() - start_time
                 
                 print(f"\n✅ 音频压缩完成! (耗时: {compression_time:.2f}秒)")

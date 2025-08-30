@@ -50,11 +50,6 @@ class WeChatCloudUploader:
         
     def _setup_logging(self):
         """配置日志系统"""
-        # 文件处理器 - 记录所有日志
-        file_handler = logging.FileHandler('upload_books.log', encoding='utf-8')
-        file_handler.setLevel(logging.INFO)
-        file_handler.setFormatter(logging.Formatter('%(asctime)s - %(levelname)s - %(message)s'))
-        
         # 控制台处理器 - 只记录重要信息
         console_handler = logging.StreamHandler()
         console_handler.setLevel(logging.INFO)
@@ -63,7 +58,7 @@ class WeChatCloudUploader:
         # 配置根日志器
         logging.basicConfig(
             level=logging.INFO,
-            handlers=[file_handler, console_handler]
+            handlers=[console_handler]
         )
         self.logger = logging.getLogger(__name__)
         
@@ -900,11 +895,15 @@ class WeChatCloudUploader:
 
 def main():
     """主函数"""
-    print("微信云服务书籍数据上传脚本")
-    print("=" * 50)
-    print("此脚本将把output目录下的有声书数据上传到微信云服务")
-    print("请确保已经创建了books和chapters数据库集合")
-    print("=" * 50)
+    # 创建临时uploader实例以使用统一的日志系统
+    temp_uploader = WeChatCloudUploader("temp", "temp", "temp")
+    logger = temp_uploader.logger
+    
+    logger.info("微信云服务书籍数据上传脚本")
+    logger.info("=" * 50)
+    logger.info("此脚本将把output目录下的有声书数据上传到微信云服务")
+    logger.info("请确保已经创建了books和chapters数据库集合")
+    logger.info("=" * 50)
     
     # 获取用户输入
     app_id = input("请输入AppID (默认: wx7040936883aa6dad): ").strip() or "wx7040936883aa6dad"
@@ -912,33 +911,33 @@ def main():
     env_id = input("请输入云环境ID: ").strip() or "cloud1-1gpp78j208f0f610"
     
     if not app_secret or not env_id:
-        print("错误: AppSecret和云环境ID不能为空")
+        logger.error("错误: AppSecret和云环境ID不能为空")
         return
         
     # 确认操作
-    print(f"\n配置信息:")
-    print(f"AppID: {app_id}")
-    print(f"AppSecret: {'*' * len(app_secret)}")
-    print(f"云环境ID: {env_id}")
+    logger.info(f"\n配置信息:")
+    logger.info(f"AppID: {app_id}")
+    logger.info(f"AppSecret: {'*' * len(app_secret)}")
+    logger.info(f"云环境ID: {env_id}")
     
     confirm = input("\n确认开始上传？(y/N): ").strip().lower()
     if confirm != 'y':
-        print("操作已取消")
+        logger.info("操作已取消")
         return
         
-    # 创建上传器
+    # 创建正式的上传器
     uploader = WeChatCloudUploader(app_id, app_secret, env_id)
     
     # 测试连接
     try:
         token = uploader.get_access_token()
-        print(f"✅ 连接成功，Access Token: {token[:20]}...")
+        uploader.logger.info(f"✅ 连接成功，Access Token: {token[:20]}...")
     except Exception as e:
-        print(f"❌ 连接失败: {e}")
+        uploader.logger.error(f"❌ 连接失败: {e}")
         return
         
     # 开始上传
-    print("\n🚀 开始上传书籍数据...")
+    uploader.logger.info("\n🚀 开始上传书籍数据...")
     start_time = time.time()
     
     try:
@@ -947,15 +946,15 @@ def main():
         elapsed_time = time.time() - start_time
         
         if success:
-            print(f"\n🎉 上传完成！耗时: {elapsed_time:.2f}秒")
-            print("📋 请检查微信云控制台确认数据是否正确上传")
+            uploader.logger.info(f"\n🎉 上传完成！耗时: {elapsed_time:.2f}秒")
+            uploader.logger.info("📋 请检查微信云控制台确认数据是否正确上传")
         else:
-            print(f"\n❌ 上传过程中出现错误，请查看日志文件: upload_books.log")
+            uploader.logger.error(f"\n❌ 上传过程中出现错误，请检查控制台输出")
             
     except Exception as e:
-        print(f"\n❌ 上传失败: {e}")
+        uploader.logger.error(f"\n❌ 上传失败: {e}")
         
-    print("\n📝 详细日志已保存到: upload_books.log")
+    uploader.logger.info("\n📝 详细日志已显示在控制台")
 
 
 if __name__ == "__main__":

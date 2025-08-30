@@ -103,7 +103,7 @@ class StatisticsCollector:
                 
                 # 计算音频时长
                 duration = 0.0
-                audio_file = os.path.join(output_dir, "compressed_audio", f'{filekey}.mp3')
+                audio_file = os.path.join(output_dir, "audio", f'{filekey}.wav')
                 if audio_file and os.path.exists(audio_file):
                     duration = self._get_audio_duration(audio_file)
                 else:
@@ -111,8 +111,7 @@ class StatisticsCollector:
                 
                 chapter_info = {
                     "local_subtitle_file": os.path.join("subtitles", f'{filekey}.srt'),
-                    "local_audio_file": os.path.join("audio", f'{filekey}.wav'),
-                    "local_compressed_audio_file": os.path.join("compressed_audio", f'{filekey}.mp3'),
+                    "local_audio_file": os.path.join("compressed_audio", f'{filekey}.mp3'),
                     "chapter_number": i + 1,
                     "title": chapter_title,
                     "subtitle_url": "",
