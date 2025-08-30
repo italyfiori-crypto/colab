@@ -74,53 +74,9 @@ async function getChapterDetail(chapterId, user_id) {
     const chapter = chapterResult.data
     console.log('✅ [DEBUG] 获取到章节信息:', chapter)
 
-    // 2. 获取书籍信息
-    console.log('📤 [DEBUG] 查询书籍信息:', chapter.book_id)
-    const bookResult = await db.collection('books').doc(chapter.book_id).get()
-
-    if (!bookResult.data) {
-      console.log('❌ [DEBUG] 所属书籍不存在:', chapter.book_id)
-      return {
-        code: -1,
-        message: '所属书籍不存在'
-      }
-    }
-
-    const book = bookResult.data
-    console.log('✅ [DEBUG] 书籍信息获取成功:', { title: book.title })
-
-    // 3. 获取用户学习进度（参考homeData写法）
-    let userProgress = null
-    if (user_id) {
-      const progressId = `${user_id}_${chapter.book_id}`
-      console.log('📤 [DEBUG] 查询用户学习进度:', progressId)
-
-      await db.collection('user_progress').doc(progressId).get().then(res => {
-        if (res.data) {
-          userProgress = res.data
-          console.log('📥 [DEBUG] 用户进度查询成功:', {
-            current_chapter: userProgress.current_chapter,
-            completed_count: userProgress.chapters_completed.length
-          })
-        } else {
-          console.log('📥 [DEBUG] 用户进度为空，使用默认值')
-        }
-      }).catch(err => {
-        console.log('📥 [DEBUG] 用户学习进度不存在，使用默认值:', err.message)
-      })
-    } else {
-      console.log('📥 [DEBUG] 用户未登录，跳过进度查询')
-    }
-
-    // 4. 构建返回数据，使用数据库原字段
+    // 直接返回章节数据，不需要额外查询
     const result = {
-      // 章节信息
-      ...chapter,
-      // 书籍标题用于页面显示
-      book_title: book.title,
-      // 用户相关状态
-      is_completed: userProgress && userProgress.chapters_completed.includes(chapter.chapter_number),
-      is_current: userProgress && userProgress.current_chapter === chapter.chapter_number
+      ...chapter
     }
 
     console.log('✅ [DEBUG] 章节详情数据处理完成')

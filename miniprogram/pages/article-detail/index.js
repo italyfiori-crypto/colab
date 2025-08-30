@@ -5,7 +5,6 @@ Page({
         bookId: null,
         chapterData: {},
         title: '',
-        book_title: '',
 
         // 字幕数据
         subtitles: [],
@@ -34,8 +33,6 @@ Page({
         vocabularyWords: [],
 
         // 进度相关
-        isCompleted: false,
-        isProgressUpdated: false
     },
 
     onLoad(options) {
@@ -111,9 +108,7 @@ Page({
                 this.setData({
                     chapterData,
                     title: chapterData.title,
-                    book_title: chapterData.book_title,
                     duration: chapterData.duration,
-                    isCompleted: chapterData.is_completed,
                     loading: false
                 });
 
@@ -847,11 +842,6 @@ Page({
 
             if (result.result.code === 0) {
                 if (isCompleted) {
-                    this.setData({
-                        isProgressUpdated: true,
-                        isCompleted: true
-                    });
-
                     wx.showToast({
                         title: '章节学习完成！',
                         icon: 'success',
