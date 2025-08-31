@@ -32,13 +32,12 @@ class VocabularyEnricherConfig:
 class VocabularyEnricher:
     """词汇富化器 - 为单词添加详细信息"""
     
-    def __init__(self, config: VocabularyEnricherConfig, word_levels_path: str = None):
+    def __init__(self, config: VocabularyEnricherConfig):
         """
         初始化词汇富化器
         
         Args:
             config: 富化配置
-            word_levels_path: 词汇分级文件路径
         """
         self.config = config
         
@@ -175,13 +174,11 @@ class VocabularyEnricher:
                     "word": word,
                     "phonetic": ecdict_info.get("phonetic", ""),
                     "translation": ecdict_info.get("translation", ""),
-                    "pos": ecdict_info.get("pos", ""),
-                    "level": level_tags,
+                    "tags": level_tags,
                     "audio": "",  # 第2步不获取音频
-                    "collins": ecdict_info.get("collins", 0),
                     "bnc": ecdict_info.get("bnc", 0),
                     "frq": ecdict_info.get("frq", 0),
-                    "definition": ecdict_info.get("definition", "")
+                    "exchange": ecdict_info.get("exchange", "")
                 }
                 return word_data
             else:
@@ -239,7 +236,7 @@ class VocabularyEnricher:
         level_stats = {}
         
         for word_info in sorted_vocab.values():
-            level_tags = word_info.get("level", "")
+            level_tags = word_info.get("tags", "")
             
             if not level_tags:
                 level_stats["unknown"] = level_stats.get("unknown", 0) + 1
@@ -249,17 +246,11 @@ class VocabularyEnricher:
                 for tag in tags:
                     level_stats[tag] = level_stats.get(tag, 0) + 1
         
-        master_data = {
-            "metadata": {
-                "total_words": total_words,
-                "level_distribution": level_stats,
-                "last_updated": time.strftime("%Y-%m-%d %H:%M:%S")
-            },
-            "vocabulary": sorted_vocab
-        }
-        
+        # 输出格式改为每行一个单词的JSON字符串
         with open(master_vocab_path, 'w', encoding='utf-8') as f:
-            json.dump(master_data, f, ensure_ascii=False, indent=2)
+            for word, word_info in sorted_vocab.items():
+                json_line = json.dumps(word_info, ensure_ascii=False, separators=(',', ':'))
+                f.write(json_line + '\n')
         
         print(f"💾 总词汇表已保存: {master_vocab_path}")
         print(f"📊 词汇统计: 总计{total_words}词")

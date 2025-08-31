@@ -120,21 +120,15 @@ class WordExtractor:
             # 提取子章节所有单词
             all_words, filtered_words = self._extract_words_from_files([sentence_file])
             
-            # 分离新词和已知词
-            known_words = [word for word in all_words if word in existing_vocab]
-            new_words = [word for word in all_words if word not in existing_vocab]
+            # 收集所有提取的单词（不区分新旧）
+            all_new_words.update(all_words)
             
-            # 收集所有新词
-            all_new_words.update(new_words)
-            
-            # 保存子章节词汇文件（只包含单词文本）
+            # 保存子章节词汇文件（包含所有提取的单词）
             subchapter_vocab_data = {
                 "subchapter_id": subchapter_name,
-                "words": sorted(list(set(all_words))),  # 提取所有单词（包括新词和已知词）
+                "words": sorted(list(set(all_words))),  # 提取所有单词
                 "word_count": len(set(all_words)),
-                "filtered_words": sorted(list(set(filtered_words))),
-                "new_words_count": len(new_words),
-                "known_words_count": len(known_words)
+                "filtered_words": sorted(list(set(filtered_words)))
             }
             
             subchapter_vocab_file = os.path.join(subchapters_dir, f"{subchapter_name}.json")
@@ -142,9 +136,9 @@ class WordExtractor:
             subchapter_vocab_files.append(subchapter_vocab_file)
             
             print(f"  📄 已保存子章节词汇: {subchapter_vocab_file}")
-            print(f"  📈 词汇统计: 总计{len(set(all_words))}个, 新词{len(new_words)}个, 已知{len(known_words)}个")
+            print(f"  📈 词汇统计: 总计{len(set(all_words))}个")
         
-        print(f"\n📝 子章节词汇提取完成，发现 {len(all_new_words)} 个新词需要处理")
+        print(f"\n📝 子章节词汇提取完成，共提取 {len(all_new_words)} 个单词")
         return subchapter_vocab_files, list(all_new_words)
     
     def extract_chapter_words(self, sentence_files: List[str], output_dir: str, master_vocab_path: str) -> Tuple[List[str], List[str]]:
@@ -249,8 +243,15 @@ class WordExtractor:
         Returns:
             过滤原因，如果不需要过滤返回None
         """
-        # 停用词过滤
-        if self.config.filter_stop_words and word in self.stop_words:
+        # 停用词过滤 - 自定义学习相关停用词白名单
+        learning_stopwords_whitelist = {
+            'through', 'during', 'between', 'among', 'within', 'without', 
+            'around', 'across', 'above', 'below', 'under', 'over',
+            'before', 'after', 'until', 'since', 'while'
+        }
+        if (self.config.filter_stop_words and 
+            word in self.stop_words and 
+            word not in learning_stopwords_whitelist):
             return "stop_word"
         
         # 专有名词过滤

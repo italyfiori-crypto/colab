@@ -19,8 +19,7 @@ class VocabularyManagerConfig:
     """词汇管理器配置"""
     
     # 默认路径配置
-    default_master_vocab_path: str = "script/text_to_audiobook/vocabulary/master_vocabulary.json"
-    word_levels_path: str = "script/text_to_audiobook/vocabulary/word_levels.json"
+    default_master_vocab_path: str = "vocabulary/master_vocabulary.json"
     
     # 子模块配置
     extraction: WordExtractionConfig = None
@@ -48,10 +47,7 @@ class VocabularyManager:
         
         # 初始化子模块
         self.extractor = WordExtractor(self.config.extraction)
-        self.enricher = VocabularyEnricher(
-            self.config.enrichment, 
-            self.config.word_levels_path
-        )
+        self.enricher = VocabularyEnricher(self.config.enrichment)
         
         print("📚 词汇管理器初始化完成")
     
@@ -80,9 +76,13 @@ class VocabularyManager:
         
         # 第一步：提取子章节词汇（提取所有单词）
         print(f"\n🔄 第1步: 从 {len(sentence_files)} 个句子文件中提取词汇...")
-        subchapter_vocab_files, new_words = self.extractor.extract_subchapter_words(
+        subchapter_vocab_files, all_words = self.extractor.extract_subchapter_words(
             sentence_files, output_dir, master_vocab_path
         )
+        
+        # 加载现有总词汇表，判断哪些是新词
+        existing_vocab = self.extractor._load_master_vocabulary(master_vocab_path)
+        new_words = [word for word in all_words if word not in existing_vocab]
         
         if not new_words:
             print("✅ 所有词汇都已存在于总词汇表中，跳过富化步骤")
