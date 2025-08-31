@@ -66,12 +66,6 @@ class VocabularyManager:
             生成的子章节词汇文件列表
         """
         # 使用默认或指定的总词汇表路径
-        if not master_vocab_path:
-            # 相对于项目根目录的默认路径
-            project_root = Path(output_dir).parent
-            master_vocab_path = project_root / self.config.default_master_vocab_path
-            
-        master_vocab_path = str(master_vocab_path)
         print(f"📖 使用总词汇表: {master_vocab_path}")
         
         # 第一步：提取子章节词汇（提取所有单词）

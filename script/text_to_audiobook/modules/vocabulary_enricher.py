@@ -12,8 +12,28 @@ import requests
 from typing import List, Dict, Optional, Set
 from dataclasses import dataclass
 from pathlib import Path
+from concurrent.futures import ThreadPoolExecutor, as_completed
+import random
 
 from .ecdict_helper import ECDictHelper
+
+
+def load_master_vocabulary(master_vocab_path: str) -> Dict[str, Dict]:
+    """加载总词汇表 - 公共方法"""
+    if not os.path.exists(master_vocab_path):
+        return {}
+    
+    try:
+        vocabulary = {}
+        with open(master_vocab_path, 'r', encoding='utf-8') as f:
+            for line in f:
+                if line.strip():
+                    word_data = json.loads(line.strip())
+                    vocabulary[word_data['word']] = word_data
+        return vocabulary
+    except Exception as e:
+        print(f"⚠️ 加载总词汇表失败: {e}")
+        return {}
 
 
 @dataclass
@@ -27,6 +47,7 @@ class VocabularyEnricherConfig:
     timeout: int = 30
     max_retries: int = 3
     batch_size: int = 10
+    max_workers: int = 5  # 并发线程数
 
 
 class VocabularyEnricher:
@@ -122,27 +143,30 @@ class VocabularyEnricher:
         
         print(f"📝 发现 {len(words_need_audio)} 个词汇需要补充音频")
         
-        # 批量获取音频URL
+        # 并发获取音频URL
         audio_count = 0
-        for i in range(0, len(words_need_audio), self.config.batch_size):
-            batch = words_need_audio[i:i + self.config.batch_size]
-            batch_num = i // self.config.batch_size + 1
-            total_batches = (len(words_need_audio) + self.config.batch_size - 1) // self.config.batch_size
+        print(f"  🔄 开始并发获取音频URL（{self.config.max_workers}个线程）...")
+        
+        with ThreadPoolExecutor(max_workers=self.config.max_workers) as executor:
+            # 提交所有任务
+            future_to_word = {
+                executor.submit(self._get_audio_url_with_retry, word): word 
+                for word in words_need_audio
+            }
             
-            print(f"  🔄 处理音频批次 {batch_num}/{total_batches} ({len(batch)} 个单词)")
-            
-            for word in batch:
-                audio_url = self._get_audio_url(word)
-                if audio_url:
-                    master_vocab[word]["audio"] = audio_url
-                    audio_count += 1
-                    print(f"    ✅ {word}: 获取音频成功")
-                else:
-                    print(f"    ❌ {word}: 获取音频失败")
-            
-            # 避免API限流
-            if i + self.config.batch_size < len(words_need_audio):
-                time.sleep(0.5)
+            # 处理完成的任务
+            for future in as_completed(future_to_word):
+                word = future_to_word[future]
+                try:
+                    audio_url = future.result()
+                    if audio_url:
+                        master_vocab[word]["audio"] = audio_url
+                        audio_count += 1
+                        print(f"    ✅ {word}: 音频获取成功")
+                    else:
+                        print(f"    ❌ {word}: 音频获取失败")
+                except Exception as e:
+                    print(f"    ❌ {word}: 获取异常 - {e}")
         
         # 保存最终的总词汇表（第3步完成）
         self._save_master_vocabulary(master_vocab, master_vocab_path)
@@ -189,40 +213,46 @@ class VocabularyEnricher:
             print(f"    ❌ {word}: ECDICT查询失败 - {e}")
             return None
     
-    def _get_audio_url(self, word: str) -> str:
-        """获取单词音频URL（使用dictionaryapi）"""
-        try:
-            url = f"{self.config.dictionary_api_base}/{word}"
-            response = requests.get(url, timeout=self.config.timeout)
-            
-            if response.status_code == 200:
-                data = response.json()
-                if data and len(data) > 0:
-                    entry = data[0]
-                    
-                    # 提取发音音频URL
-                    if "phonetics" in entry and entry["phonetics"]:
-                        for phonetic_entry in entry["phonetics"]:
-                            if phonetic_entry.get("audio"):
-                                return phonetic_entry["audio"]
-                    
-        except Exception as e:
-            print(f"      ⚠️ 获取音频失败: {e}")
+    def _get_audio_url_with_retry(self, word: str) -> str:
+        """带重试的获取单词音频URL"""
+        for attempt in range(self.config.max_retries):
+            try:
+                # 添加随机延迟避免过于频繁请求
+                if attempt > 0:
+                    delay = (2 ** attempt) + random.uniform(0, 1)
+                    time.sleep(delay)
+                
+                url = f"{self.config.dictionary_api_base}/{word}"
+                response = requests.get(url, timeout=self.config.timeout)
+                
+                if response.status_code == 200:
+                    data = response.json()
+                    if data and len(data) > 0:
+                        entry = data[0]
+                        phonetics = entry.get('phonetics', [])
+                        
+                        for phonetic in phonetics:
+                            audio = phonetic.get('audio', '')
+                            if audio and audio.startswith('https'):
+                                return audio
+                elif response.status_code == 429:  # 限流
+                    print(f"      ⚠️ {word}: API限流，重试中...")
+                    continue
+                
+            except requests.exceptions.Timeout:
+                print(f"      ⚠️ {word}: 请求超时，重试中... (尝试 {attempt + 1}/{self.config.max_retries})")
+            except Exception as e:
+                print(f"      ⚠️ {word}: 获取音频失败 (尝试 {attempt + 1}): {e}")
         
         return ""
     
+    def _get_audio_url(self, word: str) -> str:
+        """获取单词音频URL（使用dictionaryapi）"""
+        return self._get_audio_url_with_retry(word)
+    
     def _load_master_vocabulary(self, master_vocab_path: str) -> Dict[str, Dict]:
         """加载总词汇表"""
-        if not os.path.exists(master_vocab_path):
-            return {}
-        
-        try:
-            with open(master_vocab_path, 'r', encoding='utf-8') as f:
-                data = json.load(f)
-                return data.get('vocabulary', {})
-        except Exception as e:
-            print(f"⚠️ 加载总词汇表失败: {e}")
-            return {}
+        return load_master_vocabulary(master_vocab_path)
     
     def _save_master_vocabulary(self, vocabulary: Dict[str, Dict], master_vocab_path: str):
         """保存总词汇表"""

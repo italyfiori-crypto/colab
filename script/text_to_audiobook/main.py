@@ -25,7 +25,6 @@ from modules.statistics_collector import StatisticsCollector
 from modules.audio_compressor import AudioCompressor
 from modules.vocabulary_manager import VocabularyManager, VocabularyManagerConfig
 
-
 def get_expected_audio_file(sentence_file: str, output_dir: str) -> str:
     """
     根据句子文件路径推理对应的音频文件路径
@@ -180,12 +179,14 @@ def main():
     
     # 词汇处理参数
     parser.add_argument('--vocabulary', action='store_true', help='启用词汇提取和分级')
-    parser.add_argument('--master-vocab', help='总词汇表文件路径 (默认: script/text_to_audiobook/vocabulary/master_vocabulary.json)')
+    parser.add_argument('--master-vocab', default='output/vocabulary/master_vocabulary.json', help='总词汇表文件路径 (默认: script/text_to_audiobook/vocabulary/master_vocabulary.json)')
     
     # 统计参数
     parser.add_argument('--stats', help='启用统计信息收集')
 
     args = parser.parse_args()
+
+    program_root = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
     
     # 验证输入文件
     if not os.path.exists(args.input_file):
@@ -376,12 +377,14 @@ def main():
                 
                 vocab_manager = VocabularyManager(vocab_config)
                 
+                master_vocab_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), args.master_vocab)
+
                 # 处理词汇
                 chapter_vocab_files = vocab_manager.process_book_vocabulary(
                     sentence_files=sentence_files,
                     output_dir=output_dir,
                     book_name=book_name,
-                    master_vocab_path=args.master_vocab
+                    master_vocab_path=os.path.join(program_root, args.master_vocab)
                 )
                 
                 vocabulary_time = time.time() - start_time

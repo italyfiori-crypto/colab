@@ -129,15 +129,23 @@
   word: string,             // 单词 (唯一)
   phonetic: string,         // 音标
   
-  // 优化翻译结构 (简化为数组)
-  translations: [{
-    type: string,           // 词性 (n./v./adj./adv.)
+  // 翻译对象数组
+  translation: [{
+    type: string,           // 词性 (如: "n.", "v.")
     meaning: string,        // 中文含义
     example: string         // 例句 (可选)
   }],
   
-  difficulty: string,       // 难度 (easy/medium/hard)
-  frequency: string,        // 使用频率 (high/medium/low) 
+  tags: string[],           // 标签数组 (如: ["zk", "gk", "cet4"])
+  
+  // 词形变化对象数组
+  exchange: [{
+    type: string,           // 变化类型 (如: "p", "d", "i")
+    form: string            // 变化形式
+  }],
+  
+  bnc: number,              // BNC词频
+  frq: number,              // 频率值
   audio_url: string,        // 发音音频URL
   
   created_at: Date,
@@ -150,11 +158,36 @@
 [
   { _id: 1 },                         // 主键索引
   { word: 1 },                        // 单词查询 (唯一)
-  { difficulty: 1, frequency: 1 },    // 难度频率筛选
+  { tags: 1 },                        // 标签查询
+  { bnc: -1 }                         // 词频排序
 ]
 ```
 
-### 2.5 学习进度表 (user_progress)
+### 2.5 章节单词关联表 (chapter_vocabularies)
+
+**功能**: 记录每个章节包含的单词及其在章节中的重要性
+
+```javascript
+{
+  _id: string,              // 关联ID (book_id_chapter_id_word)
+  book_id: string,          // 书籍ID
+  chapter_id: string,       // 章节ID  
+  words: []string           // 单词列表
+  created_at: Date
+}
+```
+
+**索引设计**:
+```javascript
+[
+  { _id: 1 },                         // 主键索引
+  { chapter_id: 1 },                  // 章节单词查询
+  { book_id: 1, chapter_id: 1 },      // 书籍章节查询
+  { word: 1 }                         // 单词查询
+]
+```
+
+### 2.6 学习进度表 (user_progress)
 
 **功能**: 记录用户对各书籍的学习进度
 
@@ -187,7 +220,7 @@
 ]
 ```
 
-### 2.6 单词学习记录表 (word_records)
+### 2.7 单词学习记录表 (word_records)
 
 **功能**: 记录用户单词学习状态，专为艾宾浩斯记忆曲线优化
 
@@ -216,7 +249,7 @@
 ]
 ```
 
-### 2.7 每日学习计划表 (daily_plans)
+### 2.8 每日学习计划表 (daily_plans)
 
 **功能**: 管理每日单词学习计划，支持新学和复习
 
@@ -253,7 +286,8 @@ users (用户)
 └── daily_plans (每日计划) ──→ vocabularies (单词)
 
 books (书籍)
-└── chapters (章节) ──→ vocabularies (单词)
+├── chapters (章节)
+└── chapter_vocabularies (章节单词) ──→ vocabularies (单词)
 ```
 
 ## 4. 设计优化说明

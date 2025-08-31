@@ -13,16 +13,13 @@ from typing import List, Dict, Set, Optional, Tuple
 from dataclasses import dataclass
 from collections import defaultdict
 
-# 需要安装: pip install spacy nltk
+# 需要安装: pip install spacy
 # 下载模型: python -m spacy download en_core_web_sm
 try:
     import spacy
-    import nltk
-    from nltk.corpus import stopwords
-    from nltk.corpus import names
 except ImportError as e:
     print(f"❌ 缺少依赖包: {e}")
-    print("请安装: pip install spacy nltk")
+    print("请安装: pip install spacy")
     print("并下载模型: python -m spacy download en_core_web_sm")
     raise
 
@@ -66,24 +63,11 @@ class WordExtractor:
         except OSError:
             raise RuntimeError(f"SpaCy模型加载失败: {self.config.spacy_model}，请运行: python -m spacy download {self.config.spacy_model}")
         
-        # 下载NLTK数据
-        self._ensure_nltk_data()
-        
-        # 获取停用词和人名列表
-        self.stop_words = set(stopwords.words('english'))
-        self.names_list = set(names.words())
+        # 获取spaCy停用词
+        self.stop_words = self.nlp.Defaults.stop_words
         
         print(f"📝 单词提取器初始化完成")
     
-    def _ensure_nltk_data(self):
-        """确保NLTK数据已下载"""
-        try:
-            nltk.data.find('corpora/stopwords')
-            nltk.data.find('corpora/names')
-        except LookupError:
-            print("📥 下载NLTK数据...")
-            nltk.download('stopwords', quiet=True)
-            nltk.download('names', quiet=True)
     
     def extract_subchapter_words(self, sentence_files: List[str], output_dir: str, master_vocab_path: str) -> Tuple[List[str], List[str]]:
         """
@@ -126,7 +110,7 @@ class WordExtractor:
             # 保存子章节词汇文件（包含所有提取的单词）
             subchapter_vocab_data = {
                 "subchapter_id": subchapter_name,
-                "words": sorted(list(set(all_words))),  # 提取所有单词
+                "words": list(set(all_words)),  # 提取所有单词
                 "word_count": len(set(all_words)),
                 "filtered_words": sorted(list(set(filtered_words)))
             }
@@ -140,21 +124,6 @@ class WordExtractor:
         
         print(f"\n📝 子章节词汇提取完成，共提取 {len(all_new_words)} 个单词")
         return subchapter_vocab_files, list(all_new_words)
-    
-    def extract_chapter_words(self, sentence_files: List[str], output_dir: str, master_vocab_path: str) -> Tuple[List[str], List[str]]:
-        """
-        从句子文件中提取章节词汇（保留以兼容旧接口）
-        
-        Args:
-            sentence_files: 句子文件路径列表
-            output_dir: 输出目录
-            master_vocab_path: 总词汇表文件路径
-            
-        Returns:
-            (处理的章节词汇文件列表, 所有新词列表)
-        """
-        print("⚠️ 使用旧的章节级别接口，建议使用 extract_subchapter_words 方法")
-        return self.extract_subchapter_words(sentence_files, output_dir, master_vocab_path)
     
     def _group_sentence_files_by_chapter(self, sentence_files: List[str]) -> Dict[str, List[str]]:
         """按章节名称分组句子文件"""
@@ -225,10 +194,10 @@ class WordExtractor:
                 continue
             
             # 应用各种过滤规则
-            filter_reason = self._get_filter_reason(token, original)
-            if filter_reason:
-                filtered_words.append(original)
-                continue
+            # filter_reason = self._get_filter_reason(token, original)
+            # if filter_reason:
+            #     filtered_words.append(original)
+            #     continue
             
             # 只对复数和第三人称单数进行归一化
             normalized_word = self._normalize_word_selective(token, original)
@@ -249,18 +218,18 @@ class WordExtractor:
             'around', 'across', 'above', 'below', 'under', 'over',
             'before', 'after', 'until', 'since', 'while'
         }
-        if (self.config.filter_stop_words and 
-            word in self.stop_words and 
-            word not in learning_stopwords_whitelist):
-            return "stop_word"
+        # if (self.config.filter_stop_words and 
+        #     word in self.stop_words and 
+        #     word not in learning_stopwords_whitelist):
+        #     return "stop_word"
         
         # 专有名词过滤
-        if self.config.filter_proper_nouns and token.pos_ == "PROPN":
-            return "proper_noun"
+        # if self.config.filter_proper_nouns and token.pos_ == "PROPN":
+        #     return "proper_noun"
         
-        # 人名过滤
-        if self.config.filter_names and token.text in self.names_list:
-            return "person_name"
+        # 人名过滤 - 使用spaCy NER识别人名
+        # if self.config.filter_names and token.ent_type_ == "PERSON":
+        #     return "person_name"
         
         # 数字过滤
         if self.config.filter_numbers and token.like_num:
@@ -302,17 +271,8 @@ class WordExtractor:
     
     def _load_master_vocabulary(self, master_vocab_path: str) -> Dict[str, Dict]:
         """加载总词汇表"""
-        if not os.path.exists(master_vocab_path):
-            print(f"📝 总词汇表不存在，将创建新文件: {master_vocab_path}")
-            return {}
-        
-        try:
-            with open(master_vocab_path, 'r', encoding='utf-8') as f:
-                data = json.load(f)
-                return data.get('vocabulary', {})
-        except Exception as e:
-            print(f"⚠️ 加载总词汇表失败: {e}，使用空词汇表")
-            return {}
+        from .vocabulary_enricher import load_master_vocabulary
+        return load_master_vocabulary(master_vocab_path)
     
     def _save_json(self, data: dict, file_path: str):
         """保存JSON数据到文件"""
