@@ -16,6 +16,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 import random
 
 from .ecdict_helper import ECDictHelper
+from .audio_generator import AudioGenerator, AudioGeneratorConfig
 
 
 def load_master_vocabulary(master_vocab_path: str) -> Dict[str, Dict]:
@@ -47,7 +48,7 @@ class VocabularyEnricherConfig:
     timeout: int = 30
     max_retries: int = 3
     batch_size: int = 10
-    max_workers: int = 5  # 并发线程数
+    max_workers: int = 2  # 并发线程数
 
 
 class VocabularyEnricher:
@@ -93,21 +94,14 @@ class VocabularyEnricher:
         # 加载现有总词汇表
         master_vocab = self._load_master_vocabulary(master_vocab_path)
         
-        # 批量处理新词汇
+        # 使用ECDICT富化当前批次
         enriched_count = 0
-        for i in range(0, len(new_words), self.config.batch_size):
-            batch = new_words[i:i + self.config.batch_size]
-            batch_num = i // self.config.batch_size + 1
-            total_batches = (len(new_words) + self.config.batch_size - 1) // self.config.batch_size
-            
-            print(f"  🔄 处理批次 {batch_num}/{total_batches} ({len(batch)} 个单词)")
-            
-            # 使用ECDICT富化当前批次
-            for word in batch:
-                word_info = self._get_word_ecdict_info(word)
-                if word_info:
-                    master_vocab[word] = word_info
-                    enriched_count += 1
+        for word in new_words:
+            print(f"  🔄 处理 {word}")
+            word_info = self._get_word_ecdict_info(word)
+            if word_info:
+                master_vocab[word] = word_info
+                enriched_count += 1
         
         # 保存更新的总词汇表（第2步完成）
         self._save_master_vocabulary(master_vocab, master_vocab_path)
@@ -115,17 +109,24 @@ class VocabularyEnricher:
         print(f"✅ ECDICT基础信息补充完成: 成功处理 {enriched_count}/{len(new_words)} 个新词汇")
         return True
     
-    def enrich_vocabulary_with_audio(self, master_vocab_path: str) -> bool:
+    def enrich_vocabulary_with_audio(self, master_vocab_path: str, word_voice: str = "af_heart", word_speed: float = 0.8) -> bool:
         """
-        为总词汇表中的所有词汇补充音频URL
+        为总词汇表中的所有词汇生成音频文件
         
         Args:
             master_vocab_path: 总词汇表文件路径
+            word_voice: 单词音频声音模型
+            word_speed: 单词音频语速
             
         Returns:
             是否处理成功
         """
-        print(f"🔄 步骤3: 为词汇补充音频信息...")
+        print(f"🔄 步骤3: 为词汇生成音频文件...")
+        
+        # 创建公共音频目录
+        vocab_dir = os.path.dirname(master_vocab_path)
+        audio_dir = os.path.join(vocab_dir, "audio")
+        os.makedirs(audio_dir, exist_ok=True)
         
         # 加载总词汇表
         master_vocab = self._load_master_vocabulary(master_vocab_path)
@@ -133,57 +134,70 @@ class VocabularyEnricher:
             print("⚠️ 没有词汇需要补充音频")
             return True
         
-        # 找出没有音频的词汇
-        words_need_audio = [word for word, info in master_vocab.items() 
-                           if not info.get("audio")]
+        # 找出没有音频文件的词汇
+        words_need_audio = []
+        for word, info in master_vocab.items():
+            audio_file_path = os.path.join(audio_dir, f"{word}.wav")
+            if not os.path.exists(audio_file_path):
+                words_need_audio.append(word)
         
         if not words_need_audio:
-            print("✅ 所有词汇都已有音频信息")
+            print("✅ 所有词汇都已有本地音频文件")
+            # 更新词汇表中的音频路径信息
+            for word in master_vocab:
+                audio_file_path = os.path.join(audio_dir, f"{word}.wav")
+                if os.path.exists(audio_file_path):
+                    master_vocab[word]["audio_file"] = f"vocabulary/audio/{word}.wav"
+            self._save_master_vocabulary(master_vocab, master_vocab_path)
             return True
         
-        print(f"📝 发现 {len(words_need_audio)} 个词汇需要补充音频")
+        print(f"📝 发现 {len(words_need_audio)} 个词汇需要生成音频文件")
+        print(f"🔊 音频配置: 声音={word_voice}, 语速={word_speed}")
         
-        # 并发获取音频URL
+        # 创建AudioGenerator实例
+        try:
+            audio_config = AudioGeneratorConfig(voice=word_voice, speed=word_speed)
+            audio_generator = AudioGenerator(audio_config)
+        except Exception as e:
+            print(f"❌ AudioGenerator初始化失败: {e}")
+            return False
+        
+        # 生成单词音频
         audio_count = 0
-        print(f"  🔄 开始并发获取音频URL（{self.config.max_workers}个线程）...")
+        print(f"  🔄 开始生成单词音频...")
         
-        with ThreadPoolExecutor(max_workers=self.config.max_workers) as executor:
-            # 提交所有任务
-            future_to_word = {
-                executor.submit(self._get_audio_url_with_retry, word): word 
-                for word in words_need_audio
-            }
-            
-            # 处理完成的任务
-            for future in as_completed(future_to_word):
-                word = future_to_word[future]
-                try:
-                    audio_url = future.result()
-                    if audio_url:
-                        master_vocab[word]["audio"] = audio_url
-                        audio_count += 1
-                        print(f"    ✅ {word}: 音频获取成功")
-                    else:
-                        print(f"    ❌ {word}: 音频获取失败")
-                except Exception as e:
-                    print(f"    ❌ {word}: 获取异常 - {e}")
+        for i, word in enumerate(words_need_audio, 1):
+            try:
+                audio_file_path = audio_generator.generate_word_audio(word, audio_dir, word_voice, word_speed)
+                if audio_file_path:
+                    # 保存相对路径到词汇表
+                    relative_path = f"vocabulary/audio/{word}.wav"
+                    master_vocab[word]["audio_file"] = relative_path
+                    audio_count += 1
+                    print(f"    ✅ {word}: 音频生成成功 ({i}/{len(words_need_audio)})")
+                else:
+                    print(f"    ❌ {word}: 音频生成失败")
+            except Exception as e:
+                print(f"    ❌ {word}: 生成异常 - {e}")
         
         # 保存最终的总词汇表（第3步完成）
         self._save_master_vocabulary(master_vocab, master_vocab_path)
         
-        print(f"✅ 音频信息补充完成: 成功为 {audio_count}/{len(words_need_audio)} 个词汇获取音频")
+        print(f"✅ 音频信息补充完成: 成功生成 {audio_count}/{len(words_need_audio)} 个词汇音频文件")
         return True
     
     def _get_word_ecdict_info(self, word: str) -> Optional[Dict]:
         """
-        从ECDICT获取单词基础信息（不包含音频）
+        从ECDICT获取单词基础信息并直接转换为数据库格式
         
         Args:
             word: 要查询的单词
             
         Returns:
-            单词信息字典，如果未找到返回None
+            数据库格式的单词信息字典，如果未找到返回None
         """
+        from datetime import datetime
+        
         try:            
             if not self.ecdict:
                 print(f"    ❌ {word}: ECDICT未初始化")
@@ -191,18 +205,32 @@ class VocabularyEnricher:
             
             ecdict_info = self.ecdict.query_word(word)
             if ecdict_info:
+                # 解析tags字符串为数组
                 level_tags = ecdict_info.get("level", "")
-                level_display = level_tags if level_tags else "unknown"
+                tags = level_tags.split() if level_tags else []
                 
+                # 解析translation字符串为对象数组
+                translation_str = ecdict_info.get("translation", "")
+                translation = self._parse_translation(translation_str)
+                
+                # 解析exchange字符串为对象数组
+                exchange_str = ecdict_info.get("exchange", "")
+                exchange = self._parse_exchange(exchange_str)
+                
+                # 直接构造数据库格式
                 word_data = {
+                    "_id": word,
                     "word": word,
                     "phonetic": ecdict_info.get("phonetic", ""),
-                    "translation": ecdict_info.get("translation", ""),
-                    "tags": level_tags,
-                    "audio": "",  # 第2步不获取音频
+                    "translation": translation,
+                    "tags": tags,
+                    "exchange": exchange,
                     "bnc": ecdict_info.get("bnc", 0),
                     "frq": ecdict_info.get("frq", 0),
-                    "exchange": ecdict_info.get("exchange", "")
+                    "audio_url": "",  # 初始为空，下载音频后填入
+                    "uploaded": False,  # 上传状态标识
+                    "created_at": datetime.now().isoformat(),
+                    "updated_at": datetime.now().isoformat()
                 }
                 return word_data
             else:
@@ -213,49 +241,13 @@ class VocabularyEnricher:
             print(f"    ❌ {word}: ECDICT查询失败 - {e}")
             return None
     
-    def _get_audio_url_with_retry(self, word: str) -> str:
-        """带重试的获取单词音频URL"""
-        for attempt in range(self.config.max_retries):
-            try:
-                # 添加随机延迟避免过于频繁请求
-                if attempt > 0:
-                    delay = (2 ** attempt) + random.uniform(0, 1)
-                    time.sleep(delay)
-                
-                url = f"{self.config.dictionary_api_base}/{word}"
-                response = requests.get(url, timeout=self.config.timeout)
-                
-                if response.status_code == 200:
-                    data = response.json()
-                    if data and len(data) > 0:
-                        entry = data[0]
-                        phonetics = entry.get('phonetics', [])
-                        
-                        for phonetic in phonetics:
-                            audio = phonetic.get('audio', '')
-                            if audio and audio.startswith('https'):
-                                return audio
-                elif response.status_code == 429:  # 限流
-                    print(f"      ⚠️ {word}: API限流，重试中...")
-                    continue
-                
-            except requests.exceptions.Timeout:
-                print(f"      ⚠️ {word}: 请求超时，重试中... (尝试 {attempt + 1}/{self.config.max_retries})")
-            except Exception as e:
-                print(f"      ⚠️ {word}: 获取音频失败 (尝试 {attempt + 1}): {e}")
-        
-        return ""
-    
-    def _get_audio_url(self, word: str) -> str:
-        """获取单词音频URL（使用dictionaryapi）"""
-        return self._get_audio_url_with_retry(word)
     
     def _load_master_vocabulary(self, master_vocab_path: str) -> Dict[str, Dict]:
         """加载总词汇表"""
         return load_master_vocabulary(master_vocab_path)
     
     def _save_master_vocabulary(self, vocabulary: Dict[str, Dict], master_vocab_path: str):
-        """保存总词汇表"""
+        """保存总词汇表（数据库格式，无需转换）"""
         os.makedirs(os.path.dirname(master_vocab_path), exist_ok=True)
         
         # 按单词字母排序
@@ -265,20 +257,16 @@ class VocabularyEnricher:
         total_words = len(sorted_vocab)
         level_stats = {}
         
-        for word_info in sorted_vocab.values():
-            level_tags = word_info.get("tags", "")
-            
-            if not level_tags:
-                level_stats["unknown"] = level_stats.get("unknown", 0) + 1
-            else:
-                # 处理多个标签的情况，按空格分割
-                tags = level_tags.split()
-                for tag in tags:
-                    level_stats[tag] = level_stats.get(tag, 0) + 1
-        
-        # 输出格式改为每行一个单词的JSON字符串
+        # 输出格式：每行一个单词的JSON字符串（已经是数据库格式）
         with open(master_vocab_path, 'w', encoding='utf-8') as f:
             for word, word_info in sorted_vocab.items():
+                # 统计标签（已经是数组格式）
+                tags = word_info.get("tags", [])
+                for tag in tags:
+                    level_stats[tag] = level_stats.get(tag, 0) + 1
+                if not tags:
+                    level_stats["unknown"] = level_stats.get("unknown", 0) + 1
+                
                 json_line = json.dumps(word_info, ensure_ascii=False, separators=(',', ':'))
                 f.write(json_line + '\n')
         
@@ -290,3 +278,53 @@ class VocabularyEnricher:
             print("  标签分布:")
             for tag, count in sorted(level_stats.items()):
                 print(f"    {tag}: {count}词")
+
+    def _parse_translation(self, translation_str: str) -> List[Dict]:
+        """解析翻译字符串为对象数组"""
+        if not translation_str:
+            return []
+            
+        translations = []
+        parts = translation_str.split('\\n')
+        
+        for part in parts:
+            part = part.strip()
+            if not part:
+                continue
+                
+            import re
+            match = re.match(r'^([a-z]+\.)\s*(.+)$', part)
+            if match:
+                pos_type = match.group(1)
+                meaning = match.group(2)
+                translations.append({
+                    'type': pos_type,
+                    'meaning': meaning,
+                    'example': ''
+                })
+            else:
+                translations.append({
+                    'type': '',
+                    'meaning': part,
+                    'example': ''
+                })
+                
+        return translations
+
+    def _parse_exchange(self, exchange_str: str) -> List[Dict]:
+        """解析词形变化字符串为对象数组"""
+        if not exchange_str:
+            return []
+            
+        exchanges = []
+        if ':' in exchange_str:
+            parts = exchange_str.split('/')
+            for part in parts:
+                if ':' in part:
+                    type_code, form = part.split(':', 1)
+                    exchanges.append({
+                        'type': type_code.strip(),
+                        'form': form.strip()
+                    })
+        
+        return exchanges

@@ -376,8 +376,6 @@ def main():
                     vocab_config.enrichment.siliconflow_api_key = config.subtitle_translator.api_key
                 
                 vocab_manager = VocabularyManager(vocab_config)
-                
-                master_vocab_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), args.master_vocab)
 
                 # 处理词汇
                 chapter_vocab_files = vocab_manager.process_book_vocabulary(

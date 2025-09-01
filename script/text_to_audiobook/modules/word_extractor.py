@@ -87,8 +87,7 @@ class WordExtractor:
         
         # 创建输出目录
         vocab_dir = os.path.join(output_dir, self.config.vocabulary_subdir)
-        subchapters_dir = os.path.join(vocab_dir, "subchapters")
-        os.makedirs(subchapters_dir, exist_ok=True)
+        os.makedirs(vocab_dir, exist_ok=True)
         
         subchapter_vocab_files = []
         all_new_words = set()
@@ -115,7 +114,7 @@ class WordExtractor:
                 "filtered_words": sorted(list(set(filtered_words)))
             }
             
-            subchapter_vocab_file = os.path.join(subchapters_dir, f"{subchapter_name}.json")
+            subchapter_vocab_file = os.path.join(vocab_dir, f"{subchapter_name}.json")
             self._save_json(subchapter_vocab_data, subchapter_vocab_file)
             subchapter_vocab_files.append(subchapter_vocab_file)
             

@@ -17,6 +17,12 @@
       "multiline_regex": "^([0-9]+)\n\n([^\n]+)\n\n",
       "title_line_index": 2,
       "content_start_offset": 3
+    },
+    {
+      "name": "ys",
+      "multiline_regex": "^(\n\n\n)([^\n]+)(\n\n)",
+      "title_line_index": 3,
+      "content_start_offset": 3
     }
   ],
   "ignore_case": true,

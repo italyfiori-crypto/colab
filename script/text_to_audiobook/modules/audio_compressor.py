@@ -211,6 +211,89 @@ class AudioCompressor:
         
         return results
 
+    def compress_vocabulary_audio(self, vocab_dir: str, output_subdir: str = "compressed_audio") -> Dict:
+        """
+        压缩词汇音频文件
+        
+        Args:
+            vocab_dir: 词汇目录路径（包含audio子目录）
+            output_subdir: 输出子目录名
+            
+        Returns:
+            Dict: 压缩结果统计
+        """
+        audio_dir = os.path.join(vocab_dir, 'audio')
+        if not os.path.exists(audio_dir):
+            self.logger.error(f"词汇音频目录不存在: {audio_dir}")
+            return {}
+        
+        # 使用MP3格式压缩
+        format_name = 'mp3'
+        
+        results = {}
+        self.logger.debug(f"开始压缩词汇音频为 {format_name.upper()} 格式...")
+            
+        # 创建输出目录
+        format_output_dir = os.path.join(vocab_dir, output_subdir)
+        os.makedirs(format_output_dir, exist_ok=True)
+            
+        format_stats = {
+            'format': format_name,
+            'files_processed': 0,
+            'files_success': 0,
+            'files_failed': 0,
+            'total_original_size': 0,
+            'total_compressed_size': 0,
+            'compression_ratio': 0.0
+        }
+            
+        # 获取格式扩展名
+        extension = self.default_formats[format_name]['extension']
+            
+        # 遍历词汇音频文件
+        for audio_file in os.listdir(audio_dir):
+            if not audio_file.lower().endswith(('.wav', '.mp3', '.m4a', '.flac')):
+                continue
+            
+            input_path = os.path.join(audio_dir, audio_file)
+            
+            # 生成输出文件名（保持原文件名，改变扩展名）
+            base_name = os.path.splitext(audio_file)[0]
+            output_file = base_name + extension
+            output_path = os.path.join(format_output_dir, output_file)
+                
+            format_stats['files_processed'] += 1
+                
+            # 记录原始大小
+            original_size = os.path.getsize(input_path)
+            format_stats['total_original_size'] += original_size
+            
+            # 压缩音频
+            if self.compress_audio(input_path, output_path, format_name):
+                format_stats['files_success'] += 1
+                
+                # 记录压缩后大小
+                compressed_size = os.path.getsize(output_path)
+                format_stats['total_compressed_size'] += compressed_size
+            else:
+                format_stats['files_failed'] += 1
+            
+            # 计算压缩比
+            if format_stats['total_original_size'] > 0:
+                format_stats['compression_ratio'] = (
+                    1 - format_stats['total_compressed_size'] / format_stats['total_original_size']
+                ) * 100
+            
+        results[format_name] = format_stats
+            
+        self.logger.debug(f"词汇音频 {format_name.upper()} 格式压缩完成:")
+        self.logger.debug(f"  处理文件: {format_stats['files_processed']}")
+        self.logger.debug(f"  成功: {format_stats['files_success']}")
+        self.logger.debug(f"  失败: {format_stats['files_failed']}")
+        self.logger.debug(f"  压缩比: {format_stats['compression_ratio']:.1f}%")
+        
+        return results
+
     def get_compression_stats(self) -> Dict:
         """
         获取总体压缩统计信息

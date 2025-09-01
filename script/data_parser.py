@@ -134,8 +134,8 @@ class DataParser:
                 'subtitle_md5': subtitle_md5,
                 'local_audio_file': audio_file_path,
                 'local_subtitle_file': subtitle_file_path,
-                'created_at': datetime.now(),
-                'updated_at': datetime.now()
+                'created_at': datetime.now().isoformat(),
+                'updated_at': datetime.now().isoformat()
             }
             
             chapters_data.append(chapter_data)
@@ -161,8 +161,8 @@ class DataParser:
             'is_active': True,
             'tags': book_info.get('tags', []),
             'local_cover_file': cover_file_path,
-            'created_at': datetime.now(),
-            'updated_at': datetime.now(),
+            'created_at': datetime.now().isoformat(),
+            'updated_at': datetime.now().isoformat(),
             'done': book_info.get('done', False)
         }
         
@@ -203,9 +203,7 @@ class DataParser:
                             'exchange': exchange,
                             'bnc': word_data.get('bnc', 0),
                             'frq': word_data.get('frq', 0),
-                            'audio_url': word_data.get('audio', ''),
-                            'created_at': datetime.now(),
-                            'updated_at': datetime.now()
+                            'audio_url': word_data.get('audio', '')
                         }
                         
                         vocabulary_data[word_data['word']] = db_word_data
