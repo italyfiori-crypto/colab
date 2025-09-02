@@ -59,6 +59,9 @@ def main():
     parser.add_argument('input_file',help='输入文本文件路径')
     parser.add_argument('--verbose','-v',action='store_true',help='显示详细信息')
     
+    # 章节拆分
+    parser.add_argument('--split', action='store_true', help='启用章节拆分')
+
     # 音频生成参数
     parser.add_argument('--audio', action='store_true', help='启用音频生成')
     parser.add_argument('--voice', default='af_bella', help='语音模型 (默认: af_bella)')
@@ -110,31 +113,42 @@ def main():
             print(f"已加载配置文件: {config_path}")
         
         # 执行各个处理流程
-        chapter_files, chapter_time = execute_chapter_splitting(args.input_file, output_dir, config, args.verbose)
-        sub_chapter_files, sub_chapter_time = execute_sub_chapter_splitting(chapter_files, output_dir, config, args.verbose)
-        sentence_files, sentence_time = execute_sentence_splitting(sub_chapter_files, output_dir, config, args.verbose)
+        chapter_files, sub_chapter_files, sentence_files = [], [], []
+        chapter_time, sub_chapter_time, sentence_time = 0, 0, 0
+        if args.split:
+            chapter_files, chapter_time = execute_chapter_splitting(args.input_file, output_dir, config, args.verbose)
+            sub_chapter_files, sub_chapter_time = execute_sub_chapter_splitting(chapter_files, output_dir, config, args.verbose)
+            sentence_files, sentence_time = execute_sentence_splitting(sub_chapter_files, output_dir, config, args.verbose)
+        else:
+            chapter_files = get_chapter_files(output_dir)
+            sub_chapter_files = get_sub_chapter_files(output_dir)
+            sentence_files = get_sentence_files(output_dir)
         
-        # 可选流程
+        # 音频生成
         audio_files, subtitle_files, audio_time = [], [], 0
         if args.audio:
             audio_files, subtitle_files, audio_time = execute_audio_generation(sentence_files, output_dir, args.voice, args.speed, args.verbose)
         else:
             audio_files = get_audio_files(output_dir)
 
+        # 字幕翻译
         translated_files, translate_time = [], 0
         if args.translate:
             translated_files, translate_time = execute_subtitle_translation(subtitle_files, config, args.verbose)
 
+        # 词汇处理
         chapter_vocab_files, vocabulary_time = [], 0
         if args.vocabulary:
             book_name = os.path.splitext(os.path.basename(args.input_file))[0]
             chapter_vocab_files, vocabulary_time = execute_vocabulary_processing(sentence_files, output_dir, book_name, master_vocab_file, config, args.verbose)
         
+        # 音频压缩
         compression_time, vocab_compression_time = 0, 0
         if args.compress:
             compression_time = execute_audio_compression(audio_files, output_dir, config, args.verbose)
             vocab_compression_time = execute_vocabulary_audio_compression(output_dir, config, args.verbose)
         
+        # 统计信息收集
         statistics, statistics_time = None, 0
         if args.stats:
             statistics, statistics_time = execute_statistics_collection(sub_chapter_files, audio_files, output_dir, config, args.translate, args.verbose)

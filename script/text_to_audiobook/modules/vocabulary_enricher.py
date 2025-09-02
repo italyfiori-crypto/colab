@@ -17,6 +17,7 @@ import random
 import re
 from urllib.parse import urljoin
 from bs4 import BeautifulSoup
+from typing import Dict
 
 from .ecdict_helper import ECDictHelper
 
@@ -110,38 +111,19 @@ class CambridgeDictionaryAPI:
         """提取音标信息"""
         phonetics = {}
         
-        # 查找发音信息容器
-        pron_containers = soup.find_all('span', class_='pron')
+        # 查找英式发音 (uk dpron-i)
+        uk_pron = soup.find('span', class_='uk dpron-i')
+        if uk_pron:
+            ipa_element = uk_pron.find('span', class_='ipa dipa lpr-2 lpl-1')
+            if ipa_element:
+                phonetics['uk'] = ipa_element.get_text(strip=True)
         
-        for container in pron_containers:
-            # 在容器内查找音标
-            ipa_element = container.find('span', class_='ipa')
-            if not ipa_element:
-                continue
-                
-            phonetic_text = ipa_element.get_text(strip=True)
-            if not phonetic_text:
-                continue
-            
-            # 查找区域标识 - 在同一个容器中查找
-            region_element = container.find('span', class_='region')
-            if region_element:
-                region_text = region_element.get_text(strip=True).lower()
-                if 'uk' in region_text:
-                    phonetics['uk'] = phonetic_text
-                elif 'us' in region_text:
-                    phonetics['us'] = phonetic_text
-            else:
-                # 如果没有区域标识，检查父级容器的class
-                parent_classes = ' '.join(container.get('class', []))
-                if 'uk' in parent_classes:
-                    phonetics['uk'] = phonetic_text
-                elif 'us' in parent_classes:
-                    phonetics['us'] = phonetic_text
-                else:
-                    # 作为通用音标
-                    if 'general' not in phonetics:
-                        phonetics['general'] = phonetic_text
+        # 查找美式发音 (us dpron-i)  
+        us_pron = soup.find('span', class_='us dpron-i')
+        if us_pron:
+            ipa_element = us_pron.find('span', class_='ipa dipa lpr-2 lpl-1')
+            if ipa_element:
+                phonetics['us'] = ipa_element.get_text(strip=True)
         
         return phonetics
     
@@ -196,6 +178,19 @@ class CambridgeDictionaryAPI:
         
         return audio_urls
     
+    def save_cambridge_info(self, word: str, info: Dict, cambridge_info_dir: str):
+        """保存剑桥词典信息到本地"""
+        os.makedirs(cambridge_info_dir, exist_ok=True)
+        with open(os.path.join(cambridge_info_dir, f"{word}.json"), 'w', encoding='utf-8') as f:
+            json.dump(info, f, ensure_ascii=False, indent=4)
+
+    def load_cambridge_info(self, word: str, cambridge_info_dir: str) -> Optional[Dict]:
+        """加载剑桥词典信息到本地"""
+        if not os.path.exists(os.path.join(cambridge_info_dir, f"{word}.json")):
+            return None
+        with open(os.path.join(cambridge_info_dir, f"{word}.json"), 'r', encoding='utf-8') as f:
+            return json.load(f)
+
     def download_audio(self, url: str, word: str, variant: str, audio_dir: str) -> Optional[str]:
         """
         下载音频文件到本地
@@ -218,9 +213,11 @@ class CambridgeDictionaryAPI:
             
             # 如果文件已存在，直接返回
             if os.path.exists(local_path):
+                print(f"    🔊 {word}({variant}): 音频已存在")
                 return local_path
             
             # 下载音频文件
+            print(f"    🔊 {word}({variant}): 音频不存在，开始下载")
             response = self.session.get(url, timeout=self.config.timeout)
             if response.status_code == 200:
                 with open(local_path, 'wb') as f:
@@ -264,7 +261,7 @@ class VocabularyEnricher:
     
     def enrich_vocabulary_with_ecdict(self, new_words: List[str], master_vocab_path: str) -> bool:
         """
-        使用ECDICT为新词汇补充基础信息
+        使用ECDICT为新词汇补充基础信息, 如果词汇存在, 则读取ecdict覆盖原有信息
         
         Args:
             new_words: 需要处理的新单词列表
@@ -277,24 +274,28 @@ class VocabularyEnricher:
             print("📝 没有新词汇需要处理")
             return True
         
-        print(f"🔄 步骤2: 使用ECDICT为 {len(new_words)} 个新词汇补充基础信息...")
-        
         # 加载现有总词汇表
         master_vocab = load_master_vocabulary(master_vocab_path)
         
         # 使用ECDICT富化当前批次
-        enriched_count = 0
+        enriched_count, overwritten_count = 0, 0
         for word in new_words:
-            print(f"  🔄 处理 {word}")
-            word_info = self._get_word_ecdict_info(word)
-            if word_info:
-                master_vocab[word] = word_info
-                enriched_count += 1
+            # 检查单词是否已存在
+            is_existing = word in master_vocab
+            cur_word_data = master_vocab.get(word, {})
+
+            new_word_data = self._get_word_ecdict_info(word, cur_word_data)
+            if new_word_data:
+                master_vocab[word] = new_word_data
+                if is_existing:
+                    overwritten_count += 1
+                else:
+                    enriched_count += 1
         
         # 保存更新的总词汇表（第2步完成）
         self._save_master_vocabulary(master_vocab, master_vocab_path)
         
-        print(f"✅ ECDICT基础信息补充完成: 成功处理 {enriched_count}/{len(new_words)} 个新词汇")
+        print(f"✅ ECDICT基础信息补充完成: 成功处理 {enriched_count}/{len(new_words)} 个新词汇, 覆盖 {overwritten_count}/{len(new_words)} 个词汇")
         return True
     
     def enrich_vocabulary_with_cambridge(self, master_vocab_path: str) -> bool:
@@ -317,7 +318,10 @@ class VocabularyEnricher:
         
         # 创建音频目录
         vocab_dir = os.path.dirname(master_vocab_path)
-        audio_dir = os.path.join(vocab_dir, self.config.audio_download_dir)
+        audio_dir = os.path.join(vocab_dir, "audio")
+        cambridge_info_dir = os.path.join(vocab_dir, "cambridge_info")
+        print(f"    🔧 音频目录: {audio_dir}")
+        print(f"    🔧 剑桥词典信息目录: {cambridge_info_dir}")
         
         # 找出需要补充信息的词汇
         words_need_cambridge = []
@@ -338,7 +342,14 @@ class VocabularyEnricher:
             print(f"  🔄 处理 {word} ({i}/{len(words_need_cambridge)})")
             
             # 获取剑桥词典信息
-            cambridge_info = self.cambridge_api.get_word_info(word)
+            cambridge_info = self.cambridge_api.load_cambridge_info(word, cambridge_info_dir)
+            if not cambridge_info:
+                cambridge_info = self.cambridge_api.get_word_info(word)
+                self.cambridge_api.save_cambridge_info(word, cambridge_info, cambridge_info_dir)
+                print(f"    ✅ {word}: 剑桥词典信息不存在，重新获取")
+            else:
+                print(f"    ✅ {word}: 剑桥词典信息已存在")
+
             if cambridge_info:
                 # 更新音标信息
                 phonetics = cambridge_info.get('phonetics', {})
@@ -346,25 +357,14 @@ class VocabularyEnricher:
                     master_vocab[word]["phonetic_uk"] = phonetics['uk']
                 if phonetics.get('us'):
                     master_vocab[word]["phonetic_us"] = phonetics['us']
-                if phonetics.get('general') and not master_vocab[word].get("phonetic"):
-                    master_vocab[word]["phonetic"] = phonetics['general']
-                
-                # 下载音频并更新URL
+
+                # 下载音频
                 audio_urls = cambridge_info.get('audio_urls', {})
                 if audio_urls.get('uk'):
-                    local_path = self.cambridge_api.download_audio(
-                        audio_urls['uk'], word, 'uk', audio_dir
-                    )
-                    if local_path:
-                        master_vocab[word]["audio_url_uk"] = f"vocabulary/audio/{word}_uk.mp3"
-                
+                    self.cambridge_api.download_audio(audio_urls['uk'], word, 'uk', audio_dir)
                 if audio_urls.get('us'):
-                    local_path = self.cambridge_api.download_audio(
-                        audio_urls['us'], word, 'us', audio_dir
-                    )
-                    if local_path:
-                        master_vocab[word]["audio_url_us"] = f"vocabulary/audio/{word}_us.mp3"
-                
+                    self.cambridge_api.download_audio(audio_urls['us'], word, 'us', audio_dir)
+
                 enriched_count += 1
                 
             # 添加延迟避免请求过快
@@ -377,7 +377,7 @@ class VocabularyEnricher:
         return True
     
     
-    def _get_word_ecdict_info(self, word: str) -> Optional[Dict]:
+    def _get_word_ecdict_info(self, word: str, cur_word_data: Dict) -> Optional[Dict]:
         """
         从ECDICT获取单词基础信息并直接转换为数据库格式
         
@@ -388,7 +388,7 @@ class VocabularyEnricher:
             数据库格式的单词信息字典，如果未找到返回None
         """
         from datetime import datetime
-        
+                    
         try:            
             if not self.ecdict:
                 print(f"    ❌ {word}: ECDICT未初始化")
@@ -408,23 +408,27 @@ class VocabularyEnricher:
                 exchange_str = ecdict_info.get("exchange", "")
                 exchange = self._parse_exchange(exchange_str)
                 
-                # 直接构造数据库格式
+                # 确保cur_word_data是字典
+                if not cur_word_data:
+                    cur_word_data = {}
+
+                # 直接构造数据库格式，保留已有的剑桥词典信息
                 word_data = {
                     "_id": word,
                     "word": word,
-                    "phonetic": ecdict_info.get("phonetic", ""),
-                    "phonetic_uk": "",  # 英式音标，从剑桥词典获取
-                    "phonetic_us": "",  # 美式音标，从剑桥词典获取
+                    "phonetic_uk": cur_word_data.get("phonetic_uk", ""),  # 英式音标，从剑桥词典获取
+                    "phonetic_us": cur_word_data.get("phonetic_us", ""),  # 美式音标，从剑桥词典获取
                     "translation": translation,
                     "tags": tags,
                     "exchange": exchange,
+                    "collins": ecdict_info.get("collins", 0),
+                    "oxford": ecdict_info.get("oxford", 0),
                     "bnc": ecdict_info.get("bnc", 0),
                     "frq": ecdict_info.get("frq", 0),
-                    "audio_url": "",  # 保留原字段兼容性
-                    "audio_url_uk": "",  # 英式音频URL
-                    "audio_url_us": "",  # 美式音频URL
-                    "uploaded": False,  # 上传状态标识
-                    "created_at": datetime.now().isoformat(),
+                    "audio_url_uk": cur_word_data.get("audio_url_uk", ""),  # 英式音频URL
+                    "audio_url_us": cur_word_data.get("audio_url_us", ""),  # 美式音频URL
+                    "uploaded": cur_word_data.get("uploaded", False),  # 上传状态标识
+                    "created_at": cur_word_data.get("created_at", datetime.now().isoformat()),
                     "updated_at": datetime.now().isoformat()
                 }
                 return word_data
@@ -475,7 +479,7 @@ class VocabularyEnricher:
             return []
             
         translations = []
-        parts = translation_str.split('\\n')
+        parts = translation_str.split('\n')
         
         for part in parts:
             part = part.strip()

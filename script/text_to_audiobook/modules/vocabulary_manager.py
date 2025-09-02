@@ -11,7 +11,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from .word_extractor import WordExtractor, WordExtractionConfig
-from .vocabulary_enricher import VocabularyEnricher, VocabularyEnricherConfig, load_master_vocabulary
+from .vocabulary_enricher import VocabularyEnricher, VocabularyEnricherConfig
 
 @dataclass
 class VocabularyManagerConfig:
@@ -72,20 +72,14 @@ class VocabularyManager:
         subchapter_vocab_files, all_words = self.extractor.extract_subchapter_words(
             sentence_files, output_dir, master_vocab_path
         )
-        
-        # 加载现有总词汇表，判断哪些是新词
-        existing_vocab = load_master_vocabulary(master_vocab_path)
-        new_words = [word for word in all_words if word not in existing_vocab]
-        
-        if not new_words:
-            print("✅ 所有词汇都已存在于总词汇表中，跳过富化步骤")
+                
+        if not all_words:
+            print("✅ 没有新词汇需要处理")
             return subchapter_vocab_files
         
         # 第二步：使用ECDICT补充基础信息
-        print(f"\n🔄 第2步: 使用ECDICT为 {len(new_words)} 个新词汇补充基础信息...")
-        success = self.enricher.enrich_vocabulary_with_ecdict(
-            new_words, master_vocab_path
-        )
+        print(f"\n🔄 第2步: 使用ECDICT为 {len(all_words)} 个新词汇补充基础信息...")
+        success = self.enricher.enrich_vocabulary_with_ecdict(all_words, master_vocab_path)
         
         if not success:
             print(f"⚠️ ECDICT基础信息补充失败")
