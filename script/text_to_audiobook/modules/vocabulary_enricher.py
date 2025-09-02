@@ -89,7 +89,7 @@ class CambridgeDictionaryAPI:
             
             # 提取音标和音频信息
             phonetics = self._extract_phonetics(soup)
-            audio_urls = self._extract_audio_urls(soup)
+            audio_urls = self._extract_audio_urls(soup, word)
             
             if phonetics or audio_urls:
                 return {
@@ -108,42 +108,54 @@ class CambridgeDictionaryAPI:
         """提取音标信息"""
         phonetics = {}
         
-        # 查找音标元素
-        phonetic_elements = soup.find_all('span', class_='ipa')
+        # 查找发音信息容器
+        pron_containers = soup.find_all('span', class_='pron')
         
-        for element in phonetic_elements:
-            # 获取音标文本
-            phonetic_text = element.get_text(strip=True)
+        for container in pron_containers:
+            # 在容器内查找音标
+            ipa_element = container.find('span', class_='ipa')
+            if not ipa_element:
+                continue
+                
+            phonetic_text = ipa_element.get_text(strip=True)
             if not phonetic_text:
                 continue
             
-            # 判断是美式还是英式
-            # 查找父级元素中的标识
-            parent = element.find_parent()
-            if parent:
-                region_info = parent.find('span', class_='region')
-                if region_info:
-                    region = region_info.get_text(strip=True).lower()
-                    if 'uk' in region or 'british' in region:
-                        phonetics['uk'] = phonetic_text
-                    elif 'us' in region or 'american' in region:
-                        phonetics['us'] = phonetic_text
-                    else:
-                        # 默认作为通用音标
-                        if 'general' not in phonetics:
-                            phonetics['general'] = phonetic_text
+            # 查找区域标识 - 在同一个容器中查找
+            region_element = container.find('span', class_='region')
+            if region_element:
+                region_text = region_element.get_text(strip=True).lower()
+                if 'uk' in region_text:
+                    phonetics['uk'] = phonetic_text
+                elif 'us' in region_text:
+                    phonetics['us'] = phonetic_text
+            else:
+                # 如果没有区域标识，检查父级容器的class
+                parent_classes = ' '.join(container.get('class', []))
+                if 'uk' in parent_classes:
+                    phonetics['uk'] = phonetic_text
+                elif 'us' in parent_classes:
+                    phonetics['us'] = phonetic_text
+                else:
+                    # 作为通用音标
+                    if 'general' not in phonetics:
+                        phonetics['general'] = phonetic_text
         
         return phonetics
     
-    def _extract_audio_urls(self, soup: BeautifulSoup) -> Dict[str, str]:
+    def _extract_audio_urls(self, soup: BeautifulSoup, word: str) -> Dict[str, str]:
         """提取音频URL"""
         audio_urls = {}
         
-        # 查找音频播放按钮
-        audio_buttons = soup.find_all('source', {'type': 'audio/mpeg'})
+        # 查找所有source元素（mp3格式）
+        source_elements = soup.find_all('source', {'type': 'audio/mpeg'})
         
-        for button in audio_buttons:
-            src = button.get('src')
+        # 用于存储候选音频URL
+        uk_candidates = []
+        us_candidates = []
+        
+        for source in source_elements:
+            src = source.get('src')
             if not src:
                 continue
             
@@ -153,11 +165,32 @@ class CambridgeDictionaryAPI:
             else:
                 full_url = src
             
-            # 判断是美式还是英式音频
-            if '/uk_pron/' in src or 'uk_' in src:
-                audio_urls['uk'] = full_url
-            elif '/us_pron/' in src or 'us_' in src:
-                audio_urls['us'] = full_url
+            # 通过URL路径判断是美式还是英式音频
+            if '/uk_pron/' in src:
+                uk_candidates.append(full_url)
+            elif '/us_pron/' in src:
+                us_candidates.append(full_url)
+        
+        # 选择最合适的音频文件
+        # 优先选择文件名与单词匹配的音频
+        def select_best_audio(candidates: List[str], word: str) -> Optional[str]:
+            if not candidates:
+                return None
+            
+            # 优先选择文件名包含单词的音频
+            for url in candidates:
+                filename = os.path.basename(url).lower()
+                if word.lower() in filename:
+                    return url
+            
+            # 如果没有匹配的，选择第一个（通常是主要发音）
+            return candidates[0]
+        
+        if uk_candidates:
+            audio_urls['uk'] = select_best_audio(uk_candidates, word)
+        
+        if us_candidates:
+            audio_urls['us'] = select_best_audio(us_candidates, word)
         
         return audio_urls
     

@@ -9,7 +9,7 @@ import json
 import time
 import logging
 from datetime import datetime
-from typing import Dict, List
+from typing import Dict, List, Tuple
 from pathlib import Path
 from wechat_api import WeChatCloudAPI
 from data_parser import DataParser
@@ -24,11 +24,11 @@ class VocabularyUploader:
         self.logger = logging.getLogger(__name__)
         
         # 获取项目根目录
-        self.program_root = os.path.dirname(os.path.dirname(__file__))
+        self.program_root = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
         
         # 音频上传配置
         self.audio_cloud_path_prefix = "vocabulary/audio/"
-        self.audio_format = "wav"  # 使用AudioGenerator生成的wav格式
+        self.audio_format = "mp3"  # 使用剑桥词典下载的mp3格式
         
     def upload_vocabularies(self, book_dir: Path, book_id: str) -> bool:
         """上传当前书籍的词汇数据和音频文件"""
@@ -72,25 +72,35 @@ class VocabularyUploader:
             success_count = 0
             for idx, word in enumerate(words_to_process):
                 try:
-                    # 获取词汇数据（已经是数据库格式）
-                    db_word_data = book_vocabulary_data[word]
+                    # 步骤1：先上传音频文件到云存储
+                    audio_success, audio_urls = self._upload_word_audio(word)
                     
-                    # 步骤1：上传词汇数据到数据库
+                    if not audio_success:
+                        self.logger.error(f"音频上传失败: {word}")
+                        continue
+                    
+                    # 步骤2：获取词汇数据并添加音频URL
+                    db_word_data = book_vocabulary_data[word].copy()
+                    
+                    # 更新音频URL字段
+                    if audio_urls.get('uk'):
+                        db_word_data["audio_url_uk"] = audio_urls['uk']
+                    if audio_urls.get('us'):
+                        db_word_data["audio_url_us"] = audio_urls['us']
+                    
+                    # 保持原字段兼容性（使用英式或美式音频）
+                    db_word_data["audio_url"] = audio_urls.get('uk') or audio_urls.get('us') or ""
+                    
+                    # 步骤3：上传包含音频URL的词汇数据到数据库
                     db_success = self._insert_word_with_retry(db_word_data)
                     
                     if not db_success:
                         self.logger.error(f"词汇数据库写入失败: {word}")
                         continue
                     
-                    # 步骤2：上传音频文件到云存储
-                    audio_success, cloud_file_id = self._upload_word_audio(word)
-                    
-                    if not audio_success:
-                        self.logger.error(f"音频上传失败: {word}")
-                        continue
-                    
-                    # 步骤3：只有两步都成功，才在词典中标记完成
-                    raw_master_vocab[word]["audio_url"] = cloud_file_id
+                    # 步骤4：标记为已完成
+                    raw_master_vocab[word]["audio_url_uk"] = db_word_data["audio_url_uk"]
+                    raw_master_vocab[word]["audio_url_us"] = db_word_data["audio_url_us"]
                     raw_master_vocab[word]["uploaded"] = True
                     
                     success_count += 1
@@ -214,37 +224,57 @@ class VocabularyUploader:
                     
         return False
 
-    def _upload_word_audio(self, word: str) -> Tuple[bool, str]:
+    def _upload_word_audio(self, word: str) -> Tuple[bool, Dict[str, str]]:
         """
-        上传单个词汇的音频文件
+        上传单个词汇的音频文件（英式和美式）
         
         Args:
             word: 单词
             
         Returns:
-            (是否上传成功, 云文件ID)
+            (是否上传成功, 音频URL字典)
         """
         try:
             # 获取本地音频文件路径
             audio_dir = os.path.join(self.program_root, "output", "vocabulary", "compressed_audio")
-            audio_file_path = os.path.join(audio_dir, f"{word}.{self.audio_format}")
             
-            if not os.path.exists(audio_file_path):
-                self.logger.error(f"本地音频文件不存在: {word}.{self.audio_format}")
-                return False, ""
+            audio_urls = {}
+            upload_success = False
             
-            # 上传到云存储
-            cloud_path = f"{self.audio_cloud_path_prefix}{word}.{self.audio_format}"
-            file_id = self.api.upload_file(audio_file_path, cloud_path)
-            
-            if file_id:
-                return True, file_id
+            # 尝试上传英式音频
+            uk_audio_path = os.path.join(audio_dir, f"{word}_uk.{self.audio_format}")
+            if os.path.exists(uk_audio_path):
+                cloud_path = f"{self.audio_cloud_path_prefix}{word}_uk.{self.audio_format}"
+                file_id = self.api.upload_file(uk_audio_path, cloud_path)
+                if file_id:
+                    audio_urls['uk'] = file_id
+                    upload_success = True
+                    self.logger.info(f"英式音频上传成功: {word}")
             else:
-                return False, ""
+                self.logger.warning(f"英式音频文件不存在: {word}_uk.{self.audio_format}")
+            
+            # 尝试上传美式音频
+            us_audio_path = os.path.join(audio_dir, f"{word}_us.{self.audio_format}")
+            if os.path.exists(us_audio_path):
+                cloud_path = f"{self.audio_cloud_path_prefix}{word}_us.{self.audio_format}"
+                file_id = self.api.upload_file(us_audio_path, cloud_path)
+                if file_id:
+                    audio_urls['us'] = file_id
+                    upload_success = True
+                    self.logger.info(f"美式音频上传成功: {word}")
+            else:
+                self.logger.warning(f"美式音频文件不存在: {word}_us.{self.audio_format}")
+            
+            # 至少有一个音频上传成功才算成功
+            if not upload_success:
+                self.logger.error(f"没有音频文件可上传: {word}")
+                return False, {}
+            
+            return True, audio_urls
                 
         except Exception as e:
             self.logger.error(f"音频上传异常 {word}: {e}")
-            return False, ""
+            return False, {}
 
     def _load_master_vocabulary(self, master_vocab_path: str) -> Dict[str, Dict]:
         """加载总词汇表（数据库格式）"""

@@ -20,7 +20,8 @@
       "Bash(touch:*)",
       "Bash(mv:*)",
       "WebFetch(domain:huggingface.co)",
-      "WebFetch(domain:dictionary.cambridge.org)"
+      "WebFetch(domain:dictionary.cambridge.org)",
+      "WebFetch(domain:stackoverflow.com)"
     ],
     "deny": []
   }

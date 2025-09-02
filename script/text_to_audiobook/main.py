@@ -162,14 +162,13 @@ def main():
     
     # 核心参数
     parser.add_argument('input_file',help='输入文本文件路径')
-    parser.add_argument('--output-dir', default='./output', help='输出目录路径 (默认: ./output)')
-    parser.add_argument('--config', help='配置文件路径 (默认: text_to_audiobook/config.json)')
+
     parser.add_argument('--verbose','-v',action='store_true',help='显示详细信息')
     
     # 音频生成参数
     parser.add_argument('--audio', action='store_true', help='启用音频生成')
     parser.add_argument('--voice', default='af_bella', help='语音模型 (默认: af_bella)')
-    parser.add_argument('--speed', type=float, default=1.0, help='语音速度 (默认: 1.0)')
+    parser.add_argument('--speed', type=float, default=0.8, help='语音速度 (默认: 1.0)')
     
     # 字幕翻译参数
     parser.add_argument('--translate', action='store_true', help='启用字幕翻译')
@@ -182,19 +181,21 @@ def main():
     parser.add_argument('--master-vocab', default='output/vocabulary/master_vocabulary.json', help='总词汇表文件路径 (默认: script/text_to_audiobook/vocabulary/master_vocabulary.json)')
     
     # 统计参数
-    parser.add_argument('--stats', help='启用统计信息收集')
-
+    parser.add_argument('--stats', action='store_true', help='启用统计信息收集')
     args = parser.parse_args()
 
+    # 默认目录
     program_root = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
-    
+    output_dir = os.path.join(program_root, "output", os.path.basename(args.input_file))
+    master_vocab_path = os.path.join(program_root, args.master_vocab)
+    config_path = os.path.join(os.path.dirname(__file__), 'config.json')
+
     # 验证输入文件
     if not os.path.exists(args.input_file):
         print(f"错误: 输入文件不存在: {args.input_file}")
         return 1
     
     # 创建输出目录
-    output_dir = args.output_dir
     try:
         os.makedirs(output_dir, exist_ok=True)
     except Exception as e:
@@ -206,8 +207,6 @@ def main():
     
     try:
         # 加载配置
-        config_path = os.path.join(os.path.dirname(__file__), 'config.json') if not args.config else args.config
-        config_path = Path(config_path)
         if not os.path.exists(config_path):
             print(f"错误: 配置文件不存在: {config_path}")
             return 1
@@ -382,7 +381,7 @@ def main():
                     sentence_files=sentence_files,
                     output_dir=output_dir,
                     book_name=book_name,
-                    master_vocab_path=os.path.join(program_root, args.master_vocab)
+                    master_vocab_path=master_vocab_path
                 )
                 
                 vocabulary_time = time.time() - start_time
@@ -390,7 +389,7 @@ def main():
                 
                 # 显示词汇统计
                 if args.verbose:
-                    stats = vocab_manager.get_vocabulary_stats(args.master_vocab or vocab_config.default_master_vocab_path)
+                    stats = vocab_manager.get_vocabulary_stats(master_vocab_path)
                     if stats:
                         print(f"📊 总词汇表统计:")
                         print(f"  总词汇数: {stats.get('total_words', 0)}")
