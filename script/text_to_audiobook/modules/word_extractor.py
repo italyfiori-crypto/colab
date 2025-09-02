@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import List, Dict, Set, Optional, Tuple
 from dataclasses import dataclass
 from collections import defaultdict
+from .vocabulary_enricher import load_master_vocabulary
 
 # 需要安装: pip install spacy
 # 下载模型: python -m spacy download en_core_web_sm
@@ -82,7 +83,7 @@ class WordExtractor:
             (处理的子章节词汇文件列表, 所有新词列表)
         """
         # 加载已有的总词汇表
-        existing_vocab = self._load_master_vocabulary(master_vocab_path)
+        existing_vocab = load_master_vocabulary(master_vocab_path)
         print(f"📝 加载现有词汇表: {len(existing_vocab)} 个单词")
         
         # 创建输出目录
@@ -267,11 +268,6 @@ class WordExtractor:
         
         # 其他情况保持原形（包括动词时态VBD/VBG/VBN和形容词比较级JJR/JJS）
         return word
-    
-    def _load_master_vocabulary(self, master_vocab_path: str) -> Dict[str, Dict]:
-        """加载总词汇表"""
-        from .vocabulary_enricher import load_master_vocabulary
-        return load_master_vocabulary(master_vocab_path)
     
     def _save_json(self, data: dict, file_path: str):
         """保存JSON数据到文件"""

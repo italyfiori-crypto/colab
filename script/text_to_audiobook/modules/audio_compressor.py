@@ -211,7 +211,7 @@ class AudioCompressor:
         
         return results
 
-    def compress_vocabulary_audio(self, vocab_dir: str, output_subdir: str = "compressed_audio") -> Dict:
+    def compress_vocabulary_audio(self, audio_dir, compress_audio_dir) -> Dict:
         """
         压缩词汇音频文件
         
@@ -222,7 +222,6 @@ class AudioCompressor:
         Returns:
             Dict: 压缩结果统计
         """
-        audio_dir = os.path.join(vocab_dir, 'audio')
         if not os.path.exists(audio_dir):
             self.logger.error(f"词汇音频目录不存在: {audio_dir}")
             return {}
@@ -234,8 +233,7 @@ class AudioCompressor:
         self.logger.debug(f"开始压缩词汇音频为 {format_name.upper()} 格式...")
             
         # 创建输出目录
-        format_output_dir = os.path.join(vocab_dir, output_subdir)
-        os.makedirs(format_output_dir, exist_ok=True)
+        os.makedirs(compress_audio_dir, exist_ok=True)
             
         format_stats = {
             'format': format_name,
@@ -260,8 +258,10 @@ class AudioCompressor:
             # 生成输出文件名（保持原文件名，改变扩展名）
             base_name = os.path.splitext(audio_file)[0]
             output_file = base_name + extension
-            output_path = os.path.join(format_output_dir, output_file)
-                
+            output_path = os.path.join(compress_audio_dir, output_file)
+            if os.path.exists(output_path):
+                continue
+
             format_stats['files_processed'] += 1
                 
             # 记录原始大小

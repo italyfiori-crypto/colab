@@ -11,8 +11,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from .word_extractor import WordExtractor, WordExtractionConfig
-from .vocabulary_enricher import VocabularyEnricher, VocabularyEnricherConfig
-
+from .vocabulary_enricher import VocabularyEnricher, VocabularyEnricherConfig, load_master_vocabulary
 
 @dataclass
 class VocabularyManagerConfig:
@@ -75,7 +74,7 @@ class VocabularyManager:
         )
         
         # 加载现有总词汇表，判断哪些是新词
-        existing_vocab = self.extractor._load_master_vocabulary(master_vocab_path)
+        existing_vocab = load_master_vocabulary(master_vocab_path)
         new_words = [word for word in all_words if word not in existing_vocab]
         
         if not new_words:

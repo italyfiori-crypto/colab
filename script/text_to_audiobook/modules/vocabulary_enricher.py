@@ -24,6 +24,7 @@ from .ecdict_helper import ECDictHelper
 def load_master_vocabulary(master_vocab_path: str) -> Dict[str, Dict]:
     """加载总词汇表 - 公共方法"""
     if not os.path.exists(master_vocab_path):
+        print(f"⚠️ 总词汇表不存在: {master_vocab_path}")
         return {}
     
     try:
@@ -33,6 +34,7 @@ def load_master_vocabulary(master_vocab_path: str) -> Dict[str, Dict]:
                 if line.strip():
                     word_data = json.loads(line.strip())
                     vocabulary[word_data['word']] = word_data
+            print(f"✅ 总词汇表加载成功, 单词总数:", len(vocabulary))
         return vocabulary
     except Exception as e:
         print(f"⚠️ 加载总词汇表失败: {e}")
@@ -278,7 +280,7 @@ class VocabularyEnricher:
         print(f"🔄 步骤2: 使用ECDICT为 {len(new_words)} 个新词汇补充基础信息...")
         
         # 加载现有总词汇表
-        master_vocab = self._load_master_vocabulary(master_vocab_path)
+        master_vocab = load_master_vocabulary(master_vocab_path)
         
         # 使用ECDICT富化当前批次
         enriched_count = 0
@@ -305,10 +307,10 @@ class VocabularyEnricher:
         Returns:
             是否处理成功
         """
-        print(f"🔄 步骤3: 使用剑桥词典补充音标和音频信息...")
+        print(f"🔄 步骤3: 使用剑桥词典补充音标和音频信息...", master_vocab_path)
         
         # 加载总词汇表
-        master_vocab = self._load_master_vocabulary(master_vocab_path)
+        master_vocab = load_master_vocabulary(master_vocab_path)
         if not master_vocab:
             print("⚠️ 没有词汇需要补充音标和音频")
             return True
@@ -433,11 +435,6 @@ class VocabularyEnricher:
         except Exception as e:
             print(f"    ❌ {word}: ECDICT查询失败 - {e}")
             return None
-    
-    
-    def _load_master_vocabulary(self, master_vocab_path: str) -> Dict[str, Dict]:
-        """加载总词汇表"""
-        return load_master_vocabulary(master_vocab_path)
     
     def _save_master_vocabulary(self, vocabulary: Dict[str, Dict], master_vocab_path: str):
         """保存总词汇表（数据库格式，无需转换）"""
