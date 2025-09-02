@@ -84,7 +84,9 @@ def main():
     program_root = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
     file_name = os.path.basename(args.input_file)
     output_dir = os.path.join(program_root, "output", os.path.splitext(file_name)[0])
-    master_vocab_file = os.path.join(program_root, 'output/vocabulary', 'master_vocabulary.json')
+    vocab_audio_dir = os.path.join(program_root, "output", "vocabulary", "audio")
+    vocab_compress_audio_dir = os.path.join(program_root, "output", "vocabulary", "compressed_audio")
+    master_vocab_file = os.path.join(program_root, "output", "vocabulary", "master_vocabulary.json")
     config_path = os.path.join(os.path.dirname(__file__), 'config.json')
 
     # 验证输入文件
@@ -146,12 +148,12 @@ def main():
         compression_time, vocab_compression_time = 0, 0
         if args.compress:
             compression_time = execute_audio_compression(audio_files, output_dir, config, args.verbose)
-            vocab_compression_time = execute_vocabulary_audio_compression(output_dir, config, args.verbose)
+            # vocab_compression_time = execute_vocabulary_audio_compression(vocab_audio_dir, vocab_compress_audio_dir, config, args.verbose)
         
         # 统计信息收集
-        statistics, statistics_time = None, 0
+        statistics_time = 0
         if args.stats:
-            statistics, statistics_time = execute_statistics_collection(sub_chapter_files, audio_files, output_dir, config, args.translate, args.verbose)
+            _, statistics_time = execute_statistics_collection(sub_chapter_files, audio_files, output_dir, config, args.translate, args.verbose)
         
         # 计算总耗时
         total_time = chapter_time + sub_chapter_time + sentence_time + audio_time + translate_time + vocabulary_time + compression_time + vocab_compression_time + statistics_time

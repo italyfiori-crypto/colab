@@ -249,7 +249,12 @@ class AudioCompressor:
         extension = self.default_formats[format_name]['extension']
             
         # 遍历词汇音频文件
-        for audio_file in os.listdir(audio_dir):
+        audio_files = sorted(os.listdir(audio_dir))
+        for idx, audio_file in enumerate(audio_files):
+            # 打印进度
+            if idx % 10 == 0 or idx == len(audio_files) - 1:
+                print(f"  📝 压缩进度: {idx+1}/{len(audio_files)}")
+            
             if not audio_file.lower().endswith(('.wav', '.mp3', '.m4a', '.flac')):
                 continue
             
@@ -277,6 +282,7 @@ class AudioCompressor:
                 format_stats['total_compressed_size'] += compressed_size
             else:
                 format_stats['files_failed'] += 1
+                print(f"  ❌ {audio_file} 压缩失败")
             
             # 计算压缩比
             if format_stats['total_original_size'] > 0:
