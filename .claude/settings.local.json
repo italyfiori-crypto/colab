@@ -18,7 +18,9 @@
       "mcp__ide__getDiagnostics",
       "Bash(sed:*)",
       "Bash(touch:*)",
-      "Bash(mv:*)"
+      "Bash(mv:*)",
+      "WebFetch(domain:huggingface.co)",
+      "WebFetch(domain:dictionary.cambridge.org)"
     ],
     "deny": []
   }

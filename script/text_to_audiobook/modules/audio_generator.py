@@ -12,10 +12,11 @@ from pathlib import Path
 from typing import List, Dict, Optional, Tuple
 from dataclasses import dataclass
 
-# Kokoro 相关导入
+# Kokoro 相关导入 (用于句子音频)
 import torch
 import soundfile as sf
 from kokoro import KPipeline
+
 
 
 @dataclass
@@ -49,12 +50,13 @@ class AudioGenerator:
         self.config = config
         self.words_per_minute = 150  # 估算语速
         
-        # 初始化Kokoro管道
+        # 初始化Kokoro管道 (用于句子音频)
         try:
             self.tts_pipeline = KPipeline(lang_code='a')  # 'a' for American English
             print("Kokoro TTS管道加载成功")
         except Exception as e:
             raise RuntimeError(f"Kokoro TTS管道初始化失败: {e}")
+        
     
     def generate_audio_files(self, sentence_files: List[str], output_dir: str) -> Tuple[List[str], List[str]]:
         """
@@ -345,54 +347,3 @@ class AudioGenerator:
         
         return f"{hours:02d}:{minutes:02d}:{secs:02d},{milliseconds:03d}"
     
-    def generate_word_audio(self, word: str, output_dir: str, voice: str = None, speed: float = None) -> Optional[str]:
-        """
-        生成单个单词的音频文件
-        
-        Args:
-            word: 要生成音频的单词
-            output_dir: 输出目录
-            voice: 声音模型（可选，使用配置默认值）
-            speed: 语速（可选，使用配置默认值）
-            
-        Returns:
-            生成的音频文件路径，失败返回None
-        """
-        try:
-            # 创建输出目录
-            os.makedirs(output_dir, exist_ok=True)
-            
-            # 生成输出文件路径
-            output_path = os.path.join(output_dir, f"{word}.{self.config.audio_format}")
-            
-            # 如果文件已存在，直接返回
-            if os.path.exists(output_path):
-                return output_path
-            
-            # 使用指定的声音和语速，或使用配置默认值
-            voice_to_use = voice or self.config.voice
-            speed_to_use = speed or self.config.speed
-            
-            # 使用Kokoro管道生成音频
-            generator = self.tts_pipeline(word, voice=voice_to_use, speed=speed_to_use)
-            audio_chunks = []
-            
-            for (_, _, audio_chunk) in generator:
-                if isinstance(audio_chunk, torch.Tensor):
-                    audio_chunk = audio_chunk.cpu().numpy()
-                audio_chunks.append(audio_chunk)
-            
-            if not audio_chunks:
-                print(f"❌ 单词音频生成失败: {word}")
-                return None
-            
-            # 合并音频块并保存
-            audio = np.concatenate(audio_chunks)
-            sf.write(output_path, audio, self.config.sample_rate)
-            
-            print(f"🔊 单词音频生成成功: {word}")
-            return output_path
-                
-        except Exception as e:
-            print(f"❌ 单词音频生成异常 {word}: {e}")
-            return None

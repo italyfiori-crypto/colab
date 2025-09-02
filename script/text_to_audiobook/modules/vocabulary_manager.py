@@ -94,7 +94,7 @@ class VocabularyManager:
         
         # 第三步：使用API补充音频信息
         print(f"\n🔄 第3步: 为词汇补充音频信息...")
-        audio_success = self.enricher.enrich_vocabulary_with_audio(master_vocab_path)
+        audio_success = self.enricher.enrich_vocabulary_with_cambridge(master_vocab_path)
         
         if audio_success:
             print(f"✅ 词汇处理完成!")
@@ -104,28 +104,6 @@ class VocabularyManager:
             print(f"⚠️ 音频信息补充过程中出现错误，但基础信息已保存")
         
         return subchapter_vocab_files
-    
-    def _build_chapters_info(self, chapter_vocab_files: List[str]) -> Dict[str, List[str]]:
-        """从章节词汇文件构建章节信息映射（保留以兼容旧接口）"""
-        chapters_info = {}
-        
-        for chapter_file in chapter_vocab_files:
-            try:
-                with open(chapter_file, 'r', encoding='utf-8') as f:
-                    chapter_data = json.load(f)
-                
-                # 兼容新旧格式
-                chapter_id = chapter_data.get("chapter_id") or chapter_data.get("subchapter_id", "")
-                words = chapter_data.get("words", [])
-                
-                if chapter_id and words:
-                    chapters_info[chapter_id] = words
-                    
-            except Exception as e:
-                print(f"⚠️ 读取词汇文件失败: {chapter_file}, {e}")
-                continue
-        
-        return chapters_info
     
     def get_vocabulary_stats(self, master_vocab_path: str) -> Dict:
         """获取词汇统计信息"""

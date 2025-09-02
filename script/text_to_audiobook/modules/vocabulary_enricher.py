@@ -14,9 +14,11 @@ from dataclasses import dataclass
 from pathlib import Path
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import random
+import re
+from urllib.parse import urljoin
+from bs4 import BeautifulSoup
 
 from .ecdict_helper import ECDictHelper
-from .audio_generator import AudioGenerator, AudioGeneratorConfig
 
 
 def load_master_vocabulary(master_vocab_path: str) -> Dict[str, Dict]:
@@ -41,14 +43,162 @@ def load_master_vocabulary(master_vocab_path: str) -> Dict[str, Dict]:
 class VocabularyEnricherConfig:
     """词汇富化配置"""
     
-    # Free Dictionary API配置（用于获取音频）
-    dictionary_api_base: str = "https://api.dictionaryapi.dev/api/v2/entries/en"
+    # Cambridge Dictionary配置
+    cambridge_base_url: str = "https://dictionary.cambridge.org/dictionary/english"
+    cambridge_audio_base: str = "https://dictionary.cambridge.org"
     
     # 请求配置
     timeout: int = 30
     max_retries: int = 3
     batch_size: int = 10
     max_workers: int = 2  # 并发线程数
+    
+    # 音频下载配置
+    audio_download_dir: str = "audio"
+
+
+class CambridgeDictionaryAPI:
+    """剑桥词典API - 获取音标和音频"""
+    
+    def __init__(self, config: VocabularyEnricherConfig):
+        self.config = config
+        self.session = requests.Session()
+        self.session.headers.update({
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+        })
+    
+    def get_word_info(self, word: str) -> Optional[Dict]:
+        """
+        从剑桥词典获取单词信息
+        
+        Args:
+            word: 要查询的单词
+            
+        Returns:
+            包含音标和音频URL的字典，失败返回None
+        """
+        try:
+            url = f"{self.config.cambridge_base_url}/{word}"
+            response = self.session.get(url, timeout=self.config.timeout)
+            
+            if response.status_code != 200:
+                print(f"    ❌ {word}: 剑桥词典请求失败 ({response.status_code})")
+                return None
+            
+            soup = BeautifulSoup(response.content, 'html.parser')
+            
+            # 提取音标和音频信息
+            phonetics = self._extract_phonetics(soup)
+            audio_urls = self._extract_audio_urls(soup)
+            
+            if phonetics or audio_urls:
+                return {
+                    'phonetics': phonetics,
+                    'audio_urls': audio_urls
+                }
+            else:
+                print(f"    ❌ {word}: 未找到音标或音频信息")
+                return None
+                
+        except Exception as e:
+            print(f"    ❌ {word}: 剑桥词典查询异常 - {e}")
+            return None
+    
+    def _extract_phonetics(self, soup: BeautifulSoup) -> Dict[str, str]:
+        """提取音标信息"""
+        phonetics = {}
+        
+        # 查找音标元素
+        phonetic_elements = soup.find_all('span', class_='ipa')
+        
+        for element in phonetic_elements:
+            # 获取音标文本
+            phonetic_text = element.get_text(strip=True)
+            if not phonetic_text:
+                continue
+            
+            # 判断是美式还是英式
+            # 查找父级元素中的标识
+            parent = element.find_parent()
+            if parent:
+                region_info = parent.find('span', class_='region')
+                if region_info:
+                    region = region_info.get_text(strip=True).lower()
+                    if 'uk' in region or 'british' in region:
+                        phonetics['uk'] = phonetic_text
+                    elif 'us' in region or 'american' in region:
+                        phonetics['us'] = phonetic_text
+                    else:
+                        # 默认作为通用音标
+                        if 'general' not in phonetics:
+                            phonetics['general'] = phonetic_text
+        
+        return phonetics
+    
+    def _extract_audio_urls(self, soup: BeautifulSoup) -> Dict[str, str]:
+        """提取音频URL"""
+        audio_urls = {}
+        
+        # 查找音频播放按钮
+        audio_buttons = soup.find_all('source', {'type': 'audio/mpeg'})
+        
+        for button in audio_buttons:
+            src = button.get('src')
+            if not src:
+                continue
+            
+            # 构造完整URL
+            if src.startswith('/'):
+                full_url = self.config.cambridge_audio_base + src
+            else:
+                full_url = src
+            
+            # 判断是美式还是英式音频
+            if '/uk_pron/' in src or 'uk_' in src:
+                audio_urls['uk'] = full_url
+            elif '/us_pron/' in src or 'us_' in src:
+                audio_urls['us'] = full_url
+        
+        return audio_urls
+    
+    def download_audio(self, url: str, word: str, variant: str, audio_dir: str) -> Optional[str]:
+        """
+        下载音频文件到本地
+        
+        Args:
+            url: 音频URL
+            word: 单词
+            variant: 变体 (uk/us)
+            audio_dir: 音频目录
+            
+        Returns:
+            本地音频文件路径，失败返回None
+        """
+        try:
+            os.makedirs(audio_dir, exist_ok=True)
+            
+            # 生成本地文件名
+            filename = f"{word}_{variant}.mp3"
+            local_path = os.path.join(audio_dir, filename)
+            
+            # 如果文件已存在，直接返回
+            if os.path.exists(local_path):
+                return local_path
+            
+            # 下载音频文件
+            response = self.session.get(url, timeout=self.config.timeout)
+            if response.status_code == 200:
+                with open(local_path, 'wb') as f:
+                    f.write(response.content)
+                print(f"    🔊 {word}({variant}): 音频下载成功")
+                return local_path
+            else:
+                print(f"    ❌ {word}({variant}): 音频下载失败 ({response.status_code})")
+                return None
+                
+        except Exception as e:
+            print(f"    ❌ {word}({variant}): 音频下载异常 - {e}")
+            return None
 
 
 class VocabularyEnricher:
@@ -70,6 +220,9 @@ class VocabularyEnricher:
             print(f"⚠️ ECDICT初始化失败: {e}")
             print("📝 将使用API方式获取词汇信息")
             self.ecdict = None
+        
+        # 初始化剑桥词典API
+        self.cambridge_api = CambridgeDictionaryAPI(config)
         
         print("🔧 词汇富化器初始化完成")
     
@@ -109,82 +262,85 @@ class VocabularyEnricher:
         print(f"✅ ECDICT基础信息补充完成: 成功处理 {enriched_count}/{len(new_words)} 个新词汇")
         return True
     
-    def enrich_vocabulary_with_audio(self, master_vocab_path: str, word_voice: str = "af_heart", word_speed: float = 0.8) -> bool:
+    def enrich_vocabulary_with_cambridge(self, master_vocab_path: str) -> bool:
         """
-        为总词汇表中的所有词汇生成音频文件
+        使用剑桥词典为词汇补充音标和音频信息
         
         Args:
             master_vocab_path: 总词汇表文件路径
-            word_voice: 单词音频声音模型
-            word_speed: 单词音频语速
             
         Returns:
             是否处理成功
         """
-        print(f"🔄 步骤3: 为词汇生成音频文件...")
-        
-        # 创建公共音频目录
-        vocab_dir = os.path.dirname(master_vocab_path)
-        audio_dir = os.path.join(vocab_dir, "audio")
-        os.makedirs(audio_dir, exist_ok=True)
+        print(f"🔄 步骤3: 使用剑桥词典补充音标和音频信息...")
         
         # 加载总词汇表
         master_vocab = self._load_master_vocabulary(master_vocab_path)
         if not master_vocab:
-            print("⚠️ 没有词汇需要补充音频")
+            print("⚠️ 没有词汇需要补充音标和音频")
             return True
         
-        # 找出没有音频文件的词汇
-        words_need_audio = []
+        # 创建音频目录
+        vocab_dir = os.path.dirname(master_vocab_path)
+        audio_dir = os.path.join(vocab_dir, self.config.audio_download_dir)
+        
+        # 找出需要补充信息的词汇
+        words_need_cambridge = []
         for word, info in master_vocab.items():
-            audio_file_path = os.path.join(audio_dir, f"{word}.wav")
-            if not os.path.exists(audio_file_path):
-                words_need_audio.append(word)
+            # 检查是否已有剑桥词典信息
+            if not info.get("phonetic_uk") and not info.get("phonetic_us"):
+                words_need_cambridge.append(word)
         
-        if not words_need_audio:
-            print("✅ 所有词汇都已有本地音频文件")
-            # 更新词汇表中的音频路径信息
-            for word in master_vocab:
-                audio_file_path = os.path.join(audio_dir, f"{word}.wav")
-                if os.path.exists(audio_file_path):
-                    master_vocab[word]["audio_file"] = f"vocabulary/audio/{word}.wav"
-            self._save_master_vocabulary(master_vocab, master_vocab_path)
+        if not words_need_cambridge:
+            print("✅ 所有词汇都已有剑桥词典信息")
             return True
         
-        print(f"📝 发现 {len(words_need_audio)} 个词汇需要生成音频文件")
-        print(f"🔊 音频配置: 声音={word_voice}, 语速={word_speed}")
+        print(f"📝 发现 {len(words_need_cambridge)} 个词汇需要补充剑桥词典信息")
         
-        # 创建AudioGenerator实例
-        try:
-            audio_config = AudioGeneratorConfig(voice=word_voice, speed=word_speed)
-            audio_generator = AudioGenerator(audio_config)
-        except Exception as e:
-            print(f"❌ AudioGenerator初始化失败: {e}")
-            return False
+        # 处理每个单词
+        enriched_count = 0
+        for i, word in enumerate(words_need_cambridge, 1):
+            print(f"  🔄 处理 {word} ({i}/{len(words_need_cambridge)})")
+            
+            # 获取剑桥词典信息
+            cambridge_info = self.cambridge_api.get_word_info(word)
+            if cambridge_info:
+                # 更新音标信息
+                phonetics = cambridge_info.get('phonetics', {})
+                if phonetics.get('uk'):
+                    master_vocab[word]["phonetic_uk"] = phonetics['uk']
+                if phonetics.get('us'):
+                    master_vocab[word]["phonetic_us"] = phonetics['us']
+                if phonetics.get('general') and not master_vocab[word].get("phonetic"):
+                    master_vocab[word]["phonetic"] = phonetics['general']
+                
+                # 下载音频并更新URL
+                audio_urls = cambridge_info.get('audio_urls', {})
+                if audio_urls.get('uk'):
+                    local_path = self.cambridge_api.download_audio(
+                        audio_urls['uk'], word, 'uk', audio_dir
+                    )
+                    if local_path:
+                        master_vocab[word]["audio_url_uk"] = f"vocabulary/audio/{word}_uk.mp3"
+                
+                if audio_urls.get('us'):
+                    local_path = self.cambridge_api.download_audio(
+                        audio_urls['us'], word, 'us', audio_dir
+                    )
+                    if local_path:
+                        master_vocab[word]["audio_url_us"] = f"vocabulary/audio/{word}_us.mp3"
+                
+                enriched_count += 1
+                
+            # 添加延迟避免请求过快
+            time.sleep(0.5)
         
-        # 生成单词音频
-        audio_count = 0
-        print(f"  🔄 开始生成单词音频...")
-        
-        for i, word in enumerate(words_need_audio, 1):
-            try:
-                audio_file_path = audio_generator.generate_word_audio(word, audio_dir, word_voice, word_speed)
-                if audio_file_path:
-                    # 保存相对路径到词汇表
-                    relative_path = f"vocabulary/audio/{word}.wav"
-                    master_vocab[word]["audio_file"] = relative_path
-                    audio_count += 1
-                    print(f"    ✅ {word}: 音频生成成功 ({i}/{len(words_need_audio)})")
-                else:
-                    print(f"    ❌ {word}: 音频生成失败")
-            except Exception as e:
-                print(f"    ❌ {word}: 生成异常 - {e}")
-        
-        # 保存最终的总词汇表（第3步完成）
+        # 保存更新的总词汇表
         self._save_master_vocabulary(master_vocab, master_vocab_path)
         
-        print(f"✅ 音频信息补充完成: 成功生成 {audio_count}/{len(words_need_audio)} 个词汇音频文件")
+        print(f"✅ 剑桥词典信息补充完成: 成功处理 {enriched_count}/{len(words_need_cambridge)} 个词汇")
         return True
+    
     
     def _get_word_ecdict_info(self, word: str) -> Optional[Dict]:
         """
@@ -222,12 +378,16 @@ class VocabularyEnricher:
                     "_id": word,
                     "word": word,
                     "phonetic": ecdict_info.get("phonetic", ""),
+                    "phonetic_uk": "",  # 英式音标，从剑桥词典获取
+                    "phonetic_us": "",  # 美式音标，从剑桥词典获取
                     "translation": translation,
                     "tags": tags,
                     "exchange": exchange,
                     "bnc": ecdict_info.get("bnc", 0),
                     "frq": ecdict_info.get("frq", 0),
-                    "audio_url": "",  # 初始为空，下载音频后填入
+                    "audio_url": "",  # 保留原字段兼容性
+                    "audio_url_uk": "",  # 英式音频URL
+                    "audio_url_us": "",  # 美式音频URL
                     "uploaded": False,  # 上传状态标识
                     "created_at": datetime.now().isoformat(),
                     "updated_at": datetime.now().isoformat()
