@@ -6,7 +6,7 @@
 
 import time
 import logging
-from pathlib import Path
+import os
 from wechat_api import WeChatCloudAPI
 from data_parser import DataParser
 from book_uploader import BookUploader
@@ -63,18 +63,24 @@ def validate_connection(api_client: WeChatCloudAPI):
 
 def process_all_books(api_client: WeChatCloudAPI) -> bool:
     """处理所有书籍的上传"""
-    parser = DataParser()
-    book_uploader = BookUploader(api_client)
-    vocab_uploader = VocabularyUploader(api_client)
+    # 硬编码项目根路径
+    program_root = "/Users/yulu/Documents/code/mini_lang"
+    output_dir = os.path.join(program_root, "output")
     
-    output_dir = Path("output")
-    if not output_dir.exists():
+    parser = DataParser(program_root)
+    book_uploader = BookUploader(api_client, program_root)
+    vocab_uploader = VocabularyUploader(api_client, program_root)
+
+    if not os.path.exists(output_dir):
         print(f"❌ 输出目录不存在: {output_dir}")
         return False
     
     # 获取书籍目录列表
-    book_dirs = [d for d in output_dir.iterdir() 
-                if d.is_dir() and (d / "meta.json").exists()]
+    book_dirs = []
+    for d in os.listdir(output_dir):
+        book_path = os.path.join(output_dir, d)
+        if os.path.isdir(book_path) and os.path.exists(os.path.join(book_path, "meta.json")):
+            book_dirs.append(d)
     
     if not book_dirs:
         print("❌ 未找到任何包含meta.json的书籍目录")
@@ -89,13 +95,15 @@ def process_all_books(api_client: WeChatCloudAPI) -> bool:
     }
     
     # 处理每本书籍
-    for book_idx, book_dir in enumerate(book_dirs, 1):
-        book_id = book_dir.name
-        print(f"\n📖 处理书籍 {book_idx}/{len(book_dirs)}: {book_id}")
+
+    for i in range(len(book_dirs)):
+        book_id = book_dirs[i]
+        book_dir = os.path.join(output_dir, book_id)
+        print(f"\n📖 处理书籍 {i+1}/{len(book_dirs)}: {book_id}")
         
         try:
             # 解析书籍数据
-            book_data, chapters_data = parser.parse_book_data(book_dir)
+            book_data, chapters_data = parser.parse_book_data(book_dir, book_id)
             book_title = book_data.get('title', book_id)
             
             # 查询现有数据
@@ -146,8 +154,8 @@ def process_all_books(api_client: WeChatCloudAPI) -> bool:
             
             # 处理词汇
             print(f"📚 开始处理词汇...")
-            vocab_uploader.upload_vocabularies(book_dir, book_id)
-            vocab_uploader.upload_chapter_vocabularies(book_dir, book_id, {})
+            vocab_uploader.upload_vocabularies(book_dir)
+            vocab_uploader.upload_chapter_vocabularies(book_dir, book_id)
             
             print(f"✅ 书籍 {book_title} 处理完成")
             

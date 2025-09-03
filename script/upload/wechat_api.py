@@ -37,6 +37,38 @@ class WeChatCloudAPI:
         
         self.logger = logging.getLogger(__name__)
         
+    def clean_vocabulary_data(self, word_data: Dict) -> Dict:
+        """
+        专门清理词汇数据中的特殊字符，按字段进行精确处理
+        主要解决translation字段中的转义符号问题
+        """
+        cleaned_data = word_data.copy()
+        
+        # 清理translation字段
+        if 'translation' in cleaned_data and isinstance(cleaned_data['translation'], list):
+            cleaned_translations = []
+            for translation_item in cleaned_data['translation']:
+                if isinstance(translation_item, dict):
+                    cleaned_item = translation_item.copy()
+                    
+                    # 清理meaning字段中的异常符号
+                    if 'meaning' in cleaned_item and isinstance(cleaned_item['meaning'], str):
+                        meaning = cleaned_item['meaning']     
+                        meaning = meaning.replace('"', '')                   
+                        cleaned_item['meaning'] = meaning
+                    
+                    # 清理example字段（如果存在同样问题）
+                    if 'example' in cleaned_item and isinstance(cleaned_item['example'], str):
+                        example = cleaned_item['example']
+                        example = example.replace('"', '')
+                        cleaned_item['example'] = example
+                    
+                    cleaned_translations.append(cleaned_item)
+            
+            cleaned_data['translation'] = cleaned_translations
+        
+        return cleaned_data
+        
     def calculate_md5(self, file_path: str) -> str:
         """计算文件MD5值"""
         if not os.path.exists(file_path):
@@ -147,9 +179,9 @@ class WeChatCloudAPI:
             # 转换数据格式并处理特殊字符
             formatted_records = []
             for record in records:
-                record_str = json.dumps(record, ensure_ascii=False, separators=(',', ':'))
-                # 转义单引号和换行符
-                record_str = record_str.replace("'", "\\'").replace("\n", "\\n").replace("\r", "\\r")
+                # 针对词汇数据进行字段级清理
+                cleaned_record = self.clean_vocabulary_data(record)
+                record_str = json.dumps(cleaned_record, ensure_ascii=False, separators=(',', ':'))
                 formatted_records.append(record_str)
             
             query_str = f"db.collection('{collection}').add({{data: [{','.join(formatted_records)}]}})"
@@ -162,11 +194,15 @@ class WeChatCloudAPI:
             response = requests.post(
                 f"{self.database_add_url}?access_token={token}",
                 data=json.dumps(data),
-                headers={'Content-Type': 'application/json'},
+                headers={'Content-Type': 'application/json;charset=utf8'},
                 timeout=30
             )
             
             result = response.json()
+            if result.get('errcode') != 0:
+                self.logger.error(f"数据库添加失败: {result.get('errmsg', '未知错误')}")
+                return False
+            
             return result.get('errcode') == 0
             
         except Exception as e:
@@ -230,8 +266,9 @@ class WeChatCloudAPI:
         try:
             token = self.get_access_token()
             
-            update_str = json.dumps(update_data, ensure_ascii=False, separators=(',', ':'))
-            update_str = update_str.replace("'", "\\'").replace("\n", "\\n").replace("\r", "\\r")
+            # 先清理特殊字符
+            cleaned_update_data = self.clean_vocabulary_data(update_data)
+            update_str = json.dumps(cleaned_update_data, ensure_ascii=False, separators=(',', ':'))
             
             query_str = f"db.collection('{collection}').doc('{record_id}').update({{data: {update_str}}})"
             
@@ -243,15 +280,46 @@ class WeChatCloudAPI:
             response = requests.post(
                 f"{self.database_update_url}?access_token={token}",
                 data=json.dumps(data),
-                headers={'Content-Type': 'application/json'},
+                headers={'Content-Type': 'application/json;charset=utf8'},
                 timeout=30
             )
             
             result = response.json()
+            if result.get('errcode') != 0:
+                self.logger.error(f"数据库更新失败: {result}")
+                return False
             return result.get('errcode') == 0
             
         except Exception as e:
             self.logger.error(f"数据库更新失败: {e}")
+            return False
+
+    def upsert_database_record(self, collection: str, record_data: Dict) -> bool:
+        """Upsert数据库记录（存在则更新，不存在则创建）"""
+        try:
+            record_id = record_data.get('_id')
+            if not record_id:
+                self.logger.error("记录缺少_id字段，无法执行upsert操作")
+                return False
+            
+            # 先查询记录是否存在
+            existing_records = self.query_database(collection, {'_id': record_id}, limit=1)
+            
+            if existing_records:
+                # 记录存在，执行更新操作
+                update_data = record_data.copy()
+                # 保留原有的created_at，更新updated_at
+                if 'created_at' in existing_records[0]:
+                    update_data['created_at'] = existing_records[0]['created_at']
+                update_data['updated_at'] = datetime.now().isoformat()
+                
+                return self.update_database_record(collection, record_id, update_data)
+            else:
+                # 记录不存在，执行创建操作
+                return self.add_database_records(collection, [record_data])
+                
+        except Exception as e:
+            self.logger.error(f"数据库upsert失败: {e}")
             return False
 
     def delete_database_record(self, collection: str, record_id: str) -> bool:

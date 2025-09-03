@@ -8,7 +8,6 @@ import os
 import time
 import logging
 from typing import Dict, List
-from pathlib import Path
 from wechat_api import WeChatCloudAPI
 from data_parser import DataParser
 
@@ -16,15 +15,16 @@ from data_parser import DataParser
 class BookUploader:
     """书籍上传服务类"""
     
-    def __init__(self, api_client: WeChatCloudAPI):
+    def __init__(self, api_client: WeChatCloudAPI, program_root: str):
         self.api = api_client
-        self.parser = DataParser()
+        self.parser = DataParser(program_root)
         self.logger = logging.getLogger(__name__)
+        self.program_root = program_root
         
-    def upload_book_cover(self, book_dir: Path, book_id: str, book_data: Dict) -> str:
+    def upload_book_cover(self, book_dir: str, book_id: str, book_data: Dict) -> str:
         """上传书籍封面"""
-        cover_file_path = book_data.get('local_cover_file', '')
-        if not cover_file_path or not os.path.exists(cover_file_path):
+        cover_file_path = os.path.join(book_dir, book_data.get('local_cover_file', ''))
+        if not book_data.get('local_cover_file', '') or not os.path.exists(cover_file_path):
             return ""
             
         cloud_path = f"books/{book_id}/cover.jpg"
@@ -34,7 +34,7 @@ class BookUploader:
             return file_id
         return ""
 
-    def upload_book_if_needed(self, book_dir: Path, book_data: Dict, existing_book: Dict, changed_fields: List[str]) -> bool:
+    def upload_book_if_needed(self, book_dir: str, book_data: Dict, existing_book: Dict, changed_fields: List[str]) -> bool:
         """根据需要上传或更新书籍"""
         book_id = book_data["_id"]
         
@@ -63,13 +63,13 @@ class BookUploader:
         
         return True
 
-    def upload_chapter_files(self, book_dir: Path, book_id: str, chapter_data: Dict) -> bool:
+    def upload_chapter_files(self, book_dir: str, book_id: str, chapter_data: Dict) -> bool:
         """上传章节音频和字幕文件"""
         chapter_id = chapter_data["chapter_id"]
         
         # 上传音频文件
-        audio_file_path = chapter_data.get('local_audio_file', '')
-        if audio_file_path and os.path.exists(audio_file_path):
+        audio_file_path = os.path.join(book_dir, chapter_data.get('local_audio_file', ''))
+        if chapter_data.get('local_audio_file', '') and os.path.exists(audio_file_path):
             audio_filename = os.path.basename(audio_file_path)
             cloud_audio_path = f"books/{book_id}/audio/{audio_filename}"
             audio_file_id = self.api.upload_file(audio_file_path, cloud_audio_path)
@@ -77,8 +77,8 @@ class BookUploader:
                 chapter_data["audio_url"] = audio_file_id
         
         # 上传字幕文件
-        subtitle_file_path = chapter_data.get('local_subtitle_file', '')
-        if subtitle_file_path and os.path.exists(subtitle_file_path):
+        subtitle_file_path = os.path.join(book_dir, chapter_data.get('local_subtitle_file', ''))
+        if chapter_data.get('local_subtitle_file', '') and os.path.exists(subtitle_file_path):
             subtitle_filename = os.path.basename(subtitle_file_path)
             cloud_subtitle_path = f"books/{book_id}/subtitles/{subtitle_filename}"
             subtitle_file_id = self.api.upload_file(subtitle_file_path, cloud_subtitle_path)
@@ -87,7 +87,7 @@ class BookUploader:
         
         return True
 
-    def upload_chapter_if_needed(self, book_dir: Path, book_id: str, chapter_data: Dict, existing_chapter: Dict, changed_fields: List[str]) -> bool:
+    def upload_chapter_if_needed(self, book_dir: str, book_id: str, chapter_data: Dict, existing_chapter: Dict, changed_fields: List[str]) -> bool:
         """根据需要上传或更新章节"""
         chapter_id = chapter_data["_id"]
         
@@ -108,7 +108,7 @@ class BookUploader:
         
         return True
 
-    def process_single_chapter(self, book_dir: Path, book_id: str, chapter_data: Dict, existing_chapters_dict: Dict, stats: Dict) -> bool:
+    def process_single_chapter(self, book_dir: str, book_id: str, chapter_data: Dict, existing_chapters_dict: Dict, stats: Dict) -> bool:
         """处理单个章节"""
         chapter_id = chapter_data["_id"]
         chapter_title = chapter_data.get("title", chapter_id)

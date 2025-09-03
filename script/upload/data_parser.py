@@ -10,14 +10,14 @@ import logging
 import hashlib
 from datetime import datetime
 from typing import Dict, List, Optional, Tuple
-from pathlib import Path
 
 
 class DataParser:
     """数据解析和处理类"""
     
-    def __init__(self):
+    def __init__(self, program_root: str):
         self.logger = logging.getLogger(__name__)
+        self.program_root = program_root
     
     def _calculate_file_md5(self, file_path: str) -> str:
         """计算文件MD5值"""
@@ -91,12 +91,11 @@ class DataParser:
         ]
         return self.compare_data(new_data, existing_data, compare_fields)
 
-    def parse_book_data(self, book_dir: Path) -> Tuple[Dict, List[Dict]]:
+    def parse_book_data(self, book_dir: str, book_id: str) -> Tuple[Dict, List[Dict]]:
         """解析单本书的数据"""
-        book_id = book_dir.name
-        meta_file = book_dir / "meta.json"
+        meta_file = os.path.join(book_dir, "meta.json")
         
-        if not meta_file.exists():
+        if not os.path.exists(meta_file):
             raise FileNotFoundError(f"书籍元数据文件不存在: {meta_file}")
         
         # 读取书籍元数据
