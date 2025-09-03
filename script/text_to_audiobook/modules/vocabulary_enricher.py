@@ -344,9 +344,9 @@ class VocabularyEnricher:
             # 获取剑桥词典信息
             cambridge_info = self.cambridge_api.load_cambridge_info(word, cambridge_info_dir)
             if not cambridge_info:
+                print(f"    ✅ {word}: 剑桥词典信息不存在，重新获取")
                 cambridge_info = self.cambridge_api.get_word_info(word)
                 self.cambridge_api.save_cambridge_info(word, cambridge_info, cambridge_info_dir)
-                print(f"    ✅ {word}: 剑桥词典信息不存在，重新获取")
             else:
                 print(f"    ✅ {word}: 剑桥词典信息已存在")
 
@@ -465,13 +465,13 @@ class VocabularyEnricher:
                 f.write(json_line + '\n')
         
         print(f"💾 总词汇表已保存: {master_vocab_path}")
-        print(f"📊 词汇统计: 总计{total_words}词")
+        # print(f"📊 词汇统计: 总计{total_words}词")
         
-        # 按标签显示统计信息
-        if level_stats:
-            print("  标签分布:")
-            for tag, count in sorted(level_stats.items()):
-                print(f"    {tag}: {count}词")
+        # # 按标签显示统计信息
+        # if level_stats:
+        #     print("  标签分布:")
+        #     for tag, count in sorted(level_stats.items()):
+        #         print(f"    {tag}: {count}词")
 
     def _parse_translation(self, translation_str: str) -> List[Dict]:
         """解析翻译字符串为对象数组"""

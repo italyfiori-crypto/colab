@@ -89,12 +89,19 @@ class VocabularyManager:
         print(f"\n🔄 第3步: 为词汇补充音频信息...")
         audio_success = self.enricher.enrich_vocabulary_with_cambridge(master_vocab_path)
         
-        if audio_success:
+        if not audio_success:
+            print(f"⚠️ 音频信息补充过程中出现错误，但基础信息已保存")
+        
+        # 第四步：更新章节词汇文件为详细格式（保持原文顺序）
+        print(f"\n🔄 第4步: 更新章节词汇文件为详细格式...")
+        update_success = self.extractor.update_vocabulary_info(output_dir, master_vocab_path)
+        
+        if update_success:
             print(f"✅ 词汇处理完成!")
             print(f"📄 子章节词汇文件: {len(subchapter_vocab_files)} 个")
             print(f"📚 总词汇表: {master_vocab_path}")
         else:
-            print(f"⚠️ 音频信息补充过程中出现错误，但基础信息已保存")
+            print(f"⚠️ 章节词汇文件格式更新失败")
         
         return subchapter_vocab_files
     

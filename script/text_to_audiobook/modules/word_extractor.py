@@ -107,11 +107,14 @@ class WordExtractor:
             # 收集所有提取的单词（不区分新旧）
             all_new_words.update(all_words)
             
-            # 保存子章节词汇文件（包含所有提取的单词）
+            # 第一阶段：保存原始单词列表（不格式化），保持原文顺序
+            unique_words = self._preserve_order_dedup(all_words)  # 保序去重
+            
+            # 保存子章节词汇文件（第一阶段：只含单词列表）
             subchapter_vocab_data = {
                 "subchapter_id": subchapter_name,
-                "words": list(set(all_words)),  # 提取所有单词
-                "word_count": len(set(all_words)),
+                "words": unique_words,  # 第一阶段：纯单词列表，保持原文顺序
+                "word_count": len(unique_words),
                 "filtered_words": sorted(list(set(filtered_words)))
             }
             
@@ -163,6 +166,24 @@ class WordExtractor:
                 continue
         
         return self._extract_words_from_text(all_text)
+    
+    def _preserve_order_dedup(self, items: List[str]) -> List[str]:
+        """
+        保序去重函数 - 保持元素首次出现的顺序
+        
+        Args:
+            items: 原始列表
+            
+        Returns:
+            去重后保持原始顺序的列表
+        """
+        seen = set()
+        result = []
+        for item in items:
+            if item not in seen:
+                seen.add(item)
+                result.append(item)
+        return result
     
     def _extract_words_from_text(self, text: str) -> Tuple[List[str], List[str]]:
         """
@@ -268,6 +289,132 @@ class WordExtractor:
         
         # 其他情况保持原形（包括动词时态VBD/VBG/VBN和形容词比较级JJR/JJS）
         return word
+    
+    def _format_words_with_info(self, words: List[str], vocab_dict: Dict[str, Dict]) -> List[str]:
+        """
+        将单词列表格式化为包含词汇信息的逗号分隔格式
+        
+        Args:
+            words: 单词列表
+            vocab_dict: 总词汇表字典
+            
+        Returns:
+            格式化后的单词信息列表，格式为: word,tags,frq,collins,oxford
+        """
+        formatted_words = []
+        unique_words = self._preserve_order_dedup(words)  # 保序去重
+        
+        for word in unique_words:
+            word_info = vocab_dict.get(word, {})
+            
+            # 提取词汇信息，如果不存在则使用默认值
+            tags = ""
+            if 'tags' in word_info:
+                if isinstance(word_info['tags'], list):
+                    tags = " ".join(word_info['tags'])
+                elif isinstance(word_info['tags'], str):
+                    tags = word_info['tags']
+            
+            frq = word_info.get('frq', 0)
+            collins = word_info.get('collins', 0)
+            oxford = word_info.get('oxford', 0)
+            
+            # 格式化为逗号分隔字符串: word,tags,frq,collins,oxford
+            formatted_word = f"{word},{tags},{frq},{collins},{oxford}"
+            formatted_words.append(formatted_word)
+        
+        # 保持原文中出现的顺序，不进行排序
+        return formatted_words
+    
+    def update_vocabulary_info(self, output_dir: str, master_vocab_path: str) -> bool:
+        """
+        第二阶段：更新章节词汇文件，将单词列表转换为逗号分隔信息格式
+        
+        Args:
+            output_dir: 输出目录（包含vocabulary子目录）
+            master_vocab_path: 总词汇表文件路径
+            
+        Returns:
+            是否更新成功
+        """
+        try:
+            # 加载总词汇表
+            existing_vocab = load_master_vocabulary(master_vocab_path)
+            if not existing_vocab:
+                print("⚠️ 总词汇表为空，无法更新词汇信息")
+                return False
+            
+            # 查找所有章节词汇文件
+            vocab_dir = os.path.join(output_dir, self.config.vocabulary_subdir)
+            if not os.path.exists(vocab_dir):
+                print("⚠️ 章节词汇目录不存在")
+                return False
+            
+            vocab_files = []
+            for file in os.listdir(vocab_dir):
+                if file.endswith('.json'):
+                    vocab_files.append(os.path.join(vocab_dir, file))
+            
+            if not vocab_files:
+                print("⚠️ 没有找到章节词汇文件")
+                return False
+            
+            updated_count = 0
+            
+            print(f"📝 开始更新 {len(vocab_files)} 个章节词汇文件...")
+            
+            # 处理每个章节词汇文件
+            for vocab_file in vocab_files:
+                if self._update_single_vocab_file(vocab_file, existing_vocab):
+                    updated_count += 1
+                    filename = os.path.basename(vocab_file)
+                    print(f"  ✅ 已更新: {filename}")
+            
+            print(f"\n📝 词汇信息更新完成: 成功更新 {updated_count}/{len(vocab_files)} 个文件")
+            return updated_count > 0
+            
+        except Exception as e:
+            print(f"❌ 更新词汇信息失败: {e}")
+            return False
+    
+    def _update_single_vocab_file(self, vocab_file: str, vocab_dict: Dict[str, Dict]) -> bool:
+        """
+        更新单个章节词汇文件
+        
+        Args:
+            vocab_file: 章节词汇文件路径
+            vocab_dict: 总词汇表字典
+            
+        Returns:
+            是否更新成功
+        """
+        try:
+            # 读取现有文件
+            with open(vocab_file, 'r', encoding='utf-8') as f:
+                vocab_data = json.load(f)
+            
+            words = vocab_data.get('words', [])
+            if not words:
+                return False
+            
+            # 检查是否已经是格式化格式
+            if isinstance(words[0], str) and ',' in words[0] and len(words[0].split(',')) == 5:
+                print(f"  ⭕ 已是格式化格式，跳过: {os.path.basename(vocab_file)}")
+                return False
+            
+            # 格式化单词信息
+            formatted_words = self._format_words_with_info(words, vocab_dict)
+            
+            # 更新数据
+            vocab_data['words'] = formatted_words
+            
+            # 保存更新后的文件
+            self._save_json(vocab_data, vocab_file)
+            return True
+            
+        except Exception as e:
+            print(f"❌ 更新文件失败 {vocab_file}: {e}")
+            return False
     
     def _save_json(self, data: dict, file_path: str):
         """保存JSON数据到文件"""
