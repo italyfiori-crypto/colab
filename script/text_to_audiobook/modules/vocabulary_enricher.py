@@ -101,7 +101,7 @@ class CambridgeDictionaryAPI:
                 }
             else:
                 print(f"    ❌ {word}: 未找到音标或音频信息")
-                return None
+                return {'phonetics': {}, 'audio_urls': {}}
                 
         except Exception as e:
             print(f"    ❌ {word}: 剑桥词典查询异常 - {e}")
@@ -327,7 +327,7 @@ class VocabularyEnricher:
         words_need_cambridge = []
         for word, info in master_vocab.items():
             # 检查是否已有剑桥词典信息
-            if not info.get("phonetic_uk") and not info.get("phonetic_us"):
+            if not info.get("phonetic_uk") or not info.get("phonetic_us"):
                 words_need_cambridge.append(word)
         
         if not words_need_cambridge:

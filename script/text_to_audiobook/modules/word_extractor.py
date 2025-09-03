@@ -112,9 +112,7 @@ class WordExtractor:
             
             # 保存子章节词汇文件（第一阶段：只含单词列表）
             subchapter_vocab_data = {
-                "subchapter_id": subchapter_name,
                 "words": unique_words,  # 第一阶段：纯单词列表，保持原文顺序
-                "word_count": len(unique_words),
                 "filtered_words": sorted(list(set(filtered_words)))
             }
             
@@ -122,7 +120,7 @@ class WordExtractor:
             self._save_json(subchapter_vocab_data, subchapter_vocab_file)
             subchapter_vocab_files.append(subchapter_vocab_file)
             
-            print(f"  📄 已保存子章节词汇: {subchapter_vocab_file}")
+            print(f"  📄 已保存子章节词汇: {subchapter_name}")
             print(f"  📈 词汇统计: 总计{len(set(all_words))}个")
         
         print(f"\n📝 子章节词汇提取完成，共提取 {len(all_new_words)} 个单词")
