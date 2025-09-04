@@ -157,29 +157,32 @@ Page({
 
     // 转换书籍总时长
     if (converted.total_duration) {
-      converted.total_duration = this.formatDuration(converted.total_duration);
+      converted.total_duration = this.formatDurationMinutes(converted.total_duration);
     }
 
     // 转换章节时长
     if (converted.duration) {
-      converted.duration = this.formatDuration(converted.duration);
+      converted.duration = this.formatDurationSeconds(converted.duration);
     }
 
     return converted;
   },
 
   // 格式化时长显示
-  formatDuration(seconds) {
-    if (!seconds || seconds <= 0) return '0分钟';
+  formatDurationMinutes(_seconds) {
+    if (!_seconds || _seconds <= 0) return '0分钟';
 
-    const hours = Math.floor(seconds / 3600);
-    const minutes = Math.floor((seconds % 3600) / 60);
+    const hours = Math.floor(_seconds / 3600);
+    const minutes = Math.floor((_seconds % 3600) / 60);
+    return `${hours}小时${minutes}分钟`
+  },
 
-    if (hours > 0) {
-      return `${hours}小时${minutes > 0 ? minutes + '分钟' : ''}`;
-    } else {
-      return `${minutes}分钟`;
-    }
+  formatDurationSeconds(_seconds) {
+    if (!_seconds || _seconds <= 0) return '0秒';
+
+    const minutes = Math.floor(_seconds / 60);
+    const seconds = Math.floor(_seconds % 60);
+    return `${minutes}分钟${seconds}秒`
   },
 
   // 页面分享
