@@ -94,7 +94,7 @@ class WordExtractor:
         all_new_words = set()
         
         # 按子章节处理句子文件（每个句子文件对应一个子章节）
-        for sentence_file in sentence_files:
+        for sentence_file in sorted(sentence_files):
             # 获取子章节名称
             filename = os.path.basename(sentence_file)
             subchapter_name = os.path.splitext(filename)[0]
@@ -112,7 +112,7 @@ class WordExtractor:
             
             # 保存子章节词汇文件（第一阶段：只含单词列表）
             subchapter_vocab_data = {
-                "words": unique_words,  # 第一阶段：纯单词列表，保持原文顺序
+                "word_list": unique_words,  # 第一阶段：纯单词列表，保持原文顺序
                 "filtered_words": sorted(list(set(filtered_words)))
             }
             
@@ -391,7 +391,7 @@ class WordExtractor:
             with open(vocab_file, 'r', encoding='utf-8') as f:
                 vocab_data = json.load(f)
             
-            words = vocab_data.get('words', [])
+            words = vocab_data.get('word_list', [])
             if not words:
                 return False
             
@@ -404,7 +404,7 @@ class WordExtractor:
             formatted_words = self._format_words_with_info(words, vocab_dict)
             
             # 更新数据
-            vocab_data['words'] = formatted_words
+            vocab_data['word_info_list'] = formatted_words
             
             # 保存更新后的文件
             self._save_json(vocab_data, vocab_file)

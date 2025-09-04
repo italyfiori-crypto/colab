@@ -176,7 +176,8 @@
   _id: string,              // 关联ID (book_id_chapter_id_word)
   book_id: string,          // 书籍ID
   chapter_id: string,       // 章节ID  
-  words: []string           // 单词列表
+  word_list: []string       // 单词列表
+  word_info_list: []string  // 单词信息列表 "{word},{tags},{frq},{collins},{oxford}"
   created_at: Date
 }
 ```

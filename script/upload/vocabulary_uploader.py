@@ -13,7 +13,7 @@ from typing import Dict, List, Tuple
 from wechat_api import WeChatCloudAPI
 from data_parser import DataParser
 import glob
-
+import util
 
 class VocabularyUploader:
     """词汇上传服务类"""
@@ -40,9 +40,11 @@ class VocabularyUploader:
             
             # 加载汇总词典（已经是数据库格式）
             raw_master_vocab = self._load_master_vocabulary(master_vocab_path)
+            self.logger.info(f"加载词汇总表: {master_vocab_path}, 数量: {len(raw_master_vocab)}")
             
             # 收集当前书籍的所有单词
             book_words = self._collect_book_words(book_dir)
+            self.logger.info(f"收集当前书籍所有单词, 数量: {len(book_words)}")
             
             if not book_words:
                 self.logger.info("没有词汇需要上传")
@@ -126,29 +128,20 @@ class VocabularyUploader:
             if not os.path.exists(subchapter_vocab_dir):
                 return True
             
-            # 获取当前书籍的单词顺序
-            book_words = self._collect_book_words(book_dir)
-            
             # 处理每个子章节的词汇文件
-            for vocab_file in glob.glob(os.path.join(subchapter_vocab_dir, "*.json")):
+            for vocab_file in sorted(glob.glob(os.path.join(subchapter_vocab_dir, "*.json"))):
                 try:
                     with open(vocab_file, 'r', encoding='utf-8') as f:
                         vocab_data = json.load(f)
                     
-                    
-                    chapter_words = vocab_data.get("words", [])
-                    if not chapter_words:
-                        continue
                     subchapter_id = os.path.basename(vocab_file).split('.')[0]
 
-                    # 按照book_words的顺序排序章节单词
-                    ordered_words = [word for word in book_words if word in chapter_words]
-                    
                     chapter_vocab_record = {
                         "_id": f"{book_id}_{subchapter_id}",
                         "book_id": book_id,
                         "chapter_id": subchapter_id,
-                        "words": ordered_words,
+                        "word_list": vocab_data.get("word_list", []),
+                        "word_info_list": vocab_data.get("word_info_list", []),
                         "created_at": datetime.now().isoformat()
                     }
                     
@@ -156,8 +149,8 @@ class VocabularyUploader:
                     existing_record = self.api.query_database('chapter_vocabularies', 
                                                             {'_id': chapter_vocab_record["_id"]}, limit=1)
                     
-                    if True or not existing_record:
-                        if not self.api.upsert_database_record('chapter_vocabularies', [chapter_vocab_record]):
+                    if not existing_record:
+                        if not self.api.add_database_records('chapter_vocabularies', [chapter_vocab_record]):
                             self.logger.error(f"章节词汇插入失败: {subchapter_id}")
                             return False
                         else:
@@ -179,6 +172,7 @@ class VocabularyUploader:
         subchapter_vocab_dir = os.path.join(book_dir, "vocabulary")
         
         if not os.path.exists(subchapter_vocab_dir):
+            self.logger.error(f"章节词汇文件不存在: {subchapter_vocab_dir}")
             return book_words
         
         # 按文件名排序处理章节词汇
@@ -188,17 +182,13 @@ class VocabularyUploader:
             try:
                 with open(vocab_file, 'r', encoding='utf-8') as f:
                     vocab_data = json.load(f)
-                
-                chapter_words = vocab_data.get("words", [])
-                for word in chapter_words:
-                    if word not in book_words:
-                        book_words.append(word)
+                    book_words.extend(vocab_data.get("word_list", []))
                         
             except Exception as e:
                 self.logger.error(f"读取章节词汇文件失败 {vocab_file}: {e}")
                 continue
         
-        return book_words
+        return util.unique_list(book_words)
 
     def _upsert_word_with_retry(self, word_data: Dict, max_retries: int = 3) -> bool:
         """Upsert单词（存在则更新，不存在则创建，包含重试机制）"""
@@ -260,7 +250,7 @@ class VocabularyUploader:
                     upload_success = True
                     self.logger.info(f"美式音频上传成功: {word}")
             else:
-                self.logger.warning(f"美式音频文件不存在: {word}_us.{self.audio_format}")
+                self.logger.warning(f"美式音频文件不存在: {word}")
             
             if not upload_success:
                 self.logger.error(f"没有音频文件可上传: {word}")

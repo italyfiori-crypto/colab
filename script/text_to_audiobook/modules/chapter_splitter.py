@@ -253,6 +253,6 @@ class ChapterSplitter:
         if len(clean_title) > 50:
             clean_title = clean_title[:50]
         
-        return f"{chapter_num:02d}_{clean_title}.txt"
+        return f"{chapter_num:03d}_{clean_title}.txt"
 
 

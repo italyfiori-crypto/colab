@@ -175,6 +175,9 @@ class BookUploader:
             else:
                 success = False
                 self.logger.error(f"❌ 章节删除失败: {chapter_title}")
+
+            if self.api.delete_database_record('chapter_vocabularies', chapter_id):
+                self.logger.info(f"🗑️ 删除章节词汇: {chapter_title}")
         
         self.logger.info(f"✅ 清理完成，删除了 {deleted_count} 个章节")
         return success

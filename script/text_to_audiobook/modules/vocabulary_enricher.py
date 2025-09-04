@@ -326,8 +326,10 @@ class VocabularyEnricher:
         # 找出需要补充信息的词汇
         words_need_cambridge = []
         for word, info in master_vocab.items():
-            # 检查是否已有剑桥词典信息
-            if not info.get("phonetic_uk") or not info.get("phonetic_us"):
+            if info.get("status") == "completed": 
+                continue
+            # 检查是否已有剑桥词典信息(todo后续删除这个判断)
+            elif not info.get("phonetic_uk") or not info.get("phonetic_us"):
                 words_need_cambridge.append(word)
         
         if not words_need_cambridge:
@@ -366,7 +368,8 @@ class VocabularyEnricher:
                     self.cambridge_api.download_audio(audio_urls['us'], word, 'us', audio_dir)
 
                 enriched_count += 1
-                
+            
+            master_vocab[word]["status"] = "completed"
             # 添加延迟避免请求过快
             time.sleep(0.5)
         
