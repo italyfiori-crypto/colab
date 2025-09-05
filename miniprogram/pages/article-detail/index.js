@@ -31,6 +31,10 @@ Page({
 
         // 单词卡片数据
         vocabularyWords: [],
+        currentPage: 1,
+        hasMoreWords: true,
+        loadingMore: false,
+        scrollTop: 0,
 
         // 单词详情弹窗
         showWordDetail: false,
@@ -829,24 +833,49 @@ Page({
 
     // 单词按钮 - 显示单词卡片
     async onDict() {
+        console.log('字典按钮被点击');
+        
+        // 重置分页状态
+        this.setData({
+            currentPage: 1,
+            hasMoreWords: true,
+            vocabularyWords: []
+        });
+
+        await this.loadVocabularyWords(1, true);
+    },
+
+    // 加载单词数据的通用函数
+    async loadVocabularyWords(page = 1, isFirstLoad = false) {
         try {
-            wx.showLoading({
-                title: '加载单词中...'
-            });
+            // 显示加载状态
+            if (isFirstLoad) {
+                wx.showLoading({
+                    title: '加载单词中...'
+                });
+            } else {
+                this.setData({ loadingMore: true });
+            }
 
             // 调用云函数获取章节单词
             const result = await wx.cloud.callFunction({
                 name: 'articleDetailData',
                 data: {
                     type: 'getChapterVocabularies',
-                    chapterId: this.data.chapterId
+                    chapterId: this.data.chapterId,
+                    page: page,
+                    pageSize: 20
                 }
             });
 
-            wx.hideLoading();
+            if (isFirstLoad) {
+                wx.hideLoading();
+            } else {
+                this.setData({ loadingMore: false });
+            }
 
             if (result.result.code === 0) {
-                const { vocabularies } = result.result.data;
+                const { vocabularies, hasMore } = result.result.data;
                 console.log("vocabularies:", result.result.data)
                 
                 // 限制每个单词最多显示3行释义
@@ -855,34 +884,82 @@ Page({
                     translation: word.translation ? word.translation.slice(0, 3) : []
                 }));
                 
-                // 暂停音频播放
-                const wasPlaying = this.data.isPlaying;
-                if (wasPlaying && this.audioContext) {
-                    this.audioContext.pause();
-                }
+                if (isFirstLoad) {
+                    // 首次加载，暂停音频播放并显示弹窗
+                    const wasPlaying = this.data.isPlaying;
+                    if (wasPlaying && this.audioContext) {
+                        this.audioContext.pause();
+                    }
 
-                this.setData({
-                    vocabularyWords: processedVocabularies,
-                    showVocabulary: true,
-                    wasPlayingBeforeVocabulary: wasPlaying
-                });
+                    this.setData({
+                        vocabularyWords: processedVocabularies,
+                        currentPage: page,
+                        hasMoreWords: hasMore,
+                        showVocabulary: true,
+                        wasPlayingBeforeVocabulary: wasPlaying
+                    });
+                } else {
+                    // 分页加载，追加数据
+                    const existingWords = this.data.vocabularyWords;
+                    const mergedWords = [...existingWords, ...processedVocabularies];
+                    
+                    // 保持当前滚动位置，避免跳动
+                    const currentScrollTop = this.data.scrollTop;
+                    this.setData({
+                        vocabularyWords: mergedWords,
+                        currentPage: page,
+                        hasMoreWords: hasMore,
+                        scrollTop: currentScrollTop
+                    });
+                }
             } else {
+                if (isFirstLoad) {
+                    wx.showToast({
+                        title: result.result.message || '获取单词失败',
+                        icon: 'none',
+                        duration: 2000
+                    });
+                } else {
+                    console.error('加载更多单词失败:', result.result.message);
+                }
+            }
+
+        } catch (error) {
+            if (isFirstLoad) {
+                wx.hideLoading();
+            } else {
+                this.setData({ loadingMore: false });
+            }
+            console.error('加载单词失败:', error);
+            if (isFirstLoad) {
                 wx.showToast({
-                    title: result.result.message || '获取单词失败',
+                    title: '网络异常，请重试',
                     icon: 'none',
                     duration: 2000
                 });
             }
-
-        } catch (error) {
-            wx.hideLoading();
-            console.error('加载单词失败:', error);
-            wx.showToast({
-                title: '网络异常，请重试',
-                icon: 'none',
-                duration: 2000
-            });
         }
+    },
+
+    // 滚动到底部加载更多
+    async onScrollToLower() {
+        const { hasMoreWords, loadingMore } = this.data;
+        
+        // 如果没有更多数据或正在加载中，则返回
+        if (!hasMoreWords || loadingMore) {
+            return;
+        }
+
+        console.log('滚动到底部，加载更多单词');
+        const nextPage = this.data.currentPage + 1;
+        await this.loadVocabularyWords(nextPage, false);
+    },
+
+    // 滚动事件监听
+    onScroll(e) {
+        this.setData({
+            scrollTop: e.detail.scrollTop
+        });
     },
 
 

@@ -114,7 +114,12 @@
       <view class="drag-handle"></view>
       
       <!-- 单词列表 -->
-      <scroll-view class="vocabulary-content" scroll-y="{{true}}">
+      <scroll-view 
+        class="vocabulary-content" 
+        scroll-y="{{true}}" 
+        scroll-top="{{scrollTop}}"
+        bindscroll="onScroll"
+        bindscrolltolower="onScrollToLower">
         <view class="word-list">
           <view 
             wx:for="{{vocabularyWords}}" 
@@ -155,6 +160,10 @@
               </view>
             </view>
           </view>
+          
+          <!-- 加载状态提示 -->
+          <view wx:if="{{loadingMore}}" class="loading-more">加载中...</view>
+          <view wx:elif="{{!hasMoreWords && vocabularyWords.length > 0}}" class="no-more">没有更多了</view>
         </view>
       </scroll-view>
     </view>

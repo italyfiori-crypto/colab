@@ -6,18 +6,18 @@ cloud.init({ env: cloud.DYNAMIC_CURRENT_ENV }) // 使用当前云环境
 const db = cloud.database()
 
 exports.main = async (event, context) => {
-  const { type, chapterId, bookId, currentTime, completed, word, wordId } = event
+  const { type, chapterId, bookId, currentTime, completed, word, wordId, page, pageSize } = event
   const { OPENID } = cloud.getWXContext()
   const user_id = OPENID
 
-  console.log('📖 [DEBUG] articleDetailData云函数开始执行:', { type, chapterId, bookId, user_id, currentTime, completed, word, wordId })
+  console.log('📖 [DEBUG] articleDetailData云函数开始执行:', { type, chapterId, bookId, user_id, currentTime, completed, word, wordId, page, pageSize })
 
   try {
     switch (type) {
       case 'getChapterDetail':
         return await getChapterDetail(chapterId, user_id)
       case 'getChapterVocabularies':
-        return await getChapterVocabularies(chapterId, user_id)
+        return await getChapterVocabularies(chapterId, user_id, page, pageSize)
       case 'saveChapterProgress':
         return await saveChapterProgress(user_id, bookId, chapterId, currentTime, completed)
       case 'getWordDetail':
@@ -102,8 +102,8 @@ async function getChapterDetail(chapterId, user_id) {
 }
 
 // 获取章节单词（从用户真实学习记录）
-async function getChapterVocabularies(chapterId, user_id) {
-  console.log('🔄 [DEBUG] 开始获取章节单词:', { chapterId, user_id })
+async function getChapterVocabularies(chapterId, user_id, page = 1, pageSize = 20) {
+  console.log('🔄 [DEBUG] 开始获取章节单词:', { chapterId, user_id, page, pageSize })
 
   // 加强参数验证
   if (!chapterId) {
@@ -121,6 +121,13 @@ async function getChapterVocabularies(chapterId, user_id) {
       message: '缺少用户ID参数'
     }
   }
+
+  // 参数处理和验证
+  const currentPage = Math.max(1, parseInt(page) || 1)
+  const limit = Math.min(50, Math.max(1, parseInt(pageSize) || 20)) // 限制每页最多50条
+  const skip = (currentPage - 1) * limit
+
+  console.log('📊 [DEBUG] 分页参数处理:', { currentPage, limit, skip })
 
   try {
     // 1. 获取章节信息
@@ -159,28 +166,45 @@ async function getChapterVocabularies(chapterId, user_id) {
       chapterIdStr_type: typeof chapterIdStr
     })
 
+    // 查询时多取1条用于判断是否还有更多数据
     const wordRecordsResult = await db.collection('word_records')
       .where({
         'user_id': userIdStr,
         'source_chapter_id': chapterIdStr
       })
+      .orderBy('_id', 'asc') // 确保分页结果的稳定性
+      .skip(skip)
+      .limit(limit + 1)
       .get()
 
     console.log('📥 [DEBUG] 查询到单词记录:', wordRecordsResult.data.length)
 
+    // 判断是否有更多数据
+    const hasMore = wordRecordsResult.data.length > limit
+    const actualRecords = hasMore ? wordRecordsResult.data.slice(0, limit) : wordRecordsResult.data
+
+    console.log('📊 [DEBUG] 分页结果分析:', { 
+      查询到: wordRecordsResult.data.length, 
+      实际返回: actualRecords.length, 
+      hasMore 
+    })
+
     // 如果没有单词记录，返回空数组
-    if (wordRecordsResult.data.length === 0) {
-      console.log('📝 [DEBUG] 该章节无单词记录')
+    if (actualRecords.length === 0) {
+      console.log('📝 [DEBUG] 该页无单词记录')
       return {
         code: 0,
         data: {
-          vocabularies: []
+          vocabularies: [],
+          hasMore: false,
+          currentPage,
+          pageSize: limit
         }
       }
     }
 
     // 3. 提取word_id并去重
-    const wordIds = [...new Set(wordRecordsResult.data.map(record => record.word_id))]
+    const wordIds = [...new Set(actualRecords.map(record => record.word_id))]
     console.log('📤 [DEBUG] 需要查询的单词ID数量:', wordIds.length)
 
     // 4. 分批查询vocabularies（解决in限制）
@@ -189,7 +213,7 @@ async function getChapterVocabularies(chapterId, user_id) {
 
     // 5. 创建单词记录映射，便于合并数据
     const recordsMap = new Map()
-    wordRecordsResult.data.forEach(record => {
+    actualRecords.forEach(record => {
       recordsMap.set(record.word_id, record)
     })
 
@@ -213,7 +237,11 @@ async function getChapterVocabularies(chapterId, user_id) {
     return {
       code: 0,
       data: {
-        vocabularies: vocabularies
+        vocabularies: vocabularies,
+        hasMore: hasMore,
+        currentPage: currentPage,
+        pageSize: limit,
+        totalInPage: vocabularies.length
       }
     }
 
