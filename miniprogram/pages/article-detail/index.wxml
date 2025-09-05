@@ -14,12 +14,25 @@
         wx:key="index"
         id="subtitle-{{index}}"
         class="subtitle-item {{currentIndex === index ? 'active' : ''}}"
-        data-index="{{index}}"
-        bindtap="onSubtitleTap"
       >
-        <view class="subtitle-time" style="display: none;">{{item.timeText}}</view>
-        <view class="subtitle-english" wx:if="{{subtitleMode === 'en' || subtitleMode === 'both'}}">{{item.english}}</view>
-        <view class="subtitle-chinese" wx:if="{{subtitleMode === 'zh' || subtitleMode === 'both'}}">{{item.chinese}}</view>
+        <!-- 时间标记（左侧，可点击跳转） -->
+        <view class="time-marker" bindtap="onTimeClick" data-time="{{item.time}}" data-index="{{index}}">
+          {{item.timeText}}
+        </view>
+        
+        <!-- 字幕内容区域（右侧） -->
+        <view class="subtitle-content">
+          <view class="subtitle-english" wx:if="{{subtitleMode === 'en' || subtitleMode === 'both'}}">
+            <text 
+              wx:for="{{item.englishWords}}" 
+              wx:key="index"
+              class="{{item.isWord ? 'word-clickable' : 'punctuation'}}"
+              bindtap="{{item.isWord ? 'onWordClick' : ''}}"
+              data-word="{{item.text}}"
+            >{{item.text}}</text>
+          </view>
+          <view class="subtitle-chinese" wx:if="{{subtitleMode === 'zh' || subtitleMode === 'both'}}">{{item.chinese}}</view>
+        </view>
       </view>
     </view>
   </scroll-view>
@@ -97,16 +110,8 @@
       bindtouchmove="onCardTouchMove"
       bindtouchend="onCardTouchEnd"
     >
-      <!-- 卡片头部 -->
-      <view class="card-header">
-        <view class="drag-handle"></view>
-        <view class="card-title-bar">
-          <text class="card-title">{{vocabularyTitle || '单词本'}}</text>
-          <view class="card-close-btn" bindtap="onCloseVocabulary">
-            <image class="close-icon" src="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjQiIGhlaWdodD0iMjQiIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHBhdGggZD0iTTE5IDYuNDE4MjZMMTcuNTgxNyA1TDEyIDEwLjU4MTdMNi40MTgzNiA1TDUgNi40MTgyNkwxMC41ODE3IDEyTDUgMTcuNTgxN0w2LjQxODM2IDE5TDEyIDEzLjQxODNMMTcuNTgxNyAxOUwxOSAxNy41ODE3TDEzLjQxODMgMTJMMTkgNi40MTgyNloiIGZpbGw9IiM5OTkiLz4KPC9zdmc+Cg==" mode="aspectFit"></image>
-          </view>
-        </view>
-      </view>
+      <!-- 简单的拖拽把手 -->
+      <view class="drag-handle"></view>
       
       <!-- 单词列表 -->
       <scroll-view class="vocabulary-content" scroll-y="{{true}}">
@@ -127,19 +132,23 @@
               <!-- 单词信息 -->
               <view class="word-main" bindtap="onWordTap" data-word="{{item}}">
                 <view class="word-text">{{item.word}}</view>
-                <view class="word-phonetic">{{item.phonetic}}</view>
+                <view wx:if="{{item.phonetic_us || item.phonetic_uk}}" class="word-phonetic">
+                  /{{item.phonetic_us || item.phonetic_uk}}/
+                </view>
               </view>
               
               <!-- 翻译区域 -->
-              <view class="word-translation" bindtap="onWordTap" data-word="{{item}}">
-                <view wx:for="{{item.translations}}" wx:key="*this" class="translation-item">
-                  <text class="part-of-speech">{{item.partOfSpeech}}</text>
-                  <text class="meaning">{{item.meaning}}</text>
+              <view class="word-translation">
+                <view class="translation-content">
+                  <view wx:for="{{item.translation}}" wx:key="index" wx:for-item="trans" class="translation-item">
+                    <text wx:if="{{trans.type}}" class="part-of-speech">{{trans.type}}</text>
+                    <text class="meaning">{{trans.meaning}}</text>
+                  </view>
                 </view>
               </view>
               
               <!-- 右侧：收藏按钮 -->
-              <view class="word-actions" catchtap="onToggleFavorite" data-id="{{item.id}}">
+              <view class="word-actions" catchtap="onToggleFavorite" data-id="{{item._id}}">
                 <view class="favorite-btn {{item.isFavorited ? 'favorited' : ''}}">
                   <image class="favorite-icon" src="{{item.isFavorited ? '/resource/icons/star-fill.png' : '/resource/icons/star.png'}}" mode="aspectFit"></image>
                 </view>
@@ -148,6 +157,69 @@
           </view>
         </view>
       </scroll-view>
+    </view>
+  </view>
+
+  <!-- 单词详情弹窗 -->
+  <view class="word-detail-overlay {{showWordDetail ? 'show' : ''}}" bindtap="onCloseWordDetail">
+    <view 
+      class="word-detail-modal {{showWordDetail ? 'slide-up' : ''}}" 
+      catchtap="stopPropagation"
+    >
+      <!-- 弹窗头部 -->
+      <!-- 单词信息内容 -->
+      <view class="word-detail-content">
+        <!-- 单词主要信息 -->
+        <view class="word-main-info">
+          <view class="word-title">{{currentWord.word}}</view>
+          <view class="word-phonetic-info" wx:if="{{currentWord.phonetic_uk || currentWord.phonetic_us}}">
+            <!-- 英式音标 -->
+            <view wx:if="{{currentWord.phonetic_uk}}" class="phonetic-item" bindtap="onPlayAudio" data-type="uk">
+              <image class="speaker-icon" src="/resource/icons/volume.svg" mode="aspectFit"></image>
+              <text class="phonetic-label">英</text>
+              <text class="phonetic-text">/{{currentWord.phonetic_uk}}/</text>
+            </view>
+            
+            <!-- 美式音标 -->
+            <view wx:if="{{currentWord.phonetic_us}}" class="phonetic-item" bindtap="onPlayAudio" data-type="us">
+              <image class="speaker-icon" src="/resource/icons/volume.svg" mode="aspectFit"></image>
+              <text class="phonetic-label">美</text>
+              <text class="phonetic-text">/{{currentWord.phonetic_us}}/</text>
+            </view>
+          </view>
+        </view>
+        
+        <!-- 释义列表 -->
+        <view class="translations-section">
+          <view class="section-title">释义</view>
+          <view class="translations-list">
+            <view wx:for="{{currentWord.translation}}" wx:key="index" class="translation-item-detail">
+              <view wx:if="{{item.type}}" class="pos-tag">{{item.type}}</view>
+              <view class="translation-content">
+                <view class="meaning-text">{{item.meaning}}</view>
+              </view>
+            </view>
+          </view>
+        </view>
+        
+        <!-- 标签信息 -->
+        <view class="tags-section" wx:if="{{currentWord.translatedTags && currentWord.translatedTags.length}}">
+          <view class="section-title">标签</view>
+          <view class="tags-list">
+            <text wx:for="{{currentWord.translatedTags}}" wx:key="*this" class="tag-item">{{item}}</text>
+          </view>
+        </view>
+      </view>
+      
+      <!-- 底部操作按钮 -->
+      <view class="word-detail-actions">
+        <view class="action-btn secondary" bindtap="onCloseWordDetail">
+          关闭
+        </view>
+        <view class="action-btn primary {{currentWord.isCollected ? 'collected' : ''}}" bindtap="onToggleWordCollection">
+          {{currentWord.isCollected ? '已收藏' : '加入单词本'}}
+        </view>
+      </view>
     </view>
   </view>
 </view> 

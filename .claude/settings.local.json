@@ -21,7 +21,8 @@
       "Bash(mv:*)",
       "WebFetch(domain:huggingface.co)",
       "WebFetch(domain:dictionary.cambridge.org)",
-      "WebFetch(domain:stackoverflow.com)"
+      "WebFetch(domain:stackoverflow.com)",
+      "Bash(curl:*)"
     ],
     "deny": []
   }

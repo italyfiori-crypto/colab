@@ -6,11 +6,11 @@ cloud.init({ env: cloud.DYNAMIC_CURRENT_ENV }) // 使用当前云环境
 const db = cloud.database()
 
 exports.main = async (event, context) => {
-  const { type, chapterId, bookId, currentTime, completed } = event
+  const { type, chapterId, bookId, currentTime, completed, word, wordId } = event
   const { OPENID } = cloud.getWXContext()
   const user_id = OPENID
 
-  console.log('📖 [DEBUG] articleDetailData云函数开始执行:', { type, chapterId, bookId, user_id, currentTime, completed })
+  console.log('📖 [DEBUG] articleDetailData云函数开始执行:', { type, chapterId, bookId, user_id, currentTime, completed, word, wordId })
 
   try {
     switch (type) {
@@ -20,6 +20,12 @@ exports.main = async (event, context) => {
         return await getChapterVocabularies(chapterId, user_id)
       case 'saveChapterProgress':
         return await saveChapterProgress(user_id, bookId, chapterId, currentTime, completed)
+      case 'getWordDetail':
+        return await getWordDetail(word, user_id, bookId, chapterId)
+      case 'addWordToCollection':
+        return await addWordToCollection(word, user_id, bookId, chapterId)
+      case 'removeWordFromCollection':
+        return await removeWordFromCollection(wordId, user_id)
       default:
         console.log('❌ [DEBUG] 未知操作类型:', type)
         return {
@@ -95,15 +101,24 @@ async function getChapterDetail(chapterId, user_id) {
   }
 }
 
-// 获取章节单词
+// 获取章节单词（从用户真实学习记录）
 async function getChapterVocabularies(chapterId, user_id) {
   console.log('🔄 [DEBUG] 开始获取章节单词:', { chapterId, user_id })
 
+  // 加强参数验证
   if (!chapterId) {
     console.log('❌ [DEBUG] 参数验证失败: 缺少章节ID')
     return {
       code: -1,
       message: '缺少章节ID参数'
+    }
+  }
+
+  if (!user_id) {
+    console.log('❌ [DEBUG] 参数验证失败: 缺少用户ID')
+    return {
+      code: -1,
+      message: '缺少用户ID参数'
     }
   }
 
@@ -121,118 +136,66 @@ async function getChapterVocabularies(chapterId, user_id) {
     }
 
     const chapter = chapterResult.data
+    console.log('✅ [DEBUG] 获取到章节信息:', chapter.title)
 
-    // 2. 查询章节相关单词（使用mock数据）
-    console.log('📤 [DEBUG] 获取mock单词数据')
+    // 2. 查询用户在该章节的单词记录
+    console.log('📤 [DEBUG] 查询用户单词记录准备:', {
+      user_id,
+      chapterId,
+      user_id_type: typeof user_id,
+      chapterId_type: typeof chapterId,
+      user_id_value: user_id,
+      chapterId_value: chapterId
+    })
 
-    // Mock单词数据，模拟数据库结构
-    const mockVocabularies = [
-      {
-        _id: 'word_001',
-        word: 'welcome',
-        phonetic: '/ˈwelkəm/',
-        translations: [
-          { type: 'v.', meaning: '欢迎', example: 'Welcome to our school.' },
-          { type: 'n.', meaning: '欢迎', example: 'A warm welcome awaited us.' }
-        ],
-        difficulty: 'easy',
-        frequency: 'high'
-      },
-      {
-        _id: 'word_002',
-        word: 'practice',
-        phonetic: '/ˈpræktɪs/',
-        translations: [
-          { type: 'n.', meaning: '练习', example: 'Practice makes perfect.' },
-          { type: 'v.', meaning: '练习', example: 'I practice piano every day.' }
-        ],
-        difficulty: 'easy',
-        frequency: 'high'
-      },
-      {
-        _id: 'word_003',
-        word: 'listening',
-        phonetic: '/ˈlɪsnɪŋ/',
-        translations: [
-          { type: 'n.', meaning: '听力', example: 'Listening is an important skill.' }
-        ],
-        difficulty: 'medium',
-        frequency: 'high'
-      },
-      {
-        _id: 'word_004',
-        word: 'pronunciation',
-        phonetic: '/prəˌnʌnsiˈeɪʃn/',
-        translations: [
-          { type: 'n.', meaning: '发音', example: 'Good pronunciation is essential.' }
-        ],
-        difficulty: 'medium',
-        frequency: 'medium'
-      },
-      {
-        _id: 'word_005',
-        word: 'improve',
-        phonetic: '/ɪmˈpruːv/',
-        translations: [
-          { type: 'v.', meaning: '改善', example: 'We need to improve our English.' }
-        ],
-        difficulty: 'easy',
-        frequency: 'high'
-      },
-      {
-        _id: 'word_006',
-        word: 'sentence',
-        phonetic: '/ˈsentəns/',
-        translations: [
-          { type: 'n.', meaning: '句子', example: 'Read this sentence carefully.' }
-        ],
-        difficulty: 'easy',
-        frequency: 'high'
-      },
-      {
-        _id: 'word_007',
-        word: 'progress',
-        phonetic: '/ˈprɑːɡres/',
-        translations: [
-          { type: 'n.', meaning: '进步', example: 'You are making good progress.' },
-          { type: 'v.', meaning: '进步', example: 'Students progress at different rates.' }
-        ],
-        difficulty: 'medium',
-        frequency: 'high'
-      },
-      {
-        _id: 'word_008',
-        word: 'platform',
-        phonetic: '/ˈplætfɔːrm/',
-        translations: [
-          { type: 'n.', meaning: '平台', example: 'This is a learning platform.' }
-        ],
-        difficulty: 'medium',
-        frequency: 'medium'
+    // 确保参数为字符串类型
+    const userIdStr = String(user_id)
+    const chapterIdStr = String(chapterId)
+
+    console.log('🔧 [DEBUG] 转换后的查询参数:', {
+      userIdStr,
+      chapterIdStr,
+      userIdStr_type: typeof userIdStr,
+      chapterIdStr_type: typeof chapterIdStr
+    })
+
+    const wordRecordsResult = await db.collection('word_records')
+      .where({
+        'user_id': userIdStr,
+        'source_chapter_id': chapterIdStr
+      })
+      .get()
+
+    console.log('📥 [DEBUG] 查询到单词记录:', wordRecordsResult.data.length)
+
+    // 如果没有单词记录，返回空数组
+    if (wordRecordsResult.data.length === 0) {
+      console.log('📝 [DEBUG] 该章节无单词记录')
+      return {
+        code: 0,
+        data: {
+          vocabularies: []
+        }
       }
-    ]
-
-    console.log('📥 [DEBUG] Mock单词数据加载完成:', { count: mockVocabularies.length })
-
-    // 3. 获取用户单词学习记录（mock数据简化处理）
-    let userWordRecords = []
-    if (user_id && mockVocabularies.length > 0) {
-      const wordIds = mockVocabularies.map(word => word._id)
-      console.log('📤 [DEBUG] 查询用户单词学习记录:', wordIds.length)
-
-      // Mock用户单词学习记录
-      userWordRecords = [
-        { word_id: 'word_001', level: 3, is_mastered: false, last_review_at: new Date() },
-        { word_id: 'word_002', level: 5, is_mastered: false, last_review_at: new Date() },
-        { word_id: 'word_003', level: 1, is_mastered: false, last_review_at: new Date() }
-      ]
-
-      console.log('📥 [DEBUG] Mock用户单词记录:', { count: userWordRecords.length })
     }
 
-    // 4. 合并单词数据和用户学习状态
-    const vocabularies = mockVocabularies.map(word => {
-      const userRecord = userWordRecords.find(record => record.word_id === word._id)
+    // 3. 提取word_id并去重
+    const wordIds = [...new Set(wordRecordsResult.data.map(record => record.word_id))]
+    console.log('📤 [DEBUG] 需要查询的单词ID数量:', wordIds.length)
+
+    // 4. 分批查询vocabularies（解决in限制）
+    const vocabulariesData = await batchQueryVocabularies(wordIds)
+    console.log('📥 [DEBUG] 查询到单词详情:', vocabulariesData.length)
+
+    // 5. 创建单词记录映射，便于合并数据
+    const recordsMap = new Map()
+    wordRecordsResult.data.forEach(record => {
+      recordsMap.set(record.word_id, record)
+    })
+
+    // 6. 合并数据，统一标记为收藏状态（直接使用数据库字段）
+    const vocabularies = vocabulariesData.map(word => {
+      const userRecord = recordsMap.get(word._id)
 
       return {
         ...word,
@@ -240,26 +203,44 @@ async function getChapterVocabularies(chapterId, user_id) {
         level: userRecord ? userRecord.level : 0,
         is_mastered: userRecord ? userRecord.level >= 7 : false,
         last_review_at: userRecord ? userRecord.last_review_at : null,
-        // 添加默认收藏状态
-        isFavorited: false
+        // 收藏状态 - 来自word_records的都是收藏状态
+        isFavorited: true
       }
     })
 
-    console.log('✅ [DEBUG] 章节单词数据处理完成')
+    console.log('✅ [DEBUG] 章节单词数据处理完成，返回', vocabularies.length, '个单词')
 
     return {
       code: 0,
       data: {
-        chapter_title: chapter.title,
         vocabularies: vocabularies
       }
     }
 
   } catch (error) {
-    console.error('❌ [DEBUG] 获取章节单词失败:', error)
+    console.error('❌ [DEBUG] 获取章节单词失败:', {
+      error: error.message,
+      stack: error.stack,
+      chapterId,
+      user_id,
+      errorType: error.constructor.name
+    })
+
+    // 根据不同错误类型返回更具体的错误信息
+    let errorMessage = '获取章节单词失败'
+    if (error.message.includes('查询参数')) {
+      errorMessage = '查询参数错误，请检查章节ID和用户ID'
+    } else if (error.message.includes('网络')) {
+      errorMessage = '网络连接失败，请重试'
+    } else if (error.message.includes('权限')) {
+      errorMessage = '数据库访问权限不足'
+    } else {
+      errorMessage = '获取章节单词失败: ' + error.message
+    }
+
     return {
       code: -1,
-      message: '获取章节单词失败: ' + error.message
+      message: errorMessage
     }
   }
 }
@@ -350,3 +331,192 @@ async function saveChapterProgress(user_id, bookId, chapterId, currentTime, comp
   }
 }
 
+// 获取单词详情（包含用户收藏状态）
+async function getWordDetail(word, user_id, bookId, chapterId) {
+  console.log('🔄 [DEBUG] 获取单词详情:', { word, user_id, bookId, chapterId })
+
+  if (!word) {
+    return {
+      code: -1,
+      message: '缺少单词参数'
+    }
+  }
+
+  try {
+    // 1. 查询单词基本信息
+    const wordResult = await db.collection('vocabularies').where({
+      word: word.toLowerCase()
+    }).limit(1).get()
+
+    if (!wordResult.data || wordResult.data.length === 0) {
+      console.log('❌ [DEBUG] 单词不存在:', word)
+      return {
+        code: -1,
+        message: '单词不存在'
+      }
+    }
+
+    const wordInfo = wordResult.data[0]
+
+    // 2. 查询用户收藏状态
+    let isCollected = false
+    if (user_id) {
+      const recordId = `${user_id}_${wordInfo._id}`
+      console.log('📤 [DEBUG] 查询用户单词记录:', recordId)
+
+      const userWordResult = await db.collection('word_records').doc(recordId).get().catch(() => null)
+
+      if (userWordResult && userWordResult.data && userWordResult.data.is_collected) {
+        isCollected = true
+      }
+    }
+
+    // 3. 组装返回数据
+    const result = {
+      ...wordInfo,
+      isCollected: isCollected
+    }
+
+    console.log('✅ [DEBUG] 单词详情获取成功:', { word, isCollected })
+
+    return {
+      code: 0,
+      data: result
+    }
+
+  } catch (error) {
+    console.error('❌ [DEBUG] 获取单词详情失败:', error)
+    return {
+      code: -1,
+      message: '获取单词详情失败: ' + error.message
+    }
+  }
+}
+
+// 添加单词到收藏
+async function addWordToCollection(word, user_id, bookId, chapterId) {
+  console.log('🔄 [DEBUG] 添加单词到收藏:', { word, user_id, bookId, chapterId })
+
+  if (!word || !user_id) {
+    return {
+      code: -1,
+      message: '参数不完整'
+    }
+  }
+
+  try {
+    // 1. 查询单词信息
+    const wordResult = await db.collection('vocabularies').where({
+      word: word.toLowerCase()
+    }).limit(1).get()
+
+    if (!wordResult.data || wordResult.data.length === 0) {
+      return {
+        code: -1,
+        message: '单词不存在'
+      }
+    }
+
+    const wordInfo = wordResult.data[0]
+    const recordId = `${user_id}_${wordInfo._id}`
+    const now = new Date()
+
+    // 2. 直接创建或更新记录（使用set覆盖）
+    await db.collection('word_records').doc(recordId).set({
+      data: {
+        user_id: user_id,
+        word_id: wordInfo._id,
+        level: 0,
+        learn_at: now,
+        last_review_at: null,
+        next_review_at: null,
+        is_collected: true,
+        source_book_id: bookId,
+        source_chapter_id: chapterId,
+        updated_at: now
+      }
+    })
+
+    console.log('✅ [DEBUG] 单词添加到收藏成功:', word)
+
+    return {
+      code: 0,
+      message: '已加入单词本'
+    }
+
+  } catch (error) {
+    console.error('❌ [DEBUG] 添加单词到收藏失败:', error)
+    return {
+      code: -1,
+      message: '添加失败: ' + error.message
+    }
+  }
+}
+
+// 从收藏中移除单词（硬删除）
+async function removeWordFromCollection(wordId, user_id) {
+  console.log('🔄 [DEBUG] 从收藏移除单词:', { wordId, user_id })
+
+  if (!wordId || !user_id) {
+    return {
+      code: -1,
+      message: '参数不完整'
+    }
+  }
+
+  try {
+    const recordId = `${user_id}_${wordId}`
+
+    // 直接硬删除记录
+    await db.collection('word_records').doc(recordId).remove()
+
+    console.log('✅ [DEBUG] 单词从收藏删除成功:', wordId)
+
+    return {
+      code: 0,
+      message: '已从单词本移除'
+    }
+
+  } catch (error) {
+    console.error('❌ [DEBUG] 删除单词收藏失败:', error)
+    return {
+      code: -1,
+      message: '删除失败: ' + error.message
+    }
+  }
+}
+
+// 分批查询辅助函数 - 解决微信云数据库in操作限制（最多20个）
+async function batchQueryVocabularies(wordIds) {
+  console.log('🔄 [DEBUG] 开始分批查询单词详情:', { wordCount: wordIds.length })
+
+  if (wordIds.length === 0) {
+    console.log('📝 [DEBUG] 单词ID列表为空，跳过查询')
+    return []
+  }
+
+  const batchSize = 20 // 微信云数据库 in 操作限制
+  const batches = []
+
+  // 将wordIds分成多个批次
+  for (let i = 0; i < wordIds.length; i += batchSize) {
+    batches.push(wordIds.slice(i, i + batchSize))
+  }
+
+  console.log('📦 [DEBUG] 分批查询:', { batchCount: batches.length, batchSize })
+
+  // 并发查询所有批次
+  const _ = db.command
+  const batchPromises = batches.map((batch, index) => {
+    console.log(`📤 [DEBUG] 查询批次 ${index + 1}:`, batch.length, '个单词')
+    return db.collection('vocabularies').where({ '_id': _.in(batch) }).get()
+  })
+
+  const batchResults = await Promise.all(batchPromises)
+
+  // 合并所有结果
+  const vocabularies = batchResults.flatMap(result => result.data)
+  console.log('📥 [DEBUG] 分批查询完成:', { totalFound: vocabularies.length })
+
+  return vocabularies
+}

@@ -242,6 +242,8 @@
   learn_at: Date            // 首次学习时间
   last_review_at: Date,     // 最后复习时间
   next_review_at: Date,     // 下次复习时间 (艾宾浩斯间隔)
+  source_book_id: string,   // 书籍id
+  source_chapter_id: string, // 章节id
 }
 ```
 
