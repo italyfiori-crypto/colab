@@ -150,7 +150,7 @@ def process_all_books(api_client: WeChatCloudAPI) -> bool:
                 print(f"📊 章节处理统计: 新增{chapter_stats['chapters_added']}, 更新{chapter_stats['chapters_updated']}, 跳过{chapter_stats['chapters_skipped']}, 失败{chapter_stats['chapters_failed']}")
                 
                 # 清理孤立章节
-                book_uploader.cleanup_orphaned_chapters(book_id, local_chapter_ids, existing_chapters_dict)
+                # book_uploader.cleanup_orphaned_chapters(book_id, local_chapter_ids, existing_chapters_dict)
             
             # 处理词汇
             print(f"📚 开始处理词汇...")

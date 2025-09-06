@@ -84,8 +84,6 @@ def main():
     program_root = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
     file_name = os.path.basename(args.input_file)
     output_dir = os.path.join(program_root, "output", os.path.splitext(file_name)[0])
-    vocab_audio_dir = os.path.join(program_root, "output", "vocabulary", "audio")
-    vocab_compress_audio_dir = os.path.join(program_root, "output", "vocabulary", "compressed_audio")
     master_vocab_file = os.path.join(program_root, "output", "vocabulary", "master_vocabulary.json")
     config_path = os.path.join(os.path.dirname(__file__), 'config.json')
 

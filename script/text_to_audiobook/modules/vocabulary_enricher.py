@@ -88,6 +88,12 @@ class CambridgeDictionaryAPI:
                 print(f"    ❌ {word}: 剑桥词典请求失败 ({response.status_code})")
                 return None
             
+            # 检查是否发生了重定向到不同的单词
+            final_url = response.url
+            if self._is_redirected_to_different_word(word, final_url):
+                print(f"    ❌ {word}: 被重定向到不同单词，跳过处理")
+                return None
+            
             soup = BeautifulSoup(response.content, 'html.parser')
             
             # 提取音标和音频信息
@@ -106,6 +112,50 @@ class CambridgeDictionaryAPI:
         except Exception as e:
             print(f"    ❌ {word}: 剑桥词典查询异常 - {e}")
             return None
+    
+    def _is_redirected_to_different_word(self, original_word: str, final_url: str) -> bool:
+        """
+        检查是否被重定向到不同的单词
+        
+        Args:
+            original_word: 原始查询的单词
+            final_url: 最终的URL
+            
+        Returns:
+            True如果被重定向到不同单词，False否则
+        """
+        try:
+            # 从URL中提取最终的单词
+            # URL格式: https://dictionary.cambridge.org/dictionary/english/alice-band?q=alice
+            # 或: https://dictionary.cambridge.org/dictionary/english/alice-band
+            import re
+            from urllib.parse import urlparse, parse_qs
+            
+            parsed_url = urlparse(final_url)
+            path_parts = parsed_url.path.strip('/').split('/')
+            
+            # 获取路径中的单词（最后一个部分）
+            if len(path_parts) >= 3 and path_parts[-3] == 'dictionary' and path_parts[-2] == 'english':
+                final_word = path_parts[-1].lower()
+                original_word_lower = original_word.lower()
+                
+                # 检查是否是同一个单词
+                if final_word != original_word_lower:
+                    # 进一步检查是否是复合词情况（如alice -> alice-band）
+                    # 如果最终单词包含原单词作为前缀且后面跟连字符，则认为是重定向
+                    if final_word.startswith(original_word_lower + '-'):
+                        print(f"    🔄 {original_word}: 重定向到复合词 '{final_word}'")
+                        return True
+                    # 如果完全不同，也认为是重定向
+                    elif final_word != original_word_lower:
+                        print(f"    🔄 {original_word}: 重定向到不同单词 '{final_word}'")
+                        return True
+            
+            return False
+            
+        except Exception as e:
+            print(f"    ⚠️ {original_word}: 重定向检查异常 - {e}")
+            return False
     
     def _extract_phonetics(self, soup: BeautifulSoup) -> Dict[str, str]:
         """提取音标信息"""

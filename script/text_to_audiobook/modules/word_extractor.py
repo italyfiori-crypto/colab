@@ -277,13 +277,13 @@ class WordExtractor:
         pos = token.pos_
         tag = token.tag_
         
-        # 名词复数归一化 (NNS -> NN)
-        if pos == "NOUN" and tag == "NNS":
-            return lemma
+        # # 名词复数归一化 (NNS -> NN)
+        # if pos == "NOUN" and tag == "NNS":
+        #     return lemma
         
-        # 动词第三人称单数归一化 (VBZ -> VB)
-        if pos == "VERB" and tag == "VBZ":
-            return lemma
+        # # 动词第三人称单数归一化 (VBZ -> VB)
+        # if pos == "VERB" and tag == "VBZ":
+        #     return lemma
         
         # 其他情况保持原形（包括动词时态VBD/VBG/VBN和形容词比较级JJR/JJS）
         return word

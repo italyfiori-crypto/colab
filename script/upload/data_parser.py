@@ -89,6 +89,11 @@ class DataParser:
             'title', 'duration', 'is_active', 
             'audio_md5', 'subtitle_md5', 'chapter_number'
         ]
+        if existing_data and existing_data.get('subtitle_url') == "":
+            return True, ["subtitle_url"]
+        if existing_data and existing_data.get('audio_url') == "":
+            return True, ["audio_url"]
+
         return self.compare_data(new_data, existing_data, compare_fields)
 
     def parse_book_data(self, book_dir: str, book_id: str) -> Tuple[Dict, List[Dict]]:
