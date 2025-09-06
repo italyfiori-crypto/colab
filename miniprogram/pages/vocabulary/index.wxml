@@ -1,25 +1,5 @@
 <!--vocabulary单词本页面-->
 <view class="vocabulary-container">
-  <!-- 头部区域重新设计 -->
-  <view class="header-container">
-    <!-- 左侧：日期切换 -->
-    <view class="date-selector">
-      <view class="date-nav" bindtap="onPrevDay">
-        <text class="nav-arrow">‹</text>
-      </view>
-      <view class="date-display">
-        <text class="date-text">{{currentDay}}</text>
-      </view>
-      <view class="date-nav" bindtap="onNextDay">
-        <text class="nav-arrow">›</text>
-      </view>
-    </view>
-    
-    <!-- 右侧：设置按钮 -->
-    <view class="settings-btn" bindtap="onShowSettings">
-      <image class="settings-icon" src="/resource/icons/setting.svg" mode="aspectFit"></image>
-    </view>
-  </view>
 
   <!-- 主要内容区域 -->
   <view class="main-content">
@@ -28,16 +8,16 @@
       <view 
         wx:for="{{words}}" 
         wx:key="id"
-        class="word-item {{item.isLearned ? 'learned' : ''}}"
+        class="word-item {{wordType}} {{item.isLearned ? 'learned' : ''}} {{item.isReviewed ? 'reviewed' : ''}} {{item.isExpanded ? 'expanded' : ''}}"
         data-word="{{item}}"
-        bindtap="onWordTap"
         data-index="{{index}}"
-        bindtouchstart="onTouchStart"
-        bindtouchmove="onTouchMove"
-        bindtouchend="onTouchEnd"
+        bindtap="{{wordType === 'overdue' ? 'onToggleExpand' : 'onWordTap'}}"
+        bindtouchstart="{{wordType === 'review' ? 'onTouchStart' : ''}}"
+        bindtouchmove="{{wordType === 'review' ? 'onTouchMove' : ''}}"
+        bindtouchend="{{wordType === 'review' ? 'onTouchEnd' : ''}}"
       >
         <!-- 外层序号容器 -->
-        <view class="word-number-container {{item.isLearned ? 'learned-bg' : ''}}">
+        <view class="word-number-container {{item.isLearned ? 'learned-bg' : ''}} {{item.isReviewed ? 'reviewed-bg' : ''}}">
           <view class="word-number">{{index + 1}}</view>
         </view>
         
@@ -45,7 +25,13 @@
         <view class="word-content">
           <!-- 单词信息 -->
           <view class="word-main {{displayMode === 'english-mask' ? 'has-mask' : ''}}">
-            <view class="word-text">{{item.word}}</view>
+            <view class="word-header">
+              <view class="word-text">{{item.word}}</view>
+              <!-- 逾期标识 -->
+              <view wx:if="{{wordType === 'overdue' && item.overdue_days}}" class="overdue-badge">
+                逾期{{item.overdue_days}}天
+              </view>
+            </view>
             <view class="word-phonetic">{{item.phonetic}}</view>
             <!-- 英文遮罩覆盖层 -->
             <view wx:if="{{displayMode === 'english-mask' && !item.isExpanded}}" class="english-mask-overlay" bindtap="onToggleMask" data-index="{{index}}">
@@ -54,34 +40,69 @@
           </view>
           
           <!-- 翻译区域 -->
-          <view class="word-translation {{displayMode === 'chinese-mask' ? 'has-mask' : ''}}">
+          <view class="word-translation">
             <view class="translation-content">
               <view wx:for="{{item.translations}}" wx:key="*this" class="translation-item">
                 <text class="part-of-speech">{{item.partOfSpeech}}</text>
-                <text class="meaning">{{item.meaning}}</text>
+                <view class="meaning-container">
+                  <text class="meaning">{{item.meaning}}</text>
+                  <!-- 中文遮罩覆盖层 -->
+                  <view wx:if="{{displayMode === 'chinese-mask' && !item.isExpanded}}" class="chinese-mask-overlay" bindtap="onToggleMask" data-index="{{index}}">
+                    <text class="mask-text">点击显示</text>
+                  </view>
+                </view>
               </view>
             </view>
-            <!-- 中文遮罩覆盖层 -->
-            <view wx:if="{{displayMode === 'chinese-mask' && !item.isExpanded}}" class="chinese-mask-overlay" bindtap="onToggleMask" data-index="{{index}}">
-              <text class="mask-text">点击显示</text>
-            </view>
           </view>
-          
         </view>
         
-        <!-- 左滑操作按钮 -->
-        <view class="slide-actions" wx:if="{{item.showActions}}">
-          <view class="action-btn mastered" bindtap="onMarkMastered" data-index="{{index}}">
-            <text class="action-text">已掌握</text>
+        <!-- 逾期单词处理按钮 -->
+        <view wx:if="{{wordType === 'overdue' && item.isExpanded}}" class="overdue-actions">
+          <view class="overdue-btn remember-btn" bindtap="onHandleOverdue" data-index="{{index}}" data-action="remember">
+            还记得
           </view>
-          <view class="action-btn unfamiliar" bindtap="onMarkUnfamiliar" data-index="{{index}}">
-            <text class="action-text">不熟悉</text>
+          <view class="overdue-btn vague-btn" bindtap="onHandleOverdue" data-index="{{index}}" data-action="vague">
+            模糊
           </view>
-          <view class="action-btn delete" bindtap="onDeleteWord" data-index="{{index}}">
-            <text class="action-text">删除</text>
+          <view class="overdue-btn forgot-btn" bindtap="onHandleOverdue" data-index="{{index}}" data-action="forgot">
+            忘记了
+          </view>
+        </view>
+        
+        <!-- 复习单词滑动操作按钮 -->
+        <view class="slide-actions" wx:if="{{wordType === 'review' && item.showActions}}">
+          <view class="action-btn forgot" bindtap="onReviewWord" data-index="{{index}}" data-action="forgot">
+            <text class="action-text">忘记了</text>
+          </view>
+          <view class="action-btn mastered" bindtap="onReviewWord" data-index="{{index}}" data-action="mastered">
+            <text class="action-text">记牢了</text>
           </view>
         </view>
       </view>
+    </view>
+
+    <!-- 空状态提示 -->
+    <view wx:if="{{!loading && words.length === 0}}" class="empty-state">
+      <view class="empty-icon">
+        <text wx:if="{{wordType === 'new'}}">📚</text>
+        <text wx:elif="{{wordType === 'review'}}">🔄</text>
+        <text wx:else="{{wordType === 'overdue'}}">✅</text>
+      </view>
+      <view class="empty-title">
+        <text wx:if="{{wordType === 'new'}}">暂无待学习单词</text>
+        <text wx:elif="{{wordType === 'review'}}">暂无需要复习的单词</text>
+        <text wx:else="{{wordType === 'overdue'}}">暂无逾期单词，继续加油！</text>
+      </view>
+      <view class="empty-subtitle">
+        <text wx:if="{{wordType === 'new'}}">完成章节学习后会出现新单词</text>
+        <text wx:elif="{{wordType === 'review'}}">按时复习，保持学习节奏</text>
+        <text wx:else="{{wordType === 'overdue'}}">坚持复习，避免单词逾期</text>
+      </view>
+    </view>
+
+    <!-- 加载状态 -->
+    <view wx:if="{{loading}}" class="loading-state">
+      <text class="loading-text">正在加载单词...</text>
     </view>
   </view>
   

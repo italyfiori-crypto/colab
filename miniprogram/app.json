@@ -3,6 +3,7 @@
     "pages/home/index",
     "pages/book-detail/index",
     "pages/article-detail/index",
+    "pages/word-study/index",
     "pages/vocabulary/index",
     "pages/profile/index"
   ],
@@ -26,7 +27,7 @@
         "selectedIconPath": "resource/icons/home-fill.png"
       },
       {
-        "pagePath": "pages/vocabulary/index",
+        "pagePath": "pages/word-study/index",
         "text": "单词本",
         "iconPath": "resource/icons/book.png",
         "selectedIconPath": "resource/icons/book-fill.png"

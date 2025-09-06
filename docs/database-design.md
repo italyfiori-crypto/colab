@@ -234,16 +234,14 @@
   _id: string,              // 记录ID (user_id_word_id)
   user_id: string,          // 用户ID
   word_id: string,          // 单词ID
-  
-  // 记忆状态 (简化)
-  level: number,            // 记忆等级 0-7 (0=新词, 1-6=复习阶段, 7=已掌握)
-  
-  // 时间管理 (核心)
-  learn_at: Date            // 首次学习时间
-  last_review_at: Date,     // 最后复习时间
-  next_review_at: Date,     // 下次复习时间 (艾宾浩斯间隔)
   source_book_id: string,   // 书籍id
   source_chapter_id: string, // 章节id
+  
+  // 学习和复习管理 (核心)
+  level: number,            // 记忆等级 0-7 (0=新词, 1-6=复习阶段, 7=已掌握)
+  learn_at: Date,           // 首次学习时间
+  finished_dates: []string, // 实际复习时间
+  next_review_at: Date,     // 下次复习时间 (艾宾浩斯间隔) 
 }
 ```
 
@@ -254,25 +252,6 @@
   { user_id: 1, next_review_at: 1 }, // 复习计划查询
   { user_id: 1, level: 1 }           // 按掌握程度查询
 ]
-```
-
-### 2.8 每日学习计划表 (daily_plans)
-
-**功能**: 管理每日单词学习计划，支持新学和复习
-
-```javascript
-{
-  _id: string,              // 计划ID (user_id_plan_date)
-  user_id: string,          // 用户ID
-  plan_date: string,        // 计划日期 YYYY-MM-DD
-  
-  // 学习计划 (简化)
-  new_words: string[],      // 新学单词ID列表
-  review_words: string[],   // 复习单词ID列表
-  
-  created_at: Date,
-  updated_at: Date
-}
 ```
 
 **索引设计**:
@@ -290,7 +269,6 @@
 users (用户) 
 ├── user_progress (学习进度) ──→ books (书籍)
 ├── word_records (单词记录) ──→ vocabularies (单词)
-└── daily_plans (每日计划) ──→ vocabularies (单词)
 
 books (书籍)
 ├── chapters (章节)

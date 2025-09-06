@@ -1,20 +1,17 @@
 // vocabulary单词本页面逻辑
-const vocabularyBookData = require('../../mock/vocabularyBookData.js');
-
 Page({
     data: {
-        currentDay: 'Day 1',
-        currentDayKey: 'day1',
-        currentTab: 'vocabulary',
+        // 页面类型: new(新学), review(复习), overdue(逾期)
+        wordType: 'new',
+        pageTitle: '新学单词',
+        
         words: [],
-        totalWords: 0,
-        masteredWords: 0,
-        progress: 0,
-        availableDays: ['day1', 'day2', 'day3'],
         loading: true,
+        
         // 显示模式：both(中英), chinese-mask(中文遮罩), english-mask(英文遮罩)
-        displayMode: 'english-mask',
+        displayMode: 'both',
         showSettings: false,
+        
         // 触摸相关
         touchStartX: 0,
         touchStartY: 0,
@@ -22,390 +19,316 @@ Page({
     },
 
     onLoad(options) {
-        // 设置默认天数
+        const { type = 'new' } = options;
+        
+        // 根据类型设置页面配置
+        const pageConfig = {
+            new: { title: '新学单词', navTitle: '新学单词' },
+            review: { title: '复习单词', navTitle: '复习单词' },
+            overdue: { title: '逾期单词', navTitle: '逾期单词' }
+        };
+        
+        const config = pageConfig[type] || pageConfig.new;
+        
+        // 根据单词类型设置显示模式
+        let displayMode = wx.getStorageSync('displayMode') || 'both';
+        if (type === 'new') {
+            displayMode = 'chinese-mask'; // 新学单词默认遮罩中文
+        }
+        
         this.setData({
-            currentDay: 'Day 1',
-            currentDayKey: 'day1',
-            displayMode: wx.getStorageSync('displayMode') || 'both'
+            wordType: type,
+            pageTitle: config.title,
+            displayMode: displayMode
         });
-
-        // 加载单词数据
-        this.loadVocabularyData('day1');
 
         // 设置导航栏标题
         wx.setNavigationBarTitle({
-            title: '单词本'
+            title: config.navTitle
         });
+
+        // 加载对应类型的单词数据
+        this.loadWordsByType(type);
     },
 
-    // 加载单词数据
-    loadVocabularyData(dayKey) {
+    // 根据类型加载单词数据
+    async loadWordsByType(type) {
         try {
-            const data = vocabularyBookData[dayKey];
+            this.setData({ loading: true });
 
-            if (data) {
-                // 为每个单词添加展开状态和学习状态
-                const words = data.words.map(word => ({
+            // 调用云函数获取对应类型的单词
+            const result = await wx.cloud.callFunction({
+                name: 'wordStudy',
+                data: {
+                    action: 'getWordList',
+                    type: type,
+                    limit: 50
+                }
+            });
+
+            if (result.result.success) {
+                const words = result.result.data.map(word => ({
                     ...word,
                     isExpanded: false,
-                    isLearned: word.isLearned || false,
+                    isLearned: false,
+                    isReviewed: false,
                     showActions: false
                 }));
 
                 this.setData({
                     words: words,
-                    totalWords: data.totalWords,
-                    masteredWords: data.masteredWords,
-                    progress: data.progress,
                     loading: false
                 });
             } else {
-                this.setData({
-                    words: [],
-                    loading: false
-                });
-
+                console.error('获取单词列表失败:', result.result.message);
                 wx.showToast({
-                    title: '暂无单词数据',
-                    icon: 'none',
-                    duration: 2000
+                    title: '加载失败',
+                    icon: 'none'
+                });
+                this.setData({ loading: false });
+            }
+        } catch (error) {
+            console.error('加载单词数据错误:', error);
+            wx.showToast({
+                title: '加载失败',
+                icon: 'none'
+            });
+            this.setData({ loading: false });
+        }
+    },
+
+    // 新学单词点击事件
+    onWordTap(e) {
+        // 新学单词的点击现在通过遮罩处理，这里暂时保留空实现
+    },
+
+    // 逾期单词展开/收起
+    onToggleExpand(e) {
+        const { index } = e.currentTarget.dataset;
+        const { words } = this.data;
+        
+        // 收起其他展开的单词
+        words.forEach((word, idx) => {
+            if (idx !== index) {
+                word.isExpanded = false;
+            }
+        });
+        
+        // 切换当前单词的展开状态
+        words[index].isExpanded = !words[index].isExpanded;
+        
+        this.setData({ words });
+    },
+
+
+    // 开始学习新单词
+    async startLearning(index) {
+        try {
+            const word = this.data.words[index];
+            
+            // 调用云函数更新学习记录
+            const result = await wx.cloud.callFunction({
+                name: 'wordStudy',
+                data: {
+                    action: 'updateWordRecord',
+                    wordId: word.id,
+                    actionType: 'start_learning'
+                }
+            });
+
+            if (result.result.success) {
+                // 更新UI状态：移除遮罩，标记为已学习
+                const words = [...this.data.words];
+                words[index].isLearned = true;
+                words[index].isExpanded = true; // 移除遮罩
+                
+                this.setData({ words });
+                
+                wx.showToast({
+                    title: '开始学习',
+                    icon: 'success'
+                });
+            } else {
+                console.error('更新学习记录失败:', result.result.message);
+                wx.showToast({
+                    title: result.result.message || '操作失败',
+                    icon: 'none'
                 });
             }
         } catch (error) {
-            console.error('加载单词数据失败:', error);
-            this.setData({
-                loading: false
-            });
-
+            console.error('开始学习失败:', error);
             wx.showToast({
-                title: '加载失败',
-                icon: 'error',
-                duration: 2000
+                title: '操作失败',
+                icon: 'none'
             });
         }
     },
 
-    // 上一天
-    onPrevDay() {
-        const currentIndex = this.data.availableDays.indexOf(this.data.currentDayKey);
-        if (currentIndex > 0) {
-            const prevDayKey = this.data.availableDays[currentIndex - 1];
-            const prevDayNumber = currentIndex;
-            this.setData({
-                currentDay: `Day ${prevDayNumber}`,
-                currentDayKey: prevDayKey
-            });
-            this.loadVocabularyData(prevDayKey);
-        } else {
+    // 处理逾期单词
+    async onHandleOverdue(e) {
+        const { index, action } = e.currentTarget.dataset;
+        const word = this.data.words[index];
+        
+        try {
+            // TODO: 调用云函数更新逾期单词记录
+            // await this.updateOverdueWord(word.id, action);
+            
+            // 从列表中移除该单词
+            const words = this.data.words.filter((_, idx) => idx !== index);
+            this.setData({ words });
+            
+            const actionText = {
+                remember: '还记得',
+                vague: '有点模糊',
+                forgot: '忘记了'
+            };
+            
             wx.showToast({
-                title: '已经是第一天了',
-                icon: 'none',
-                duration: 1000
+                title: `已标记为${actionText[action]}`,
+                icon: 'success'
             });
-        }
-    },
-
-    // 下一天
-    onNextDay() {
-        const currentIndex = this.data.availableDays.indexOf(this.data.currentDayKey);
-        if (currentIndex < this.data.availableDays.length - 1) {
-            const nextDayKey = this.data.availableDays[currentIndex + 1];
-            const nextDayNumber = currentIndex + 2;
-            this.setData({
-                currentDay: `Day ${nextDayNumber}`,
-                currentDayKey: nextDayKey
-            });
-            this.loadVocabularyData(nextDayKey);
-        } else {
-            wx.showToast({
-                title: '已经是最后一天了',
-                icon: 'none',
-                duration: 1000
-            });
-        }
-    },
-
-    // 显示设置弹窗
-    onShowSettings() {
-        this.setData({
-            showSettings: true
-        });
-    },
-
-    // 隐藏设置弹窗
-    onHideSettings() {
-        this.setData({
-            showSettings: false
-        });
-    },
-
-    // 切换显示模式
-    onChangeDisplayMode(e) {
-        const mode = e.currentTarget.dataset.mode;
-        this.setData({
-            displayMode: mode
-        });
-
-        // 保存到本地存储
-        wx.setStorageSync('displayMode', mode);
-
-        // 隐藏弹窗
-        this.onHideSettings();
-
-        // 重置所有单词的展开状态
-        const words = this.data.words.map(word => ({
-            ...word,
-            isExpanded: false
-        }));
-        this.setData({
-            words: words
-        });
-
-        wx.showToast({
-            title: `已切换到${mode === 'both' ? '中英模式' : mode === 'chinese-mask' ? '中文遮罩模式' : '英文遮罩模式'}`,
-            icon: 'none',
-            duration: 1500
-        });
-    },
-
-    // 遮罩点击事件
-    onToggleMask(e) {
-        const index = parseInt(e.currentTarget.dataset.index);
-        if (index >= 0) {
-            const words = this.data.words;
-            words[index].isExpanded = !words[index].isExpanded;
-
-            this.setData({
-                words: words
-            });
-        }
-    },
-
-    // 单词点击事件 - 用于学习状态切换
-    onWordTap(e) {
-        const index = parseInt(e.currentTarget.dataset.index);
-        if (index >= 0) {
-            const words = this.data.words;
-            const word = words[index];
-
-            // 只有在显示模式为both或者遮罩已展开时，才能标记为已学习
-            if (this.data.displayMode === 'both' || word.isExpanded) {
-                words[index].isLearned = true;
-
-                this.setData({
-                    words: words
-                });
+            
+            // 如果处理完所有逾期单词
+            if (words.length === 0) {
+                setTimeout(() => {
+                    wx.showToast({
+                        title: '所有逾期单词已处理完成！',
+                        icon: 'success'
+                    });
+                }, 500);
             }
+        } catch (error) {
+            console.error('处理逾期单词失败:', error);
+            wx.showToast({
+                title: '操作失败',
+                icon: 'none'
+            });
         }
     },
 
-    // 触摸开始
+    // 复习单词相关的触摸事件
     onTouchStart(e) {
+        if (this.data.wordType !== 'review') return;
+        
         this.setData({
             touchStartX: e.touches[0].clientX,
             touchStartY: e.touches[0].clientY
         });
     },
 
-    // 触摸移动
     onTouchMove(e) {
-        const deltaX = e.touches[0].clientX - this.data.touchStartX;
-        const deltaY = e.touches[0].clientY - this.data.touchStartY;
-
-        // 判断是否为左滑手势（水平距离大于50，垂直距离小于100）
-        if (Math.abs(deltaX) > 50 && Math.abs(deltaY) < 100 && deltaX < 0) {
-            // 左滑操作
-            const index = this.getCurrentTouchIndex(e);
-            if (index >= 0 && index !== this.data.currentSlideIndex) {
+        if (this.data.wordType !== 'review') return;
+        
+        const { touchStartX, touchStartY } = this.data;
+        const touchMoveX = e.touches[0].clientX;
+        const touchMoveY = e.touches[0].clientY;
+        
+        const deltaX = touchMoveX - touchStartX;
+        const deltaY = touchMoveY - touchStartY;
+        
+        // 水平滑动距离大于垂直滑动距离且大于30px时触发
+        if (Math.abs(deltaX) > Math.abs(deltaY) && Math.abs(deltaX) > 30) {
+            const { index } = e.currentTarget.dataset;
+            if (deltaX < 0) { // 左滑
                 this.showSlideActions(index);
             }
         }
     },
 
-    // 触摸结束
     onTouchEnd(e) {
-        // 重置触摸数据
-        this.setData({
-            touchStartX: 0,
-            touchStartY: 0
-        });
-    },
-
-    // 获取当前触摸的单词索引
-    getCurrentTouchIndex(e) {
-        const dataset = e.currentTarget.dataset;
-        return dataset.index ? parseInt(dataset.index) : -1;
+        if (this.data.wordType !== 'review') return;
+        // 触摸结束处理
     },
 
     // 显示滑动操作按钮
     showSlideActions(index) {
-        // 隐藏其他所有的滑动按钮
-        const words = this.data.words.map((word, i) => ({
-            ...word,
-            showActions: i === index
-        }));
-
-        this.setData({
-            words: words,
+        const words = [...this.data.words];
+        
+        // 隐藏其他单词的操作按钮
+        words.forEach((word, idx) => {
+            if (idx !== index) {
+                word.showActions = false;
+            }
+        });
+        
+        // 显示当前单词的操作按钮
+        words[index].showActions = true;
+        
+        this.setData({ 
+            words,
             currentSlideIndex: index
         });
     },
 
-    // 隐藏所有滑动操作按钮
-    hideAllSlideActions() {
-        const words = this.data.words.map(word => ({
-            ...word,
-            showActions: false
-        }));
-
-        this.setData({
-            words: words,
-            currentSlideIndex: -1
-        });
-    },
-
-    // 标记为已掌握
-    onMarkMastered(e) {
-        const index = parseInt(e.currentTarget.dataset.index);
-        if (index >= 0) {
-            const words = this.data.words;
-            words[index].status = 'mastered';
-            words[index].isLearned = true;
+    // 复习单词操作
+    async onReviewWord(e) {
+        const { index, action } = e.currentTarget.dataset;
+        const word = this.data.words[index];
+        
+        try {
+            // TODO: 调用云函数更新复习记录
+            // await this.updateReviewRecord(word.id, action);
+            
+            // 更新UI状态
+            const words = [...this.data.words];
+            words[index].isReviewed = true;
             words[index].showActions = false;
-
-            this.setData({
-                words: words,
-                currentSlideIndex: -1
-            });
-
+            
+            this.setData({ words });
+            
+            const actionText = {
+                forgot: '忘记了',
+                mastered: '记牢了'
+            };
+            
             wx.showToast({
-                title: '已标记为掌握',
-                icon: 'success',
-                duration: 1000
+                title: `已标记为${actionText[action]}`,
+                icon: 'success'
             });
-        }
-    },
-
-    // 标记为不熟悉
-    onMarkUnfamiliar(e) {
-        const index = parseInt(e.currentTarget.dataset.index);
-        if (index >= 0) {
-            const words = this.data.words;
-            words[index].status = 'learning';
-            words[index].isLearned = false;
-            words[index].showActions = false;
-
-            this.setData({
-                words: words,
-                currentSlideIndex: -1
-            });
-
+        } catch (error) {
+            console.error('复习操作失败:', error);
             wx.showToast({
-                title: '已标记为不熟悉',
-                icon: 'none',
-                duration: 1000
+                title: '操作失败',
+                icon: 'none'
             });
         }
     },
 
-    // 删除单词
-    onDeleteWord(e) {
-        const index = parseInt(e.currentTarget.dataset.index);
-        if (index >= 0) {
-            wx.showModal({
-                title: '确认删除',
-                content: '确定要删除这个单词吗？',
-                success: (res) => {
-                    if (res.confirm) {
-                        const words = this.data.words;
-                        words.splice(index, 1);
-
-                        this.setData({
-                            words: words,
-                            currentSlideIndex: -1,
-                            totalWords: words.length
-                        });
-
-                        wx.showToast({
-                            title: '删除成功',
-                            icon: 'success',
-                            duration: 1000
-                        });
-                    }
-                }
-            });
-        }
+    // 显示设置
+    onShowSettings() {
+        this.setData({ showSettings: true });
     },
 
-    // 底部导航标签点击处理
-    onTabTap(e) {
-        const tab = e.currentTarget.dataset.tab;
+    // 隐藏设置
+    onHideSettings() {
+        this.setData({ showSettings: false });
+    },
 
-        this.setData({
-            currentTab: tab
+    // 切换显示模式
+    onChangeDisplayMode(e) {
+        const { mode } = e.currentTarget.dataset;
+        this.setData({ 
+            displayMode: mode,
+            showSettings: false 
         });
+        
+        // 保存到本地存储
+        wx.setStorageSync('displayMode', mode);
+    },
 
-        // 根据不同标签执行不同操作
-        switch (tab) {
-            case 'home':
-                wx.switchTab({
-                    url: '/pages/home/index'
-                });
-                break;
-            case 'vocabulary':
-                // 当前就是单词本页面，不需要操作
-                break;
-            case 'profile':
-                wx.showToast({
-                    title: '功能开发中...',
-                    icon: 'none',
-                    duration: 1500
-                });
-                break;
+    // 切换遮罩显示
+    onToggleMask(e) {
+        const { index } = e.currentTarget.dataset;
+        const { wordType } = this.data;
+        
+        if (wordType === 'new') {
+            // 新学单词：点击遮罩直接开始学习
+            this.startLearning(index);
+        } else {
+            // 其他类型：切换遮罩显示状态
+            const words = [...this.data.words];
+            words[index].isExpanded = !words[index].isExpanded;
+            this.setData({ words });
         }
-    },
-
-    // 页面分享
-    onShareAppMessage() {
-        return {
-            title: `${this.data.currentDay} - 单词学习`,
-            path: `/pages/vocabulary/index`,
-            imageUrl: ''
-        };
-    },
-
-    // 分享到朋友圈
-    onShareTimeline() {
-        return {
-            title: `${this.data.currentDay} - 单词学习`,
-            query: '',
-            imageUrl: ''
-        };
-    },
-
-    // 页面显示时的处理
-    onShow() {
-        this.hideAllSlideActions();
-    },
-
-    // 页面隐藏时的处理
-    onHide() {
-        this.hideAllSlideActions();
-    },
-
-    // 页面卸载时的处理
-    onUnload() {
-        // 页面卸载时的清理工作
-    },
-
-    // 下拉刷新
-    onPullDownRefresh() {
-        // 重新加载数据
-        this.loadVocabularyData(this.data.currentDayKey);
-
-        // 停止下拉刷新
-        setTimeout(() => {
-            wx.stopPullDownRefresh();
-        }, 1000);
     }
 });
