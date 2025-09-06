@@ -34,7 +34,6 @@ Page({
         currentPage: 1,
         hasMoreWords: true,
         loadingMore: false,
-        scrollTop: 0,
 
         // 单词详情弹窗
         showWordDetail: false,
@@ -903,13 +902,10 @@ Page({
                     const existingWords = this.data.vocabularyWords;
                     const mergedWords = [...existingWords, ...processedVocabularies];
                     
-                    // 保持当前滚动位置，避免跳动
-                    const currentScrollTop = this.data.scrollTop;
                     this.setData({
                         vocabularyWords: mergedWords,
                         currentPage: page,
-                        hasMoreWords: hasMore,
-                        scrollTop: currentScrollTop
+                        hasMoreWords: hasMore
                     });
                 }
             } else {
@@ -955,12 +951,6 @@ Page({
         await this.loadVocabularyWords(nextPage, false);
     },
 
-    // 滚动事件监听
-    onScroll(e) {
-        this.setData({
-            scrollTop: e.detail.scrollTop
-        });
-    },
 
 
     // 关闭单词卡片

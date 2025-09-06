@@ -117,8 +117,6 @@
       <scroll-view 
         class="vocabulary-content" 
         scroll-y="{{true}}" 
-        scroll-top="{{scrollTop}}"
-        bindscroll="onScroll"
         bindscrolltolower="onScrollToLower">
         <view class="word-list">
           <view 
