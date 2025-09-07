@@ -183,10 +183,10 @@ async function getChapterVocabularies(chapterId, user_id, page = 1, pageSize = 2
     const hasMore = wordRecordsResult.data.length > limit
     const actualRecords = hasMore ? wordRecordsResult.data.slice(0, limit) : wordRecordsResult.data
 
-    console.log('📊 [DEBUG] 分页结果分析:', { 
-      查询到: wordRecordsResult.data.length, 
-      实际返回: actualRecords.length, 
-      hasMore 
+    console.log('📊 [DEBUG] 分页结果分析:', {
+      查询到: wordRecordsResult.data.length,
+      实际返回: actualRecords.length,
+      hasMore
     })
 
     // 如果没有单词记录，返回空数组
@@ -454,13 +454,13 @@ async function addWordToCollection(word, user_id, bookId, chapterId) {
       data: {
         user_id: user_id,
         word_id: wordInfo._id,
-        level: 0,
-        learn_at: now,
-        last_review_at: null,
-        next_review_at: null,
-        is_collected: true,
         source_book_id: bookId,
         source_chapter_id: chapterId,
+
+        level: 0,
+        first_learn_date: null,
+        next_review_date: null,
+        actual_review_dates: [],
         updated_at: now
       }
     })

@@ -18,7 +18,7 @@ page {
 .word-list {
   display: flex;
   flex-direction: column;
-  gap: 16rpx;
+  gap: 24rpx;
 }
 
 /* 单词项基础样式 */
@@ -27,10 +27,11 @@ page {
   border-radius: 20rpx;
   padding: 0;
   display: flex;
+  flex-direction: column;
   position: relative;
   min-height: 140rpx;
   overflow: hidden;
-  box-shadow: 0 2rpx 12rpx rgba(0, 0, 0, 0.06);
+  box-shadow: 0 2rpx 12rpx rgba(0, 0, 0, 0.08);
   transition: all 0.3s ease;
 }
 
@@ -48,7 +49,7 @@ page {
 }
 
 .word-item.overdue {
-  border-left: 6rpx solid #FF3B30;
+  box-shadow: 0 4rpx 16rpx rgba(255, 143, 90, 0.15);
 }
 
 /* 已学习/已复习状态 */
@@ -60,8 +61,7 @@ page {
 
 /* 展开状态 */
 .word-item.expanded {
-  min-height: auto;
-  padding-bottom: 20rpx;
+  min-height: 140rpx;
 }
 
 /* 序号容器 */
@@ -105,6 +105,8 @@ page {
   margin-left: 48rpx;
   min-height: 140rpx;
   gap: 16rpx;
+  padding: 0 32rpx 0 16rpx;
+  position: relative;
 }
 
 /* 单词主要信息 */
@@ -116,7 +118,7 @@ page {
   justify-content: center;
   align-items: flex-start;
   min-height: 140rpx;
-  padding: 0 16rpx;
+  padding: 24rpx 16rpx;
   position: relative;
 }
 
@@ -158,10 +160,12 @@ page {
   flex: 1;
   display: flex;
   flex-direction: column;
-  justify-content: center;
   align-items: flex-start;
+  justify-content: center;
   min-height: 140rpx;
+  padding: 24rpx 0;
   overflow: hidden;
+  position: relative;
 }
 
 /* 翻译内容容器 */
@@ -169,9 +173,8 @@ page {
   display: flex;
   flex-direction: column;
   gap: 8rpx;
-  justify-content: center;
-  height: 100%;
   width: 100%;
+  overflow: hidden;
 }
 
 .translation-item {
@@ -191,13 +194,6 @@ page {
   min-width: 48rpx;
 }
 
-.meaning-container {
-  flex: 1;
-  position: relative;
-  display: flex;
-  align-items: baseline;
-}
-
 .meaning {
   flex: 1;
   font-size: 26rpx;
@@ -209,94 +205,96 @@ page {
   word-break: break-all;
 }
 
-/* 逾期单词处理按钮 */
+/* 逾期单词处理按钮 - 优化布局 */
 .overdue-actions {
+  width: calc(100% - 48rpx);
+  margin-left: 40rpx; 
+  background: linear-gradient(135deg, #fafafa 0%, #f5f5f5 100%);
+  border-top: 1rpx solid #e5e5e5;
+  padding: 14rpx 16rpx;
+  margin-top: 0;
+  border-radius: 0 0 20rpx 20rpx;
   display: flex;
+  align-items: center;
   justify-content: center;
   gap: 16rpx;
-  padding: 20rpx 32rpx 0 32rpx;
-  margin-top: 16rpx;
+  text-align: center;
+}
+
+.overdue-text {
+  font-size: 20rpx;
+  color: #ffffff;
+  font-weight: 600;
+  background: #ff8f5a;
+  padding: 0;
+  width: 40rpx;
+  height: 40rpx;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  white-space: nowrap;
+  flex-shrink: 0;
+  border: none;
+}
+
+.overdue-buttons {
+  display: flex;
+  gap: 10rpx;
 }
 
 .overdue-btn {
-  flex: 1;
-  height: 64rpx;
+  flex: 0 0 auto;
+  height: 48rpx;
+  min-width: 90rpx;
+  padding: 0 12rpx;
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 16rpx;
-  font-size: 26rpx;
+  border-radius: 12rpx;
+  font-size: 20rpx;
   font-weight: 500;
-  transition: all 0.2s ease;
-}
-
-.overdue-btn:active {
-  transform: scale(0.95);
+  transition: all 0.3s ease;
+  box-shadow: 0 1rpx 6rpx rgba(0, 0, 0, 0.1);
+  border: 1rpx solid rgba(0, 0, 0, 0.05);
 }
 
 .remember-btn {
-  background: #34C759;
+  background: linear-gradient(135deg, #52c41a 0%, #389e0d 100%);
   color: #ffffff;
+  border: 1rpx solid rgba(56, 158, 13, 0.3);
 }
 
 .remember-btn:active {
-  background: #28a745;
+  background: linear-gradient(135deg, #389e0d 0%, #237804 100%);
+  transform: translateY(1rpx);
+  box-shadow: 0 1rpx 3rpx rgba(0, 0, 0, 0.15);
 }
 
 .vague-btn {
-  background: #FF9500;
+  background: linear-gradient(135deg, #fa8c16 0%, #d46b08 100%);
   color: #ffffff;
+  border: 1rpx solid rgba(212, 107, 8, 0.3);
 }
 
 .vague-btn:active {
-  background: #e6850e;
+  background: linear-gradient(135deg, #d46b08 0%, #ad4e00 100%);
+  transform: translateY(1rpx);
+  box-shadow: 0 1rpx 3rpx rgba(0, 0, 0, 0.15);
 }
 
 .forgot-btn {
-  background: #FF3B30;
+  background: linear-gradient(135deg, #ff4d4f 0%, #cf1322 100%);
   color: #ffffff;
+  border: 1rpx solid rgba(207, 19, 34, 0.3);
 }
 
 .forgot-btn:active {
-  background: #e6342a;
+  background: linear-gradient(135deg, #cf1322 0%, #a8071a 100%);
+  transform: translateY(1rpx);
+  box-shadow: 0 1rpx 3rpx rgba(0, 0, 0, 0.15);
 }
 
-/* 复习单词滑动操作按钮 */
-.slide-actions {
-  position: absolute;
-  right: 0;
-  top: 0;
-  height: 100%;
-  display: flex;
-  z-index: 10;
-}
-
-.action-btn {
-  width: 120rpx;
-  height: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: all 0.2s ease;
-}
-
-.action-btn:active {
-  transform: scale(0.95);
-}
-
-.action-btn.forgot {
-  background: #FF3B30;
-}
-
-.action-btn.mastered {
-  background: #34C759;
-}
-
-.action-text {
-  font-size: 24rpx;
-  color: #ffffff;
-  font-weight: 500;
-}
 
 /* 遮罩层样式 */
 .english-mask-overlay,
@@ -306,14 +304,16 @@ page {
   left: 0;
   right: 0;
   bottom: 0;
-  background: rgba(0, 0, 0, 0.8);
   color: #ffffff;
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 12rpx;
+  border-radius: 0;
   font-size: 24rpx;
   transition: all 0.3s ease;
+  z-index: 10;
+  margin: 0;
+  padding: 0;
 }
 
 .english-mask-overlay {
@@ -321,18 +321,7 @@ page {
 }
 
 .chinese-mask-overlay {
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(255, 149, 0, 0.9);
-  color: #ffffff;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 8rpx;
-  font-size: 22rpx;
+  background: #C0C0C0;
 }
 
 .mask-text {
@@ -492,3 +481,4 @@ page {
     padding-bottom: env(safe-area-inset-bottom);
   }
 }
+

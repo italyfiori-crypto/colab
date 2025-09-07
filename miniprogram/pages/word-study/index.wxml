@@ -29,7 +29,7 @@
   <!-- 学习入口卡片 -->
   <view class="entry-section">
     <!-- 新学单词 -->
-    <view class="entry-card new-words" bindtap="onEnterNewWords" wx:if="{{newWordsCount > 0}}">
+    <view class="entry-card new-words" bindtap="onEnterNewWords">
       <view class="entry-header">
         <view class="entry-icon new-icon">📚</view>
         <view class="entry-info">

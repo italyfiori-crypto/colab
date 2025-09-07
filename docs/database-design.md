@@ -238,10 +238,10 @@
   source_chapter_id: string, // 章节id
   
   // 学习和复习管理 (核心)
-  level: number,            // 记忆等级 0-7 (0=新词, 1-6=复习阶段, 7=已掌握)
-  learn_at: Date,           // 首次学习时间
-  finished_dates: []string, // 实际复习时间
-  next_review_at: Date,     // 下次复习时间 (艾宾浩斯间隔) 
+  level: number,                    // 记忆等级 0-7 (0=新词, 1-6=复习阶段, 7=已掌握)
+  first_learn_date: string,         // 首次学习日期
+  next_review_date: string,         // 下次复习日期 (艾宾浩斯间隔) 
+  actual_review_dates: []string,    // 实际复习日期
 }
 ```
 
