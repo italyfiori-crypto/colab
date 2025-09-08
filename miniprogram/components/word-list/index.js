@@ -113,8 +113,15 @@ Component({
       });
       this.updateWordPlayingState(indexNum);
       
+      // 音频准备就绪事件
+      audio.onCanplay(() => {
+        console.log('🎵 [DEBUG] 音频资源加载完成，开始播放');
+        audio.play();
+      });
+      
       // 播放结束事件
       audio.onEnded(() => {
+        console.log('🎵 [DEBUG] 音频播放完成');
         this.setData({ 
           playingIndex: -1,
           currentAudio: null
@@ -125,7 +132,7 @@ Component({
       
       // 播放错误事件
       audio.onError((error) => {
-        console.error('音频播放失败:', error);
+        console.error('🎵 [ERROR] 音频播放失败:', error);
         wx.showToast({
           title: '音频播放失败',
           icon: 'none',
@@ -139,8 +146,26 @@ Component({
         audio.destroy();
       });
       
-      // 开始播放
-      audio.play();
+      // 设置播放超时（防止音频资源加载失败导致的无限等待）
+      setTimeout(() => {
+        if (this.data.playingIndex === indexNum && audio) {
+          console.warn('🎵 [WARN] 音频加载超时，尝试直接播放');
+          audio.play().catch(err => {
+            console.error('🎵 [ERROR] 音频直接播放也失败:', err);
+            wx.showToast({
+              title: '音频加载失败',
+              icon: 'none',
+              duration: 2000
+            });
+            this.setData({ 
+              playingIndex: -1,
+              currentAudio: null
+            });
+            this.updateWordPlayingState(-1);
+            audio.destroy();
+          });
+        }
+      }, 3000); // 3秒超时
     },
 
     // 更新单词播放状态

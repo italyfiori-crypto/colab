@@ -70,12 +70,12 @@ exports.main = async (event, context) => {
 
 // 计算下次复习时间
 function calcNextReviewDate(cur_level) {
-  // 新词从0级开始，已学词汇等级+1但不超过最大等级
-  const newLevel = cur_level == null ? 0 : Math.min(cur_level + 1, MAX_LEVEL)
+  // 新词从1级开始（第一次复习），已学词汇等级+1但不超过最大等级
+  const newLevel = cur_level == null ? 1 : Math.min(cur_level + 1, MAX_LEVEL)
 
   return {
     level: newLevel,
-    next_review_date: addDaysToToday(REVIEW_INTERVALS[newLevel])
+    next_review_date: addDaysToToday(REVIEW_INTERVALS[newLevel - 1]) // 数组从0开始，level从1开始
   }
 }
 
@@ -346,8 +346,15 @@ async function updateWordRecord(userId, { word_id, actionType }) {
       // 开始学习新单词
       const { level, next_review_date } = calcNextReviewDate(null)
       
+      console.log('📖 [DEBUG] 开始学习新单词，计算结果:', { 
+        level, 
+        next_review_date, 
+        existingRecord: !!existingRecord.data 
+      })
+      
       if (existingRecord.data) {
         // 更新现有记录
+        console.log('📖 [DEBUG] 更新现有记录:', recordId)
         await db.collection('word_records').doc(recordId).update({
           data: {
             level: level,
@@ -359,6 +366,7 @@ async function updateWordRecord(userId, { word_id, actionType }) {
         })
       } else {
         // 创建新记录
+        console.log('📖 [DEBUG] 创建新记录:', recordId)
         await db.collection('word_records').doc(recordId).set({
           data: {
             user_id: userId,
@@ -373,6 +381,8 @@ async function updateWordRecord(userId, { word_id, actionType }) {
           }
         })
       }
+
+      console.log('✅ [DEBUG] 新学单词状态更新完成:', { level, first_learn_date: todayString, next_review_date })
 
       // 同步更新每日学习统计
       await updateDailyStatsSync(userId, todayString, 'learn')
@@ -414,7 +424,7 @@ async function updateWordRecord(userId, { word_id, actionType }) {
       const newLevel = handleOverdueWordLevel(record.level, 'vague', overdueDays)
 
       // vague情况下使用更短的复习间隔，不提升等级，使用当前等级的复习间隔
-      const nextReviewDateString = addDaysToToday(REVIEW_INTERVALS[Math.max(0, newLevel)])
+      const nextReviewDateString = addDaysToToday(REVIEW_INTERVALS[Math.max(0, newLevel - 1)])
 
       await db.collection('word_records').doc(recordId).update({
         data: {

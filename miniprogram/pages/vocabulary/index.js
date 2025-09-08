@@ -1,4 +1,62 @@
 // vocabulary单词本页面逻辑
+
+// 常量定义
+const WORD_TYPE = {
+    NEW: 'new',
+    REVIEW: 'review', 
+    OVERDUE: 'overdue'
+};
+
+const DISPLAY_MODE = {
+    BOTH: 'both',
+    CHINESE_MASK: 'chinese-mask',
+    ENGLISH_MASK: 'english-mask'
+};
+
+const PAGE_CONFIG = {
+    [WORD_TYPE.NEW]: { 
+        title: '新学单词', 
+        navTitle: '新学单词',
+        displayMode: DISPLAY_MODE.CHINESE_MASK
+    },
+    [WORD_TYPE.REVIEW]: { 
+        title: '复习单词', 
+        navTitle: '复习单词',
+        displayMode: DISPLAY_MODE.CHINESE_MASK
+    },
+    [WORD_TYPE.OVERDUE]: { 
+        title: '逾期单词', 
+        navTitle: '逾期单词',
+        displayMode: DISPLAY_MODE.BOTH
+    }
+};
+
+// 错误处理配置
+const ERROR_CONFIG = {
+    NETWORK_ERROR: {
+        title: '网络连接失败',
+        message: '请检查网络连接后重试',
+        canRetry: true
+    },
+    SERVER_ERROR: {
+        title: '服务器异常', 
+        message: '服务暂时不可用，请稍后重试',
+        canRetry: true
+    },
+    DATA_ERROR: {
+        title: '数据加载失败',
+        message: '数据格式异常，请联系客服',
+        canRetry: false
+    },
+    UNKNOWN_ERROR: {
+        title: '操作失败',
+        message: '发生未知错误，请重试',
+        canRetry: true
+    }
+};
+
+const MAX_RETRY_COUNT = 3;
+
 Page({
     data: {
         // 页面类型: new(新学), review(复习), overdue(逾期)
@@ -14,285 +72,335 @@ Page({
 
     },
 
+    /**
+     * 页面加载时的初始化
+     * @param {Object} options - 页面参数
+     */
     onLoad(options) {
-        const { type = 'new' } = options;
+        const { type = WORD_TYPE.NEW } = options;
+        const config = PAGE_CONFIG[type] || PAGE_CONFIG[WORD_TYPE.NEW];
 
-        // 根据类型设置页面配置
-        const pageConfig = {
-            new: { title: '新学单词', navTitle: '新学单词' },
-            review: { title: '复习单词', navTitle: '复习单词' },
-            overdue: { title: '逾期单词', navTitle: '逾期单词' }
-        };
-
-        const config = pageConfig[type] || pageConfig.new;
-
-        // 根据单词类型设置显示模式
-        let displayMode = 'both';
-        if (type === 'new') {
-            displayMode = 'chinese-mask'; // 新学单词默认遮罩中文
-        } else if (type === 'review') {
-            displayMode = 'chinese-mask'; // 复习单词默认遮罩中文
-        }
-
-        this.setData({
-            wordType: type,
-            pageTitle: config.title,
-            displayMode: displayMode
-        });
-
-        // 设置导航栏标题
-        wx.setNavigationBarTitle({
-            title: config.navTitle
-        });
-
-        // 加载对应类型的单词数据
+        this.initializePage(type, config);
         this.loadWordsByType(type);
     },
 
-    // 根据类型加载单词数据
-    async loadWordsByType(type) {
+    /**
+     * 初始化页面配置
+     * @param {string} type - 单词类型
+     * @param {Object} config - 页面配置
+     */
+    initializePage(type, config) {
+        this.setData({
+            wordType: type,
+            pageTitle: config.title,
+            displayMode: config.displayMode
+        });
+
+        wx.setNavigationBarTitle({
+            title: config.navTitle
+        });
+    },
+
+    /**
+     * 根据类型加载单词数据（支持重试）
+     * @param {string} type - 单词类型
+     * @param {number} retryCount - 重试次数
+     */
+    async loadWordsByType(type, retryCount = 0) {
         try {
             console.log('🔄 [DEBUG] 开始加载单词列表:', {
                 类型: type,
+                重试次数: retryCount,
                 时间: new Date().toISOString().split('T')[0]
             });
 
             this.setData({ loading: true });
 
-            // 调用云函数获取对应类型的单词
-            const result = await wx.cloud.callFunction({
-                name: 'wordStudy',
-                data: {
-                    action: 'getWordList',
-                    type: type,
-                    limit: 50
-                }
-            });
-
-            console.log('📥 [DEBUG] 云函数返回结果:', {
-                成功: result.result.success,
-                单词数量: result.result.data ? result.result.data.length : 0,
-                完整结果: result.result
-            });
-
-            if (result.result.success) {
-                const words = result.result.data.map(word => ({
-                    ...word,
-                    isExpanded: type === 'overdue' ? true : false,  // 逾期单词默认展开
-                    isLearned: false,
-                    isReviewed: false,
-                    showActions: false
-                }));
-
-                console.log('✅ [DEBUG] 单词列表加载成功:', {
-                    类型: type,
-                    数量: words.length,
-                    单词列表: words.map(w => ({ 单词: w.word, ID: w.id }))
-                });
-
-                this.setData({
-                    words: words,
-                    loading: false
-                });
+            const result = await this.fetchWordList(type);
+            
+            if (result.success) {
+                this.handleLoadSuccess(result.data, type);
             } else {
-                console.error('❌ [DEBUG] 获取单词列表失败:', {
-                    错误信息: result.result.message,
-                    完整结果: result.result
-                });
-                wx.showToast({
-                    title: '加载失败',
-                    icon: 'none'
-                });
-                this.setData({ loading: false });
+                this.handleLoadError(result.message, type, retryCount);
             }
         } catch (error) {
-            console.error('❌ [DEBUG] 加载单词数据异常:', {
-                错误信息: error.message,
-                错误详情: error,
-                类型: type
-            });
-            wx.showToast({
-                title: '加载失败',
-                icon: 'none'
-            });
-            this.setData({ loading: false });
+            this.handleLoadError(error.message, type, retryCount);
         }
     },
 
-    // 新学单词点击事件
-    onWordTap(e) {
-        // 新学单词的点击现在通过遮罩处理，这里暂时保留空实现
+    /**
+     * 调用云函数获取单词列表
+     * @param {string} type - 单词类型
+     * @returns {Promise<Object>} 云函数结果
+     */
+    async fetchWordList(type) {
+        const result = await wx.cloud.callFunction({
+            name: 'wordStudy',
+            data: {
+                action: 'getWordList',
+                type: type,
+                limit: 50
+            }
+        });
+
+        console.log('📥 [DEBUG] 云函数返回结果:', {
+            成功: result.result.success,
+            单词数量: result.result.data ? result.result.data.length : 0
+        });
+
+        return result.result;
+    },
+
+    /**
+     * 处理加载成功的情况
+     * @param {Array} wordsData - 单词数据
+     * @param {string} type - 单词类型
+     */
+    handleLoadSuccess(wordsData, type) {
+        const words = wordsData.map(word => ({
+            ...word,
+            isExpanded: type === WORD_TYPE.OVERDUE, // 逾期单词默认展开
+            isLearned: false,
+            isReviewed: false
+        }));
+
+        console.log('✅ [DEBUG] 单词列表加载成功:', {
+            类型: type,
+            数量: words.length
+        });
+
+        this.setData({
+            words: words,
+            loading: false
+        });
+    },
+
+    /**
+     * 处理加载错误的情况
+     * @param {string} errorMessage - 错误信息
+     * @param {string} type - 单词类型
+     * @param {number} retryCount - 当前重试次数
+     */
+    handleLoadError(errorMessage, type, retryCount) {
+        console.error('❌ [DEBUG] 加载单词数据失败:', {
+            错误信息: errorMessage,
+            类型: type,
+            重试次数: retryCount
+        });
+
+        const errorType = this.determineErrorType(errorMessage);
+        const errorConfig = ERROR_CONFIG[errorType];
+
+        if (errorConfig.canRetry && retryCount < MAX_RETRY_COUNT) {
+            // 可以重试，延迟后重试
+            setTimeout(() => {
+                this.loadWordsByType(type, retryCount + 1);
+            }, 1000 * (retryCount + 1)); // 递增延迟
+        } else {
+            // 不能重试或达到最大重试次数
+            this.setData({ loading: false });
+            wx.showToast({
+                title: errorConfig.title,
+                icon: 'none',
+                duration: 3000
+            });
+        }
+    },
+
+    /**
+     * 根据错误信息确定错误类型
+     * @param {string} errorMessage - 错误信息
+     * @returns {string} 错误类型
+     */
+    determineErrorType(errorMessage) {
+        if (errorMessage.includes('网络') || errorMessage.includes('network')) {
+            return 'NETWORK_ERROR';
+        } else if (errorMessage.includes('服务器') || errorMessage.includes('server')) {
+            return 'SERVER_ERROR';
+        } else if (errorMessage.includes('数据') || errorMessage.includes('data')) {
+            return 'DATA_ERROR';
+        } else {
+            return 'UNKNOWN_ERROR';
+        }
     },
 
 
 
-    // 开始学习新单词
-    async startLearning(index) {
-        try {
-            const word = this.data.words[index];
 
+    /**
+     * 开始学习新单词
+     * @param {number} index - 单词在列表中的索引
+     */
+    async startLearning(index) {
+        const word = this.data.words[index];
+        
+        if (!word) {
+            console.error('❌ 单词不存在:', index);
+            return;
+        }
+
+        try {
             console.log('📖 [DEBUG] 开始学习新单词:', {
                 单词: word.word,
                 索引: index
             });
 
-            // 调用云函数更新学习记录
-            const result = await wx.cloud.callFunction({
-                name: 'wordStudy',
-                data: {
-                    action: 'updateWordRecord',
-                    word_id: word.word_id,  // 传递vocabularies的单词ID
-                    actionType: 'start'
-                }
-            });
-
-            if (result.result.success) {
-                // 直接设置最终状态，简化动画
-                const words = [...this.data.words];
-                words[index].isExpanded = true;  // 移除遮罩显示内容
-                words[index].isLearned = true;   // 直接标记为已学习状态
-                this.setData({ words });
-
-            } else {
-                console.error('更新学习记录失败:', result.result.message);
-                wx.showToast({
-                    title: result.result.message || '操作失败',
-                    icon: 'none'
+            const result = await this.updateWordRecord(word.word_id, 'start');
+            
+            if (result.success) {
+                this.updateWordState(index, {
+                    isExpanded: true,
+                    isLearned: true
                 });
+            } else {
+                this.showErrorToast(result.message || '学习失败');
             }
         } catch (error) {
             console.error('开始学习失败:', error);
-            wx.showToast({
-                title: '操作失败',
-                icon: 'none'
-            });
+            this.showErrorToast('操作失败');
         }
     },
 
-    // 开始复习单词
+    /**
+     * 开始复习单词
+     * @param {number} index - 单词在列表中的索引
+     */
     async startReviewing(index) {
-        try {
-            const word = this.data.words[index];
+        const word = this.data.words[index];
+        
+        if (!word) {
+            console.error('❌ 单词不存在:', index);
+            return;
+        }
 
+        try {
             console.log('📖 [DEBUG] 开始复习单词:', {
                 单词: word.word,
                 索引: index
             });
 
-            // 调用云函数更新复习记录
-            const result = await wx.cloud.callFunction({
-                name: 'wordStudy',
-                data: {
-                    action: 'updateWordRecord',
-                    word_id: word.word_id,  // 传递vocabularies的单词ID
-                    actionType: 'review'  // 默认复习成功
-                }
-            });
-
-            if (result.result.success) {
-                // 直接设置最终状态，简化动画
-                const words = [...this.data.words];
-                words[index].isExpanded = true;  // 移除遮罩显示内容
-                words[index].isReviewed = true;  // 直接标记为已复习状态
-                this.setData({ words });
-
+            const result = await this.updateWordRecord(word.word_id, 'review');
+            
+            if (result.success) {
+                this.updateWordState(index, {
+                    isExpanded: true,
+                    isReviewed: true
+                });
 
                 console.log('✅ [DEBUG] 复习单词成功:', {
-                    单词: word.word,
-                    剩余单词数: words.length
+                    单词: word.word
                 });
 
-                // 如果处理完所有复习单词
-                if (words.filter(w => !w.isReviewed).length === 0) {
-                    setTimeout(() => {
-                        console.log('🎉 [DEBUG] 所有复习单词已完成');
-                        wx.showToast({
-                            title: '所有复习单词已完成！',
-                            icon: 'success'
-                        });
-                    }, 500);
-                }
+                // 检查是否完成所有复习
+                this.checkReviewCompletion();
             } else {
-                console.error('❌ [DEBUG] 更新复习记录失败:', result.result.message);
-                wx.showToast({
-                    title: result.result.message || '操作失败',
-                    icon: 'none'
-                });
+                this.showErrorToast(result.message || '复习失败');
             }
         } catch (error) {
             console.error('❌ [DEBUG] 复习操作失败:', error);
-            wx.showToast({
-                title: '操作失败',
-                icon: 'none'
-            });
+            this.showErrorToast('操作失败');
         }
     },
 
-    // 处理逾期单词
+    /**
+     * 检查复习任务是否完成
+     */
+    checkReviewCompletion() {
+        const unreviewedWords = this.data.words.filter(w => !w.isReviewed);
+        
+        if (unreviewedWords.length === 0) {
+            setTimeout(() => {
+                wx.showToast({
+                    title: '所有复习单词已完成！',
+                    icon: 'success',
+                    duration: 2000
+                });
+            }, 500);
+        }
+    },
+
+    /**
+     * 处理逾期单词操作
+     * @param {Object} e - 事件对象
+     */
     async onHandleOverdue(e) {
         const { index, action } = e.currentTarget.dataset;
         const word = this.data.words[index];
 
+        if (!word) {
+            console.error('❌ 单词不存在:', index);
+            return;
+        }
+
         try {
-            // 调用云函数更新逾期单词记录
-            const result = await wx.cloud.callFunction({
-                name: 'wordStudy',
-                data: {
-                    action: 'updateWordRecord',
-                    word_id: word.word_id,  // 传递vocabularies的单词ID
-                    actionType: action
-                }
+            console.log('🔄 [DEBUG] 处理逾期单词:', {
+                单词: word.word,
+                操作: action,
+                索引: index
             });
 
-            if (result.result.success) {
-                // 添加移除动画
-                const words = [...this.data.words];
-                words[index].removing = true;
-                this.setData({ words });
-
-                const actionText = {
-                    remember: '还记得',
-                    vague: '有点模糊',
-                    forgot: '忘记了'
-                };
-
-                wx.showToast({
-                    title: `已标记为${actionText[action]}`,
-                    icon: 'success'
-                });
-
-                // 延迟后从列表中移除该单词
-                setTimeout(() => {
-                    const updatedWords = this.data.words.filter((_, idx) => idx !== index);
-                    this.setData({ words: updatedWords });
-
-                    // 如果处理完所有逾期单词
-                    if (updatedWords.length === 0) {
-                        setTimeout(() => {
-                            wx.showToast({
-                                title: '所有逾期单词已处理完成！',
-                                icon: 'success'
-                            });
-                        }, 300);
-                    }
-                }, 400);
+            const result = await this.updateWordRecord(word.word_id, action);
+            
+            if (result.success) {
+                this.handleOverdueSuccess(index, action);
             } else {
-                console.error('更新逾期单词记录失败:', result.result.message);
-                wx.showToast({
-                    title: result.result.message || '操作失败',
-                    icon: 'none'
-                });
+                this.showErrorToast(result.message || '操作失败');
             }
         } catch (error) {
-            console.error('处理逾期单词失败:', error);
-            wx.showToast({
-                title: '操作失败',
-                icon: 'none'
-            });
+            console.error('❌ [DEBUG] 处理逾期单词失败:', error);
+            this.showErrorToast('操作失败');
         }
     },
 
-    // 下拉刷新处理
+    /**
+     * 处理逾期单词成功的回调
+     * @param {number} index - 单词索引
+     * @param {string} action - 操作类型
+     */
+    handleOverdueSuccess(index, action) {
+        // 添加移除动画效果
+        this.updateWordState(index, { removing: true });
+
+        const actionText = {
+            remember: '还记得',
+            vague: '有点模糊', 
+            forgot: '忘记了'
+        };
+
+        wx.showToast({
+            title: `已标记为${actionText[action]}`,
+            icon: 'success'
+        });
+
+        // 延迟移除单词，让动画完成
+        setTimeout(() => {
+            this.removeWordFromList(index);
+        }, 400);
+    },
+
+    /**
+     * 从列表中移除单词
+     * @param {number} index - 要移除的单词索引
+     */
+    removeWordFromList(index) {
+        const updatedWords = this.data.words.filter((_, idx) => idx !== index);
+        this.setData({ words: updatedWords });
+
+        // 检查是否完成所有逾期单词处理
+        if (updatedWords.length === 0) {
+            setTimeout(() => {
+                wx.showToast({
+                    title: '所有逾期单词已处理完成！',
+                    icon: 'success',
+                    duration: 2000
+                });
+            }, 300);
+        }
+    },
+
+    /**
+     * 下拉刷新处理
+     */
     async onRefresh() {
         console.log('🔄 [DEBUG] 用户触发下拉刷新');
         this.setData({ refreshing: true });
@@ -308,71 +416,95 @@ Page({
             });
         } catch (error) {
             console.error('❌ [DEBUG] 下拉刷新失败:', error);
-            wx.showToast({
-                title: '刷新失败',
-                icon: 'none',
-                duration: 2000
-            });
+            this.showErrorToast('刷新失败');
         } finally {
             // 停止刷新状态
             this.setData({ refreshing: false });
         }
     },
 
-    // 切换遮罩显示 - 刮刮乐动画效果（从组件传递过来的事件）
+    /**
+     * 处理遮罩切换事件（从word-list组件传递过来）
+     * @param {Object} e - 事件对象
+     */
     onMaskToggle(e) {
-        const { words } = e.detail;
+        const { index, words } = e.detail;
+        this.handleMaskInteraction(index);
         this.setData({ words });
     },
 
-    // 遮罩动画完成后的处理（从组件传递过来的事件）
-    onMaskComplete(e) {
-        const { index } = e.detail;
+    /**
+     * 统一的遮罩交互处理逻辑
+     * @param {number} index - 单词索引
+     */
+    handleMaskInteraction(index) {
         const { wordType } = this.data;
-        const updatedWords = [...this.data.words];
         
-        if (wordType === 'new') {
-            // 新学单词：点击遮罩直接开始学习
-            this.startLearning(index);
-        } else if (wordType === 'review') {
-            // 复习单词：点击遮罩直接完成复习
-            this.startReviewing(index);
-        } else {
-            // 逾期单词：切换遮罩显示状态
-            updatedWords[index].isExpanded = !updatedWords[index].isExpanded;
-            updatedWords[index].scratching = false;
-            this.setData({ words: updatedWords });
+        switch(wordType) {
+            case 'new':
+                this.startLearning(index);
+                break;
+            case 'review':
+                this.startReviewing(index);
+                break;
+            case 'overdue':
+                this.toggleOverdueExpansion(index);
+                break;
+            default:
+                console.warn('未知的单词类型:', wordType);
         }
     },
 
-    // 切换遮罩显示 - 兼容旧的直接调用方式
-    onToggleMask(e) {
-        const { index } = e.currentTarget.dataset;
-        const { wordType } = this.data;
-
-        // 使用 setData 为单词添加动画状态
+    /**
+     * 切换逾期单词的展开状态
+     * @param {number} index - 单词索引
+     */
+    toggleOverdueExpansion(index) {
         const words = [...this.data.words];
-        words[index].scratching = true;
+        words[index].isExpanded = !words[index].isExpanded;
         this.setData({ words });
+    },
 
-        // 等待动画完成后执行相应逻辑
-        setTimeout(() => {
-            const updatedWords = [...this.data.words];
-            
-            if (wordType === 'new') {
-                // 新学单词：点击遮罩直接开始学习
-                this.startLearning(index);
-            } else if (wordType === 'review') {
-                // 复习单词：点击遮罩直接完成复习
-                this.startReviewing(index);
-            } else {
-                // 逾期单词：切换遮罩显示状态
-                updatedWords[index].isExpanded = !updatedWords[index].isExpanded;
+    /**
+     * 统一的单词记录更新方法
+     * @param {string} wordId - 单词ID
+     * @param {string} actionType - 操作类型
+     * @returns {Promise<Object>} 更新结果
+     */
+    async updateWordRecord(wordId, actionType) {
+        const result = await wx.cloud.callFunction({
+            name: 'wordStudy',
+            data: {
+                action: 'updateWordRecord',
+                word_id: wordId,
+                actionType: actionType
             }
-            
-            // 移除动画状态
-            updatedWords[index].scratching = false;
-            this.setData({ words: updatedWords });
-        }, 600); // 等待动画完成 (0.8s - 0.2s buffer)
+        });
+        return result.result;
+    },
+
+    /**
+     * 更新单词状态（性能优化版本）
+     * @param {number} index - 单词索引
+     * @param {Object} updates - 要更新的状态
+     */
+    updateWordState(index, updates) {
+        const updateData = {};
+        Object.keys(updates).forEach(key => {
+            updateData[`words[${index}].${key}`] = updates[key];
+        });
+        this.setData(updateData);
+    },
+
+    /**
+     * 显示错误提示
+     * @param {string} message - 错误消息
+     */
+    showErrorToast(message) {
+        wx.showToast({
+            title: message,
+            icon: 'none',
+            duration: 2500
+        });
     }
 });
