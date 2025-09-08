@@ -481,8 +481,8 @@ class VocabularyEnricher:
                     "audio_url_uk": cur_word_data.get("audio_url_uk", ""),  # 英式音频URL
                     "audio_url_us": cur_word_data.get("audio_url_us", ""),  # 美式音频URL
                     "uploaded": cur_word_data.get("uploaded", False),  # 上传状态标识
-                    "created_at": cur_word_data.get("created_at", datetime.now().isoformat()),
-                    "updated_at": datetime.now().isoformat()
+                    "created_at": cur_word_data.get("created_at", int(time.time() * 1000)),
+                    "updated_at": int(time.time() * 1000)
                 }
                 return word_data
             else:

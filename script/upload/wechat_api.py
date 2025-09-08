@@ -311,7 +311,7 @@ class WeChatCloudAPI:
                 # 保留原有的created_at，更新updated_at
                 if 'created_at' in existing_records[0]:
                     update_data['created_at'] = existing_records[0]['created_at']
-                update_data['updated_at'] = datetime.now().isoformat()
+                update_data['updated_at'] = int(time.time() * 1000)
                 
                 return self.update_database_record(collection, record_id, update_data)
             else:

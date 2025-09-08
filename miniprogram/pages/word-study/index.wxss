@@ -2,7 +2,16 @@
 .word-study-container {
   min-height: 100vh;
   background: #f8f9fa;
-  padding: 0 32rpx 40rpx 32rpx;
+}
+
+/* 滚动容器样式 */
+.main-scroll-content {
+  height: 100vh;
+  padding: 0 24rpx 40rpx 24rpx; /* 统一使用单一层级padding确保居中 */
+  box-sizing: border-box; /* 确保准确的盒模型计算 */
+  /* 重置微信小程序scroll-view的默认样式 */
+  margin: 0;
+  border: 0;
 }
 
 /* 头部区域 */
@@ -25,119 +34,74 @@
   color: #666666;
 }
 
-/* 统计卡片区域 */
-.stats-section {
-  margin-bottom: 40rpx;
-}
-
-.stats-card {
-  background: #ffffff;
-  border-radius: 24rpx;
-  padding: 32rpx 24rpx;
-  box-shadow: 0 2rpx 16rpx rgba(0, 0, 0, 0.06);
-}
-
-.stats-row {
-  display: flex;
-  justify-content: space-around;
-}
-
-.stat-item {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-}
-
-.stat-number {
-  font-size: 36rpx;
-  font-weight: 600;
-  color: #007AFF;
-  margin-bottom: 8rpx;
-}
-
-.stat-label {
-  font-size: 24rpx;
-  color: #999999;
-}
 
 /* 学习入口区域 */
 .entry-section {
   margin-bottom: 40rpx;
 }
 
-.entry-card {
+/* 统一卡片容器 */
+.entry-unified-card {
   background: #ffffff;
-  border-radius: 20rpx;
-  margin-bottom: 16rpx;
-  box-shadow: 0 2rpx 12rpx rgba(0, 0, 0, 0.06);
+  border-radius: 24rpx;
+  padding: 32rpx 24rpx;
+  box-shadow: 0 2rpx 16rpx rgba(0, 0, 0, 0.06);
+}
+
+/* 学习入口网格布局 */
+.entry-cards-grid {
+  display: flex;
+  justify-content: space-around;
+}
+
+.entry-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  background: transparent;
+  border: none;
   transition: all 0.3s ease;
+  flex: 1;
+  padding: 0;
 }
 
 .entry-card:active {
-  transform: scale(0.98);
-  box-shadow: 0 2rpx 8rpx rgba(0, 0, 0, 0.1);
-}
-
-.entry-header {
-  display: flex;
-  align-items: center;
-  padding: 32rpx 24rpx;
-}
-
-.entry-icon {
-  font-size: 48rpx;
-  margin-right: 24rpx;
-  width: 64rpx;
-  text-align: center;
+  transform: scale(0.95);
+  opacity: 0.7;
 }
 
 .entry-info {
-  flex: 1;
-}
-
-.entry-title {
-  display: block;
-  font-size: 32rpx;
-  font-weight: 500;
-  color: #1a1a1a;
-  margin-bottom: 6rpx;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
 }
 
 .entry-count {
   display: block;
-  font-size: 26rpx;
-  color: #666666;
+  font-size: 36rpx;
+  font-weight: 600;
+  color: #007aff;
+  margin-bottom: 8rpx;
 }
 
-.entry-arrow {
-  font-size: 32rpx;
-  color: #cccccc;
-  font-weight: 300;
+.entry-title {
+  display: block;
+  font-size: 24rpx;
+  color: #999999;
 }
 
 /* 不同类型单词的样式 */
-.entry-card.new-words {
-  border-left: 6rpx solid #007AFF;
+.entry-card.new-words .entry-count {
+  color: #007aff;
 }
 
-.entry-card.review-words {
-  border-left: 6rpx solid #34C759;
+.entry-card.review-words .entry-count {
+  color: #007aff;
 }
 
-.entry-card.overdue-words {
-  border-left: 6rpx solid #FF3B30;
-}
-
-.new-words:active {
-  background: #f0f9ff;
-}
-
-.review-words:active {
-  background: #f0fff4;
-}
-
-.overdue-words:active {
-  background: #fff5f5;
+.entry-card.overdue-words .entry-count {
+  color: #007aff;
 }
 
 /* 完成状态 */
@@ -167,8 +131,27 @@
 
 /* 加载状态 */
 .loading-state {
-  text-align: center;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
   padding: 80rpx 0;
+  text-align: center;
+}
+
+.loading-spinner {
+  width: 60rpx;
+  height: 60rpx;
+  border: 4rpx solid #f3f3f3;
+  border-top: 4rpx solid #007aff;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin-bottom: 24rpx;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
 }
 
 .loading-text {
@@ -176,41 +159,162 @@
   color: #999999;
 }
 
-/* 设置区域 */
-.settings-section {
-  margin-top: 40rpx;
-}
-
-.settings-item {
-  background: #ffffff;
-  border-radius: 20rpx;
-  padding: 32rpx 24rpx;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  box-shadow: 0 2rpx 12rpx rgba(0, 0, 0, 0.06);
-  transition: all 0.3s ease;
-}
-
-.settings-item:active {
-  transform: scale(0.98);
-  background: #f8f8f8;
-}
-
-.settings-text {
-  font-size: 30rpx;
-  color: #1a1a1a;
-}
-
-.settings-arrow {
-  font-size: 32rpx;
-  color: #cccccc;
-  font-weight: 300;
-}
-
 /* 安全区域适配 */
 @supports (bottom: env(safe-area-inset-bottom)) {
   .word-study-container {
     padding-bottom: calc(40rpx + env(safe-area-inset-bottom));
   }
+}
+
+/* 学习日历区域 */
+.calendar-section {
+  background-color: #fff;
+  border-radius: 16px;
+  padding: 20px;
+  margin-bottom: 20px;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.05);
+}
+
+.section-header {
+  margin-bottom: 20px;
+}
+
+.section-title {
+  font-size: 18px;
+  font-weight: 600;
+  color: #333;
+}
+
+/* 星期标题 */
+.weekdays-header {
+  display: flex;
+  margin-bottom: 10px;
+}
+
+.weekday-item {
+  flex: 1;
+  text-align: center;
+}
+
+.weekday-text {
+  font-size: 14px;
+  color: #666;
+  font-weight: 500;
+}
+
+/* 日历网格 */
+.calendar-grid {
+  display: flex;
+  flex-wrap: wrap;
+}
+
+.calendar-day {
+  width: calc(100% / 7);
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 8px;
+  position: relative;
+}
+
+.day-number {
+  font-size: 14px;
+  color: #333;
+  font-weight: 500;
+  position: relative;
+  z-index: 1;
+}
+
+/* 有学习记录的日期 */
+.calendar-day.has-study .day-number {
+  color: #fff;
+}
+
+.calendar-day.has-study::before {
+  content: "";
+  position: absolute;
+  width: 32px;
+  height: 32px;
+  background-color: #c8e6c9;
+  border-radius: 8px;
+  z-index: 0;
+}
+
+/* 今天的日期 - 使用更高的优先级 */
+.calendar-day.is-today::before {
+  background-color: #007aff !important;
+  content: "";
+  position: absolute;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  z-index: 0;
+}
+
+.calendar-day.is-today .day-number {
+  color: #fff !important;
+  position: relative;
+  z-index: 1;
+}
+
+/* 当天且有学习记录 - 保持蓝色优先 */
+.calendar-day.has-study.is-today::before,
+.calendar-day.intensity-1.is-today::before,
+.calendar-day.intensity-2.is-today::before,
+.calendar-day.intensity-3.is-today::before,
+.calendar-day.intensity-4.is-today::before {
+  background-color: #007aff !important;
+}
+
+/* GitHub风格的学习强度颜色 */
+.calendar-day.intensity-0 {
+  background: transparent;
+}
+
+.calendar-day.intensity-1::before {
+  content: "";
+  position: absolute;
+  width: 32px;
+  height: 32px;
+  background-color: #9be9a8;
+  border-radius: 8px;
+  z-index: 0;
+}
+
+.calendar-day.intensity-2::before {
+  content: "";
+  position: absolute;
+  width: 32px;
+  height: 32px;
+  background-color: #40c463;
+  border-radius: 8px;
+  z-index: 0;
+}
+
+.calendar-day.intensity-3::before {
+  content: "";
+  position: absolute;
+  width: 32px;
+  height: 32px;
+  background-color: #30a14e;
+  border-radius: 8px;
+  z-index: 0;
+}
+
+.calendar-day.intensity-4::before {
+  content: "";
+  position: absolute;
+  width: 32px;
+  height: 32px;
+  background-color: #216e39;
+  border-radius: 8px;
+  z-index: 0;
+}
+
+.calendar-day.intensity-1 .day-number,
+.calendar-day.intensity-2 .day-number,
+.calendar-day.intensity-3 .day-number,
+.calendar-day.intensity-4 .day-number {
+  color: #fff;
 }

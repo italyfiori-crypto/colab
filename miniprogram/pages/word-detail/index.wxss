@@ -1,0 +1,78 @@
+/* 单词详情页面样式 */
+.word-detail-container {
+  min-height: 100vh;
+  background: #f8f9fa;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Tab切换容器 */
+.tab-container {
+  display: flex;
+  background: #ffffff;
+  box-shadow: 0 2rpx 8rpx rgba(0, 0, 0, 0.05);
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+
+.tab-item {
+  flex: 1;
+  padding: 32rpx 0;
+  text-align: center;
+  font-size: 28rpx;
+  color: #666666;
+  position: relative;
+  transition: color 0.3s ease;
+}
+
+.tab-item.active {
+  color: #007aff;
+  font-weight: 500;
+}
+
+.tab-item.active::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 60rpx;
+  height: 4rpx;
+  background: #007aff;
+  border-radius: 2rpx;
+}
+
+/* 内容容器 */
+.content-container {
+  flex: 1;
+  padding: 24rpx;
+}
+
+/* 加载状态 */
+.loading-state {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 400rpx;
+}
+
+.loading-text {
+  font-size: 28rpx;
+  color: #999999;
+}
+
+/* 空状态 */
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  height: 400rpx;
+  text-align: center;
+}
+
+.empty-text {
+  font-size: 28rpx;
+  color: #999999;
+}

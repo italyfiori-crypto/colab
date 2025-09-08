@@ -142,7 +142,7 @@ class VocabularyUploader:
                         "chapter_id": subchapter_id,
                         "word_list": vocab_data.get("word_list", []),
                         "word_info_list": vocab_data.get("word_info_list", []),
-                        "created_at": datetime.now().isoformat()
+                        "created_at": int(time.time() * 1000)
                     }
                     
                     # 检查是否已存在

@@ -4,5 +4,8 @@
   "backgroundColor": "#ffffff",
   "backgroundTextStyle": "dark",
   "navigationBarBackgroundColor": "#ffffff",
-  "navigationBarTextStyle": "black"
+  "navigationBarTextStyle": "black",
+  "usingComponents": {
+    "word-list": "/components/word-list/index"
+  }
 }

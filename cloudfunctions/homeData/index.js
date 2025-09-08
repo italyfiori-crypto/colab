@@ -5,6 +5,11 @@ cloud.init({ env: cloud.DYNAMIC_CURRENT_ENV }) // 使用当前云环境
 
 const db = cloud.database()
 
+// 时间戳工具函数
+function getNowTimestamp() {
+  return Date.now()
+}
+
 // 写死的分类列表（后期可调整为数据库读取）
 const CATEGORY_LIST = [
   { name: '文学名著', active: true },
@@ -214,7 +219,7 @@ async function addToRecentBooks(user_id, book_id) {
       console.error('❌ [DEBUG] 查询现有进度记录失败:', err)
     })
 
-    const now = new Date()
+    const now = getNowTimestamp()
     if (existingProgressResult) {
       // 3. 如果已存在，只更新最后访问时间
       console.log('🔄 [DEBUG] 更新现有进度记录')

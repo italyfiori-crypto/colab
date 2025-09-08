@@ -1,0 +1,37 @@
+<!-- 单词详情页面 -->
+<view class="word-detail-container">
+  <!-- Tab切换 -->
+  <view class="tab-container">
+    <view class="tab-item {{activeTab === 'learned' ? 'active' : ''}}" 
+          bindtap="onTabChange" 
+          data-tab="learned">
+      已学单词
+    </view>
+    <view class="tab-item {{activeTab === 'reviewed' ? 'active' : ''}}" 
+          bindtap="onTabChange" 
+          data-tab="reviewed">
+      已复习单词
+    </view>
+  </view>
+
+  <!-- 单词列表 -->
+  <view class="content-container">
+    <!-- 加载状态 -->
+    <view class="loading-state" wx:if="{{loading}}">
+      <text class="loading-text">正在加载单词数据...</text>
+    </view>
+
+    <!-- 单词列表 -->
+    <word-list 
+      wx:else
+      words="{{words}}" 
+      readonly="{{true}}"
+      bind:wordTap="onWordTap">
+    </word-list>
+
+    <!-- 空状态 -->
+    <view class="empty-state" wx:if="{{!loading && words.length === 0}}">
+      <text class="empty-text">该日期暂无{{activeTab === 'learned' ? '学习' : '复习'}}记录</text>
+    </view>
+  </view>
+</view>

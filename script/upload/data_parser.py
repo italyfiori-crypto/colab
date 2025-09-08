@@ -8,6 +8,7 @@ import os
 import json
 import logging
 import hashlib
+import time
 from datetime import datetime
 from typing import Dict, List, Optional, Tuple
 
@@ -138,8 +139,8 @@ class DataParser:
                 'subtitle_md5': subtitle_md5,
                 'local_audio_file': audio_file_path,
                 'local_subtitle_file': subtitle_file_path,
-                'created_at': datetime.now().isoformat(),
-                'updated_at': datetime.now().isoformat()
+                'created_at': int(time.time() * 1000),
+                'updated_at': int(time.time() * 1000)
             }
             
             chapters_data.append(chapter_data)
@@ -165,8 +166,8 @@ class DataParser:
             'is_active': True,
             'tags': book_info.get('tags', []),
             'local_cover_file': cover_file_path,
-            'created_at': datetime.now().isoformat(),
-            'updated_at': datetime.now().isoformat(),
+            'created_at': int(time.time() * 1000),
+            'updated_at': int(time.time() * 1000),
             'done': book_info.get('done', False)
         }
         

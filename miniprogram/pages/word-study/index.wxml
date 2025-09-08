@@ -1,87 +1,91 @@
 <!-- 单词本入口页面 -->
 <view class="word-study-container">
-  <!-- 头部标题 -->
-  <view class="header-section">
-    <text class="page-title">今日学习</text>
-    <text class="page-subtitle">坚持每天学习，积少成多</text>
-  </view>
+  <!-- 添加下拉刷新支持的滚动容器 -->
+  <scroll-view 
+    class="main-scroll-content"
+    scroll-y="{{true}}"
+    refresher-enabled="{{true}}"
+    refresher-triggered="{{refreshing}}"
+    bindrefresherrefresh="onRefresh"
+    refresher-default-style="black"
+    refresher-background="#f8f9fa"
+  >
+    <!-- 头部标题 -->
+    <view class="header-section">
+      <text class="page-title">今日学习</text>
+      <text class="page-subtitle">坚持每天学习，积少成多</text>
+    </view>
 
-  <!-- 学习统计卡片 -->
-  <view class="stats-section">
-    <view class="stats-card">
-      <view class="stats-row">
-        <view class="stat-item">
-          <text class="stat-number">{{totalWords}}</text>
-          <text class="stat-label">总词汇</text>
-        </view>
-        <view class="stat-item">
-          <text class="stat-number">{{studiedToday}}</text>
-          <text class="stat-label">今日已学</text>
-        </view>
-        <view class="stat-item">
-          <text class="stat-number">{{masteredWords}}</text>
-          <text class="stat-label">已掌握</text>
+    <!-- 学习入口统一卡片 -->
+    <view class="entry-section">
+      <view class="entry-unified-card">
+        <view class="entry-cards-grid">
+          <!-- 待学习 -->
+          <view class="entry-card new-words" bindtap="onEnterNewWords">
+            <view class="entry-info">
+              <text class="entry-count">{{newWordsCount}}</text>
+              <text class="entry-title">待学习</text>
+            </view>
+          </view>
+
+          <!-- 待复习 -->
+          <view class="entry-card review-words" bindtap="onEnterReviewWords">
+            <view class="entry-info">
+              <text class="entry-count">{{reviewWordsCount}}</text>
+              <text class="entry-title">待复习</text>
+            </view>
+          </view>
+
+          <!-- 逾期单词 -->
+          <view class="entry-card overdue-words" bindtap="onEnterOverdueWords">
+            <view class="entry-info">
+              <text class="entry-count">{{overdueWordsCount}}</text>
+              <text class="entry-title">逾期单词</text>
+            </view>
+          </view>
         </view>
       </view>
-    </view>
-  </view>
 
-  <!-- 学习入口卡片 -->
-  <view class="entry-section">
-    <!-- 新学单词 -->
-    <view class="entry-card new-words" bindtap="onEnterNewWords">
-      <view class="entry-header">
-        <view class="entry-icon new-icon">📚</view>
-        <view class="entry-info">
-          <text class="entry-title">新学单词</text>
-          <text class="entry-count">{{newWordsCount}} 个待学习</text>
+      <!-- 学习日历 -->
+      <view class="calendar-section">
+        <view class="section-header">
+          <text class="section-title">学习日历</text>
         </view>
-        <view class="entry-arrow">→</view>
+        
+        <!-- 星期标题 -->
+        <view class="weekdays-header">
+          <view class="weekday-item" wx:for="{{monthInfo.weekDays}}" wx:key="*this">
+            <text class="weekday-text">{{item}}</text>
+          </view>
+        </view>
+        
+        <!-- 日历网格 -->
+        <view class="calendar-grid">
+          <view 
+            class="calendar-day {{item.hasStudy ? 'has-study' : ''}} {{item.isToday ? 'is-today' : ''}} intensity-{{item.intensityLevel}}"
+            wx:for="{{monthInfo.calendarDays}}" 
+            wx:key="index"
+            bindtap="onCalendarDayTap"
+            data-date="{{item.date}}"
+            data-full-date="{{item.fullDate}}"
+          >
+            <text class="day-number" wx:if="{{item.date}}">{{item.date}}</text>
+          </view>
+        </view>
+      </view>
+
+      <!-- 全部完成状态 -->
+      <view class="completed-state" wx:if="{{newWordsCount === 0 && reviewWordsCount === 0 && overdueWordsCount === 0 && !loading}}">
+        <view class="completed-icon">🎉</view>
+        <text class="completed-title">今日学习任务已完成</text>
+        <text class="completed-subtitle">明天继续加油！</text>
+      </view>
+
+      <!-- 加载状态 -->
+      <view class="loading-state" wx:if="{{loading}}">
+        <view class="loading-spinner"></view>
+        <text class="loading-text">正在加载学习数据...</text>
       </view>
     </view>
-
-    <!-- 复习单词 -->
-    <view class="entry-card review-words" bindtap="onEnterReviewWords">
-      <view class="entry-header">
-        <view class="entry-icon review-icon">🔄</view>
-        <view class="entry-info">
-          <text class="entry-title">复习单词</text>
-          <text class="entry-count">{{reviewWordsCount}} 个待复习</text>
-        </view>
-        <view class="entry-arrow">→</view>
-      </view>
-    </view>
-
-    <!-- 逾期单词 -->
-    <view class="entry-card overdue-words" bindtap="onEnterOverdueWords">
-      <view class="entry-header">
-        <view class="entry-icon overdue-icon">⚠️</view>
-        <view class="entry-info">
-          <text class="entry-title">逾期单词</text>
-          <text class="entry-count">{{overdueWordsCount}} 个需处理</text>
-        </view>
-        <view class="entry-arrow">→</view>
-      </view>
-    </view>
-
-    <!-- 全部完成状态 -->
-    <view class="completed-state" wx:if="{{newWordsCount === 0 && reviewWordsCount === 0 && overdueWordsCount === 0 && !loading}}">
-      <view class="completed-icon">🎉</view>
-      <text class="completed-title">今日学习任务已完成</text>
-      <text class="completed-subtitle">明天继续加油！</text>
-    </view>
-
-    <!-- 加载状态 -->
-    <view class="loading-state" wx:if="{{loading}}">
-      <text class="loading-text">正在加载学习数据...</text>
-    </view>
-  </view>
-
-  <!-- 学习设置 -->
-  <view class="settings-section">
-    <view class="settings-item" bindtap="onShowSettings">
-      <text class="settings-text">学习设置</text>
-      <text class="settings-arrow">→</text>
-    </view>
-  </view>
+  </scroll-view>
 </view>

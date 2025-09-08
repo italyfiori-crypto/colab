@@ -5,6 +5,11 @@ cloud.init({ env: cloud.DYNAMIC_CURRENT_ENV }) // 使用当前云环境
 
 const db = cloud.database()
 
+// 时间戳工具函数
+function getNowTimestamp() {
+  return Date.now()
+}
+
 exports.main = async (event, context) => {
   const { type, chapterId, bookId, currentTime, completed, word, wordId, page, pageSize } = event
   const { OPENID } = cloud.getWXContext()
@@ -288,7 +293,7 @@ async function saveChapterProgress(user_id, bookId, chapterId, currentTime, comp
 
   try {
     const progressId = `${user_id}_${bookId}`
-    const now = new Date()
+    const now = getNowTimestamp()
 
     // 获取现有进度记录
     let userProgress = null
@@ -447,7 +452,7 @@ async function addWordToCollection(word, user_id, bookId, chapterId) {
 
     const wordInfo = wordResult.data[0]
     const recordId = `${user_id}_${wordInfo._id}`
-    const now = new Date()
+    const now = getNowTimestamp()
 
     // 2. 直接创建或更新记录（使用set覆盖）
     await db.collection('word_records').doc(recordId).set({
@@ -457,10 +462,11 @@ async function addWordToCollection(word, user_id, bookId, chapterId) {
         source_book_id: bookId,
         source_chapter_id: chapterId,
 
-        level: 0,
+        level: null,
         first_learn_date: null,
         next_review_date: null,
         actual_review_dates: [],
+        created_at: now,
         updated_at: now
       }
     })

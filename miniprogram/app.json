@@ -5,6 +5,7 @@
     "pages/article-detail/index",
     "pages/word-study/index",
     "pages/vocabulary/index",
+    "pages/word-detail/index",
     "pages/profile/index"
   ],
   "window": {

@@ -7,9 +7,32 @@ cloud.init({
 
 const db = cloud.database()
 
-// 艾宾浩斯复习间隔 (天数)
-const REVIEW_INTERVALS = [1, 2, 4, 7, 15, 30, 60]
+// 时间戳和日期工具函数
+function getNowTimestamp() {
+  return Date.now()
+}
 
+function getTodayString() {
+  const now = new Date()
+  const year = now.getFullYear()
+  const month = String(now.getMonth() + 1).padStart(2, '0')
+  const day = String(now.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
+function addDaysToToday(days) {
+  const date = new Date()
+  date.setDate(date.getDate() + days)
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
+// 艾宾浩斯复习间隔 (当前等级进入下一等级需要的天数)
+const REVIEW_INTERVALS = [1, 2, 4, 7, 15, 30, 36500]
+const MAX_LEVEL = REVIEW_INTERVALS.length - 1
+const MAX_DAILY_NEW = 20
 
 exports.main = async (event, context) => {
   const { action, ...params } = event
@@ -24,6 +47,12 @@ exports.main = async (event, context) => {
         return await getWordList(userId, params)
       case 'updateWordRecord':
         return await updateWordRecord(userId, params)
+      case 'getWordsByDate':
+        return await getWordsByDate(userId, params)
+      case 'getDailyStats':
+        return await getDailyStats(userId, params)
+      case 'updateDailyStats':
+        return await updateDailyStats(userId, params)
       default:
         return {
           success: false,
@@ -40,31 +69,19 @@ exports.main = async (event, context) => {
 }
 
 // 计算下次复习时间
-function calculateNextReviewTime(level, isCorrect = true) {
-  let newLevel = level
-
-  if (isCorrect) {
-    newLevel = Math.min(level + 1, 6)
-  } else {
-    newLevel = Math.max(level - 1, 0)
-  }
-
-  const interval = REVIEW_INTERVALS[newLevel]
-  const randomFactor = 0.8 + Math.random() * 0.4 // 0.8-1.2
-  const actualInterval = Math.round(interval * randomFactor)
-
-  const nextReviewDate = new Date()
-  nextReviewDate.setDate(nextReviewDate.getDate() + actualInterval)
+function calcNextReviewDate(cur_level) {
+  // 新词从0级开始，已学词汇等级+1但不超过最大等级
+  const newLevel = cur_level == null ? 0 : Math.min(cur_level + 1, MAX_LEVEL)
 
   return {
     level: newLevel,
-    next_review_date: nextReviewDate.toISOString().split('T')[0] // 直接返回字符串格式
+    next_review_date: addDaysToToday(REVIEW_INTERVALS[newLevel])
   }
 }
 
 // 计算逾期天数
 function calculateOverdueDays(nextReviewDate) {
-  const todayString = new Date().toISOString().split('T')[0]
+  const todayString = getTodayString()
 
   // 如果今天小于等于复习日期，则没有逾期
   if (todayString <= nextReviewDate) {
@@ -99,34 +116,17 @@ function handleOverdueWordLevel(originalLevel, action, overdueDays) {
 
 // 获取学习统计数据
 async function getStudyStats(userId) {
-  const todayString = new Date().toISOString().split('T')[0] // YYYY-MM-DD 格式
+  const todayString = getTodayString()
 
-  // 统计总词汇数
-  const totalWordsResult = await db.collection('word_records')
-    .where({ user_id: userId })
-    .count()
+  console.log("todayString:", todayString)
 
-  // 统计今日已学习数
-  const studiedTodayResult = await db.collection('word_records')
-    .where({
-      user_id: userId,
-      first_learn_date: todayString
-    })
-    .count()
 
-  // 统计已掌握数
-  const masteredResult = await db.collection('word_records')
-    .where({
-      user_id: userId,
-      level: 7
-    })
-    .count()
 
-  // 统计新学单词数 (TODO: 从章节单词表中获取未学习的单词)
+  // 统计待学习的新单词数（level为null且first_learn_date为null）
   const newWordsResult = await db.collection('word_records')
     .where({
       user_id: userId,
-      level: 0
+      first_learn_date: null
     })
     .count()
 
@@ -134,7 +134,7 @@ async function getStudyStats(userId) {
   const reviewWordsResult = await db.collection('word_records')
     .where({
       user_id: userId,
-      level: db.command.gte(1).and(db.command.lt(7)),
+      level: db.command.lt(MAX_LEVEL),
       next_review_date: todayString
     })
     .count()
@@ -143,7 +143,7 @@ async function getStudyStats(userId) {
   const overdueWordsResult = await db.collection('word_records')
     .where({
       user_id: userId,
-      level: db.command.gte(1).and(db.command.lt(7)),
+      level: db.command.lt(MAX_LEVEL),
       next_review_date: db.command.lt(todayString)
     })
     .count()
@@ -151,10 +151,7 @@ async function getStudyStats(userId) {
   return {
     success: true,
     data: {
-      totalWords: totalWordsResult.total,
-      studiedToday: studiedTodayResult.total,
-      masteredWords: masteredResult.total,
-      newWordsCount: Math.min(20, newWordsResult.total),
+      newWordsCount: newWordsResult.total,
       reviewWordsCount: reviewWordsResult.total,
       overdueWordsCount: overdueWordsResult.total
     }
@@ -163,59 +160,51 @@ async function getStudyStats(userId) {
 
 // 获取指定类型的单词列表
 async function getWordList(userId, { type, limit = 50 }) {
-  const todayString = new Date().toISOString().split('T')[0] // YYYY-MM-DD 格式
+  const todayString = getTodayString()
 
   let query
 
   switch (type) {
     case 'new':
-      // 计算今日已学习的新单词数量
+      // 计算今日已学习的新单词数量（今日首次学习的单词）
       const studiedTodayResult = await db.collection('word_records')
         .where({
           user_id: userId,
-          level: db.command.gte(1), // level从0变为1及以上表示已学习
-          first_learn_date: todayString
+          first_learn_date: todayString,
         })
         .count()
 
       const studiedToday = studiedTodayResult.total
-      const maxDailyNew = 20
-      const remainingToday = Math.max(0, maxDailyNew - studiedToday)
+      const maxRemainingToday = Math.max(0, MAX_DAILY_NEW - studiedToday)
 
-      console.log(`🔄 [DEBUG] 今日新学单词统计: 已学${studiedToday}个，剩余${remainingToday}个`)
+      console.log(`🔄 [DEBUG] 今日新学单词统计: 已学${studiedToday}个，剩余${maxRemainingToday}个`)
 
-      if (remainingToday === 0) {
+      if (maxRemainingToday === 0) {
         return {
           success: true,
           data: []
         }
       }
 
-      // 获取level=0的待学习单词，使用固定排序
+      // 获取未学习的新单词（level为null且first_learn_date为null）
       query = db.collection('word_records')
         .where({
           user_id: userId,
-          level: 0
+          level: null,
+          first_learn_date: null
         })
-        .orderBy('_id', 'asc') // 固定排序确保每次进入看到相同顺序
-        .limit(Math.min(remainingToday, limit))
+        .orderBy('created_at', 'asc') // 固定排序确保每次进入看到相同顺序
+        .limit(Math.min(maxRemainingToday, limit))
       break
 
     case 'review':
-      console.log('🔄 [DEBUG] 查询复习单词 - 查询条件:', {
-        user_id: userId,
-        等级范围: '1-6',
-        复习日期: todayString,
-        今天日期: todayString,
-        limit: limit
-      })
-      
       query = db.collection('word_records')
         .where({
           user_id: userId,
-          level: db.command.gte(1).and(db.command.lt(7)),
+          level: db.command.gte(1).and(db.command.lt(MAX_LEVEL)),
           next_review_date: todayString
         })
+        .orderBy('updated_at', 'asc')
         .limit(limit)
       break
 
@@ -223,7 +212,7 @@ async function getWordList(userId, { type, limit = 50 }) {
       query = db.collection('word_records')
         .where({
           user_id: userId,
-          level: db.command.gte(1).and(db.command.lt(7)),
+          level: db.command.gte(1).and(db.command.lt(MAX_LEVEL)),
           next_review_date: db.command.lt(todayString)
         })
         .limit(limit)
@@ -234,19 +223,6 @@ async function getWordList(userId, { type, limit = 50 }) {
   }
 
   const wordsResult = await query.get()
-
-  console.log("🔄 [DEBUG] 获取单词列表:", {
-    查询类型: type,
-    查询结果数量: wordsResult.data.length,
-    详细数据: wordsResult.data.map(record => ({
-      单词ID: record.word_id,
-      等级: record.level,
-      下次复习日期: record.next_review_date,
-      今天: todayString,
-      是否匹配: record.next_review_date === todayString
-    }))
-  })
-
   if (wordsResult.data.length === 0) {
     console.log("📝 [DEBUG] 没有找到符合条件的单词记录")
     return {
@@ -295,7 +271,7 @@ async function getWordList(userId, { type, limit = 50 }) {
         id: record._id,
         word: vocab.word,
         phonetic: vocab.phonetic_us || vocab.phonetic_uk || vocab.phonetic,
-        translations: vocab.translation.map(t => ({
+        translations: vocab.translation.slice(0, 3).map(t => ({
           partOfSpeech: t.type,
           meaning: t.meaning
         }))
@@ -319,8 +295,8 @@ async function getWordList(userId, { type, limit = 50 }) {
 
 // 更新单词记录
 async function updateWordRecord(userId, { word, actionType }) {
-  const now = new Date()
-  const todayString = now.toISOString().split('T')[0] // YYYY-MM-DD 格式
+  const nowTimestamp = getNowTimestamp()
+  const todayString = getTodayString()
 
   console.log('📖 [DEBUG] updateWordRecord云函数开始执行:', { word, actionType })
   try {
@@ -335,135 +311,92 @@ async function updateWordRecord(userId, { word, actionType }) {
       existingRecord = { data: null }
     }
 
+    const record = existingRecord.data
+
     if (actionType === 'start') {
       // 开始学习新单词
       if (existingRecord.data) {
         // 更新现有记录
-        const { level, next_review_date } = calculateNextReviewTime(0, true)
+        const { level, next_review_date } = calcNextReviewDate(null)
         await db.collection('word_records').doc(recordId).update({
           data: {
             level: level,
             first_learn_date: todayString,
             next_review_date: next_review_date,
-            actual_review_dates: db.command.push(todayString)
+            actual_learn_dates: db.command.push(todayString),
+            updated_at: nowTimestamp
           }
         })
+
+        // 同步更新每日学习统计
+        await updateDailyStatsSync(userId, todayString, 'learn')
       }
     } else if (actionType === 'review') {
-      const record = existingRecord.data
-      console.log('📖 [DEBUG] 复习单词成功 - 更新前状态:', {
-        word,
-        当前等级: record.level,
-        当前复习日期: record.next_review_date,
-        今天: todayString
-      })
-
-      const { level, next_review_date } = calculateNextReviewTime(record.level, true)
-      console.log('📖 [DEBUG] 复习单词成功 - 计算新状态:', {
-        新等级: level,
-        新复习日期: next_review_date
-      })
-
+      const { new_level, next_review_date } = calcNextReviewDate(record.level)
       await db.collection('word_records').doc(recordId).update({
         data: {
-          level: level,
+          level: new_level,
           next_review_date: next_review_date,
-          actual_review_dates: db.command.push(todayString)
+          actual_review_dates: db.command.push(todayString),
+          updated_at: nowTimestamp
         }
       })
+
+      // 同步更新每日学习统计
+      await updateDailyStatsSync(userId, todayString, 'review')
 
       console.log('✅ [DEBUG] 复习单词成功 - 数据库更新完成')
-
-      // 验证数据库更新是否成功
-      try {
-        const verifyRecord = await db.collection('word_records').doc(recordId).get()
-        console.log('🔍 [DEBUG] 验证数据库更新结果:', {
-          单词: word,
-          更新后等级: verifyRecord.data.level,
-          更新后复习日期: verifyRecord.data.next_review_date,
-          预期等级: level,
-          预期复习日期: next_review_date,
-          更新是否成功: verifyRecord.data.level === level && verifyRecord.data.next_review_date === next_review_date
-        })
-      } catch (verifyError) {
-        console.error('❌ [DEBUG] 验证数据库更新失败:', verifyError)
-      }
-    } else if (actionType === 'failed') {
-      const record = existingRecord.data
-      console.log('📖 [DEBUG] 复习单词失败 - 更新前状态:', {
-        word,
-        当前等级: record.level,
-        当前复习日期: record.next_review_date,
-        今天: todayString
-      })
-
-      const { level, next_review_date } = calculateNextReviewTime(record.level, false)
-      console.log('📖 [DEBUG] 复习单词失败 - 计算新状态:', {
-        新等级: level,
-        新复习日期: next_review_date
-      })
-
-      await db.collection('word_records').doc(recordId).update({
-        data: {
-          level: level,
-          next_review_date: next_review_date,
-          actual_review_dates: db.command.push(todayString)
-        }
-      })
-
-      console.log('✅ [DEBUG] 复习单词失败 - 数据库更新完成')
-
-      // 验证数据库更新是否成功
-      try {
-        const verifyRecord = await db.collection('word_records').doc(recordId).get()
-        console.log('🔍 [DEBUG] 验证数据库更新结果 (失败情况):', {
-          单词: word,
-          更新后等级: verifyRecord.data.level,
-          更新后复习日期: verifyRecord.data.next_review_date,
-          预期等级: level,
-          预期复习日期: next_review_date,
-          更新是否成功: verifyRecord.data.level === level && verifyRecord.data.next_review_date === next_review_date
-        })
-      } catch (verifyError) {
-        console.error('❌ [DEBUG] 验证数据库更新失败:', verifyError)
-      }
     } else if (actionType === 'remember') {
       const record = existingRecord.data
       const overdueDays = calculateOverdueDays(record.next_review_date)
       const newLevel = handleOverdueWordLevel(record.level, 'remember', overdueDays)
-      const { next_review_date } = calculateNextReviewTime(newLevel - 1, true) // 减1是因为函数内部会加1
+      const { next_review_date } = calcNextReviewDate(newLevel)
 
       await db.collection('word_records').doc(recordId).update({
         data: {
           level: newLevel,
           next_review_date: next_review_date,
-          actual_review_dates: db.command.push(todayString)
+          actual_review_dates: db.command.push(todayString),
+          updated_at: nowTimestamp
         }
       })
+
+      // 同步更新每日学习统计
+      await updateDailyStatsSync(userId, todayString, 'review')
     } else if (actionType === 'vague') {
       const record = existingRecord.data
       const overdueDays = calculateOverdueDays(record.next_review_date)
       const newLevel = handleOverdueWordLevel(record.level, 'vague', overdueDays)
-      const { next_review_date } = calculateNextReviewTime(newLevel - 1, true) // 减1是因为函数内部会加1
+
+      // vague情况下使用更短的复习间隔，不提升等级，使用当前等级的复习间隔
+      const nextReviewDateString = addDaysToToday(REVIEW_INTERVALS[Math.max(0, newLevel)])
 
       await db.collection('word_records').doc(recordId).update({
         data: {
           level: newLevel,
-          next_review_date: next_review_date,
-          actual_review_dates: db.command.push(todayString)
+          next_review_date: nextReviewDateString,
+          actual_review_dates: db.command.push(todayString),
+          updated_at: nowTimestamp
         }
       })
+
+      // 同步更新每日学习统计
+      await updateDailyStatsSync(userId, todayString, 'review')
     } else if (actionType === 'reset') {
-      const newLevel = 1 // 重置为第一级
-      const { next_review_date } = calculateNextReviewTime(0, true) // 从0开始计算下次复习时间
+      // 重置为第一级
+      const { level, next_review_date } = calcNextReviewDate(null)
 
       await db.collection('word_records').doc(recordId).update({
         data: {
-          level: newLevel,
+          level: level,
           next_review_date: next_review_date,
-          actual_review_dates: db.command.push(todayString)
+          actual_review_dates: db.command.push(todayString),
+          updated_at: nowTimestamp
         }
       })
+
+      // 同步更新每日学习统计
+      await updateDailyStatsSync(userId, todayString, 'review')
     }
 
     return {
@@ -475,6 +408,259 @@ async function updateWordRecord(userId, { word, actionType }) {
     return {
       success: false,
       message: '更新失败'
+    }
+  }
+}
+
+// 根据日期获取单词记录
+async function getWordsByDate(userId, { date, type }) {
+  try {
+    console.log('📅 [DEBUG] 查询日期单词记录:', { date, type, userId })
+
+    let query
+
+    if (type === 'learned') {
+      // 获取指定日期学习的单词（actual_learn_dates数组包含该日期）
+      query = db.collection('word_records')
+        .where({
+          user_id: userId,
+          actual_learn_dates: db.command.all([date])
+        })
+        .orderBy('updated_at', 'asc')
+    } else if (type === 'reviewed') {
+      // 获取指定日期复习的单词（实际复习日期数组包含该日期）
+      query = db.collection('word_records')
+        .where({
+          user_id: userId,
+          actual_review_dates: db.command.all([date])
+        })
+        .orderBy('updated_at', 'asc')
+    } else {
+      throw new Error('无效的查询类型')
+    }
+
+    const wordsResult = await query.get()
+
+    if (wordsResult.data.length === 0) {
+      console.log('📝 [DEBUG] 指定日期没有找到单词记录')
+      return {
+        success: true,
+        data: []
+      }
+    }
+
+    // 收集所有有效的word_id
+    const wordIds = wordsResult.data
+      .filter(record => record.word_id && typeof record.word_id === 'string')
+      .map(record => record.word_id)
+
+    console.log('📋 [DEBUG] 需要查询的word_ids:', wordIds)
+
+    if (wordIds.length === 0) {
+      console.warn('⚠️ [WARN] 没有有效的word_id字段')
+      return {
+        success: true,
+        data: []
+      }
+    }
+
+    // 批量查询vocabularies表
+    const vocabulariesResult = await db.collection('vocabularies')
+      .where({
+        _id: db.command.in(wordIds)
+      })
+      .get()
+
+    console.log('📚 [DEBUG] 查询到的词汇数量:', vocabulariesResult.data.length)
+
+    // 创建词汇字典，便于快速查找
+    const vocabularyMap = new Map()
+    vocabulariesResult.data.forEach(vocab => {
+      vocabularyMap.set(vocab._id, vocab)
+    })
+
+    // 处理单词记录并匹配词汇详情
+    const words = wordsResult.data
+      .filter(record => record.word_id && vocabularyMap.has(record.word_id))
+      .map(record => {
+        const vocab = vocabularyMap.get(record.word_id)
+
+        return {
+          id: record._id,
+          word: vocab.word,
+          phonetic: vocab.phonetic_us || vocab.phonetic_uk || vocab.phonetic,
+          translations: vocab.translation.slice(0, 3).map(t => ({
+            partOfSpeech: t.type,
+            meaning: t.meaning
+          }))
+        }
+      })
+
+    console.log('📊 [DEBUG] 成功处理单词数量:', words.length, '原始记录数:', wordsResult.data.length)
+
+    return {
+      success: true,
+      data: words
+    }
+  } catch (error) {
+    console.error('查询日期单词记录失败:', error)
+    return {
+      success: false,
+      message: error.message || '查询失败'
+    }
+  }
+}
+
+// 计算学习强度等级（0-4）
+function calculateIntensityLevel(totalActivity) {
+  if (totalActivity === 0) return 0
+  if (totalActivity <= 2) return 1
+  if (totalActivity <= 5) return 2
+  if (totalActivity <= 10) return 3
+  return 4
+}
+
+// 同步更新每日学习统计（内部函数）
+async function updateDailyStatsSync(userId, date, actionType) {
+  try {
+    const recordId = `${userId}_${date}`
+    const nowTimestamp = getNowTimestamp()
+
+    // 查找或创建当日统计记录
+    let existingStats
+    try {
+      existingStats = await db.collection('daily_stats').doc(recordId).get()
+    } catch (error) {
+      existingStats = { data: null }
+    }
+
+    if (existingStats.data) {
+      // 更新现有记录
+      const updateData = {
+        updated_at: nowTimestamp
+      }
+
+      if (actionType === 'learn') {
+        updateData.learned_count = (existingStats.data.learned_count || 0) + 1
+      } else if (actionType === 'review') {
+        updateData.reviewed_count = (existingStats.data.reviewed_count || 0) + 1
+      }
+
+      await db.collection('daily_stats').doc(recordId).update({
+        data: updateData
+      })
+    } else {
+      // 创建新记录
+      const newStats = {
+        user_id: userId,
+        date: date,
+        learned_count: actionType === 'learn' ? 1 : 0,
+        reviewed_count: actionType === 'review' ? 1 : 0,
+        created_at: nowTimestamp,
+        updated_at: nowTimestamp
+      }
+
+      await db.collection('daily_stats').doc(recordId).set({
+        data: newStats
+      })
+    }
+
+    console.log('✅ [DEBUG] 每日统计更新成功:', { userId, date, actionType })
+  } catch (error) {
+    console.error('❌ [DEBUG] 更新每日统计失败:', error)
+  }
+}
+
+// 获取用户每日学习统计
+async function getDailyStats(userId, { startDate, endDate }) {
+  try {
+    console.log('📊 [DEBUG] 查询每日学习统计:', { userId, startDate, endDate })
+
+    // 构建查询条件
+    let whereCondition = {
+      user_id: userId
+    }
+
+    // 如果提供了日期范围，添加日期筛选
+    if (startDate && endDate) {
+      whereCondition.date = db.command.gte(startDate).and(db.command.lte(endDate))
+    } else if (startDate) {
+      whereCondition.date = db.command.gte(startDate)
+    } else if (endDate) {
+      whereCondition.date = db.command.lte(endDate)
+    }
+
+    let query = db.collection('daily_stats').where(whereCondition)
+
+    // 首先检查集合是否存在
+    try {
+      const result = await query.orderBy('date', 'desc').limit(100).get()
+      console.log('📈 [DEBUG] 每日统计查询完成，记录数:', result.data.length)
+
+      return {
+        success: true,
+        data: result.data
+      }
+    } catch (dbError) {
+      // 如果是集合不存在的错误，返回空数据而不是错误
+      if (dbError.message && dbError.message.includes('collection')) {
+        console.warn('⚠️ [WARN] daily_stats集合不存在，返回空数据')
+        return {
+          success: true,
+          data: []
+        }
+      }
+      throw dbError // 重新抛出其他错误
+    }
+  } catch (error) {
+    console.error('查询每日统计失败:', error)
+    // 降级方案：返回空数据，而不是完全失败
+    return {
+      success: true,
+      data: [],
+      message: '数据加载失败，显示默认状态'
+    }
+  }
+}
+
+// 手动更新每日学习统计（供外部调用）
+async function updateDailyStats(userId, { date, learned_count, reviewed_count }) {
+  try {
+    const recordId = `${userId}_${date}`
+    const nowTimestamp = getNowTimestamp()
+
+    const statsData = {
+      user_id: userId,
+      date: date,
+      learned_count: learned_count || 0,
+      reviewed_count: reviewed_count || 0,
+      updated_at: nowTimestamp
+    }
+
+    // 尝试更新，如果不存在则创建
+    try {
+      await db.collection('daily_stats').doc(recordId).update({
+        data: statsData
+      })
+    } catch (error) {
+      // 记录不存在，创建新记录
+      statsData.created_at = nowTimestamp
+      await db.collection('daily_stats').doc(recordId).set({
+        data: statsData
+      })
+    }
+
+    console.log('✅ [DEBUG] 手动更新每日统计成功:', statsData)
+
+    return {
+      success: true,
+      message: '统计更新成功'
+    }
+  } catch (error) {
+    console.error('更新每日统计失败:', error)
+    return {
+      success: false,
+      message: error.message || '更新失败'
     }
   }
 }

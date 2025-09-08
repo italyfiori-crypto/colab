@@ -1,0 +1,123 @@
+<!-- 可复用的单词列表组件 -->
+<view class="word-list-component {{customClass}}">
+  
+  <!-- 完整模式 - 带遮罩、序号、交互 -->
+  <view wx:if="{{mode === 'full'}}" class="word-list">
+    <view 
+      wx:for="{{words}}" 
+      wx:key="id"
+      class="word-item {{wordType}} {{item.isLearned ? 'learned' : ''}} {{item.isReviewed ? 'reviewed' : ''}} {{item.isExpanded ? 'expanded' : ''}} {{item.completed ? 'completed' : ''}} {{item.removing ? 'removing' : ''}}"
+      data-word="{{item}}"
+      data-index="{{index}}"
+      bindtap="onWordTap"
+    >
+      <!-- 序号容器 -->
+      <view wx:if="{{showNumber}}" class="word-number-container {{item.isLearned ? 'learned-bg' : ''}} {{item.isReviewed ? 'reviewed-bg' : ''}}">
+        <view class="word-number">{{index + 1}}</view>
+      </view>
+      
+      <!-- 内容区域容器 -->  
+      <view class="word-content {{!showNumber ? 'no-number' : ''}}">
+        <!-- 单词信息 -->
+        <view class="word-main {{displayMode === 'english-mask' ? 'has-mask' : ''}}">
+          <view class="word-header">
+            <view class="word-text">{{item.word}}</view>
+          </view>
+          <view class="word-phonetic">{{item.phonetic}}</view>
+          <!-- 英文遮罩覆盖层 -->
+          <view wx:if="{{displayMode === 'english-mask' && !item.isExpanded}}" 
+                class="english-mask-overlay {{item.scratching ? 'mask-scratching' : ''}}" 
+                bindtouchstart="onToggleMask" 
+                data-index="{{index}}">
+            <text class="mask-text">点击显示</text>
+          </view>
+        </view>
+        
+        <!-- 翻译区域 -->
+        <view class="word-translation">
+          <view class="translation-content">
+            <view wx:for="{{item.translations}}" wx:key="*this" class="translation-item">
+              <text class="part-of-speech">{{item.partOfSpeech}}</text>
+              <text class="meaning">{{item.meaning}}</text>
+            </view>
+          </view>
+          <!-- 中文遮罩覆盖层 -->
+          <view wx:if="{{displayMode === 'chinese-mask' && !item.isExpanded && wordType !== 'overdue'}}" 
+                class="chinese-mask-overlay {{item.scratching ? 'mask-scratching' : ''}}" 
+                bindtouchstart="onToggleMask" 
+                data-index="{{index}}">
+            <text class="mask-text">点击显示</text>
+          </view>
+        </view>
+      </view>
+      
+      <!-- 逾期单词处理按钮 -->
+      <view wx:if="{{wordType === 'overdue'}}" class="overdue-actions">
+        <text class="overdue-text">{{item.overdue_days}}天</text>
+        <view class="overdue-buttons">
+          <view class="overdue-btn remember-btn" bindtap="onHandleOverdue" data-index="{{index}}" data-action="remember">
+            还记得
+          </view>
+          <view class="overdue-btn vague-btn" bindtap="onHandleOverdue" data-index="{{index}}" data-action="vague">
+            模糊
+          </view>
+          <view class="overdue-btn forgot-btn" bindtap="onHandleOverdue" data-index="{{index}}" data-action="forgot">
+            忘记了
+          </view>
+        </view>
+      </view>
+    </view>
+  </view>
+
+  <!-- 简化模式 - 用于日历页面 -->
+  <view wx:elif="{{mode === 'simple'}}" class="word-list-simple">
+    <view 
+      wx:for="{{words}}" 
+      wx:key="id"
+      class="word-item-simple"
+      data-word="{{item}}"
+      data-index="{{index}}"
+      bindtap="onWordTap"
+    >
+      <!-- 单词信息 -->
+      <view class="word-main-info">
+        <view class="word-header">
+          <view class="word-text">{{item.word}}</view>
+        </view>
+        <view class="word-phonetic">{{item.phonetic}}</view>
+      </view>
+      
+      <!-- 翻译信息 -->
+      <view class="word-translation-info">
+        <view wx:for="{{item.translations}}" wx:key="*this" class="translation-item-simple">
+          <text class="part-of-speech-simple">{{item.partOfSpeech}}</text>
+          <text class="meaning-simple">{{item.meaning}}</text>
+        </view>
+      </view>
+    </view>
+  </view>
+
+  <!-- 只读模式 - 纯展示，无交互 -->
+  <view wx:else class="word-list-readonly">
+    <view 
+      wx:for="{{words}}" 
+      wx:key="id"
+      class="word-item-readonly"
+    >
+      <!-- 单词信息 -->
+      <view class="word-main-readonly">
+        <view class="word-text-readonly">{{item.word}}</view>
+        <view class="word-phonetic-readonly">{{item.phonetic}}</view>
+      </view>
+      
+      <!-- 翻译信息 -->
+      <view class="word-translation-readonly">
+        <view wx:for="{{item.translations}}" wx:key="*this" class="translation-item-readonly">
+          <text class="part-of-speech-readonly">{{item.partOfSpeech}}</text>
+          <text class="meaning-readonly">{{item.meaning}}</text>
+        </view>
+      </view>
+    </view>
+  </view>
+
+</view>
