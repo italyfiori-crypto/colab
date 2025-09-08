@@ -24,10 +24,10 @@
             <view class="word-text">{{item.word}}</view>
           </view>
           <view class="word-phonetic">{{item.phonetic}}</view>
-          <!-- 英文遮罩覆盖层 -->
+          <!-- 英文简化显示切换 -->
           <view wx:if="{{displayMode === 'english-mask' && !item.isExpanded}}" 
-                class="english-mask-overlay {{item.scratching ? 'mask-scratching' : ''}}" 
-                bindtouchstart="onToggleMask" 
+                class="simple-mask-overlay" 
+                bindtap="onToggleMask" 
                 data-index="{{index}}">
             <text class="mask-text">点击显示</text>
           </view>
@@ -41,10 +41,10 @@
               <text class="meaning">{{item.meaning}}</text>
             </view>
           </view>
-          <!-- 中文遮罩覆盖层 -->
+          <!-- 中文简化显示切换 -->
           <view wx:if="{{displayMode === 'chinese-mask' && !item.isExpanded && wordType !== 'overdue'}}" 
-                class="chinese-mask-overlay {{item.scratching ? 'mask-scratching' : ''}}" 
-                bindtouchstart="onToggleMask" 
+                class="simple-mask-overlay chinese" 
+                bindtap="onToggleMask" 
                 data-index="{{index}}">
             <text class="mask-text">点击显示</text>
           </view>
@@ -69,33 +69,6 @@
     </view>
   </view>
 
-  <!-- 简化模式 - 用于日历页面 -->
-  <view wx:elif="{{mode === 'simple'}}" class="word-list-simple">
-    <view 
-      wx:for="{{words}}" 
-      wx:key="id"
-      class="word-item-simple"
-      data-word="{{item}}"
-      data-index="{{index}}"
-      bindtap="onWordTap"
-    >
-      <!-- 单词信息 -->
-      <view class="word-main-info">
-        <view class="word-header">
-          <view class="word-text">{{item.word}}</view>
-        </view>
-        <view class="word-phonetic">{{item.phonetic}}</view>
-      </view>
-      
-      <!-- 翻译信息 -->
-      <view class="word-translation-info">
-        <view wx:for="{{item.translations}}" wx:key="*this" class="translation-item-simple">
-          <text class="part-of-speech-simple">{{item.partOfSpeech}}</text>
-          <text class="meaning-simple">{{item.meaning}}</text>
-        </view>
-      </view>
-    </view>
-  </view>
 
   <!-- 只读模式 - 纯展示，无交互 -->
   <view wx:else class="word-list-readonly">
@@ -106,7 +79,9 @@
     >
       <!-- 单词信息 -->
       <view class="word-main-readonly">
-        <view class="word-text-readonly">{{item.word}}</view>
+        <view class="word-header-readonly">
+          <view class="word-text-readonly">{{item.word}}</view>
+        </view>
         <view class="word-phonetic-readonly">{{item.phonetic}}</view>
       </view>
       

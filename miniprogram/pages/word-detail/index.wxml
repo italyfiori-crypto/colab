@@ -25,7 +25,6 @@
     <word-list 
       wx:else
       words="{{words}}" 
-      readonly="{{true}}"
       bind:wordTap="onWordTap">
     </word-list>
 

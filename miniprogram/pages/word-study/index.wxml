@@ -12,7 +12,6 @@
   >
     <!-- 头部标题 -->
     <view class="header-section">
-      <text class="page-title">今日学习</text>
       <text class="page-subtitle">坚持每天学习，积少成多</text>
     </view>
 
@@ -74,17 +73,9 @@
         </view>
       </view>
 
-      <!-- 全部完成状态 -->
-      <view class="completed-state" wx:if="{{newWordsCount === 0 && reviewWordsCount === 0 && overdueWordsCount === 0 && !loading}}">
-        <view class="completed-icon">🎉</view>
-        <text class="completed-title">今日学习任务已完成</text>
-        <text class="completed-subtitle">明天继续加油！</text>
-      </view>
-
-      <!-- 加载状态 -->
-      <view class="loading-state" wx:if="{{loading}}">
+      <!-- 简化加载状态 -->
+      <view wx:if="{{loading}}" class="simple-loading">
         <view class="loading-spinner"></view>
-        <text class="loading-text">正在加载学习数据...</text>
       </view>
     </view>
   </scroll-view>

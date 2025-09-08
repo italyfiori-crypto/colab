@@ -122,13 +122,32 @@ async function getStudyStats(userId) {
 
 
 
-  // 统计待学习的新单词数（level为null且first_learn_date为null）
-  const newWordsResult = await db.collection('word_records')
+  // 计算今日已学习的新单词数量（今日首次学习的单词）
+  const studiedTodayResult = await db.collection('word_records')
     .where({
       user_id: userId,
-      first_learn_date: null
+      first_learn_date: todayString,
     })
     .count()
+
+  const studiedToday = studiedTodayResult.total
+  const maxRemainingToday = Math.max(0, MAX_DAILY_NEW - studiedToday)
+
+  // 如果今日配额已满，待学习数量为0
+  let newWordsCount = 0
+  if (maxRemainingToday > 0) {
+    // 统计所有未学习的新单词数（level为null且first_learn_date为null）
+    const totalNewWordsResult = await db.collection('word_records')
+      .where({
+        user_id: userId,
+        level: null,
+        first_learn_date: null
+      })
+      .count()
+    
+    // 返回实际可学习的数量（总数与剩余配额的较小值）
+    newWordsCount = Math.min(totalNewWordsResult.total, maxRemainingToday)
+  }
 
   // 统计今日需复习单词数
   const reviewWordsResult = await db.collection('word_records')
@@ -151,7 +170,7 @@ async function getStudyStats(userId) {
   return {
     success: true,
     data: {
-      newWordsCount: newWordsResult.total,
+      newWordsCount: newWordsCount,
       reviewWordsCount: reviewWordsResult.total,
       overdueWordsCount: overdueWordsResult.total
     }
@@ -269,8 +288,10 @@ async function getWordList(userId, { type, limit = 50 }) {
 
       let wordData = {
         id: record._id,
+        word_id: record.word_id,  // 添加word_id字段
         word: vocab.word,
         phonetic: vocab.phonetic_us || vocab.phonetic_uk || vocab.phonetic,
+        audioUrl: vocab.audio_url_us || vocab.audio_url || vocab.audio_url_uk,
         translations: vocab.translation.slice(0, 3).map(t => ({
           partOfSpeech: t.type,
           meaning: t.meaning
@@ -294,30 +315,39 @@ async function getWordList(userId, { type, limit = 50 }) {
 }
 
 // 更新单词记录
-async function updateWordRecord(userId, { word, actionType }) {
+async function updateWordRecord(userId, { word_id, actionType }) {
   const nowTimestamp = getNowTimestamp()
   const todayString = getTodayString()
 
-  console.log('📖 [DEBUG] updateWordRecord云函数开始执行:', { word, actionType })
+  console.log('📖 [DEBUG] updateWordRecord云函数开始执行:', { userId, word_id, actionType })
   try {
-    // 查找现有记录
-    const recordId = `${userId}_${word}`
-    let existingRecord
+    // 使用user_id和word_id查找现有记录（安全查询）
+    const queryResult = await db.collection('word_records')
+      .where({
+        user_id: userId,
+        word_id: word_id
+      })
+      .get()
 
-    try {
-      existingRecord = await db.collection('word_records').doc(recordId).get()
-    } catch (error) {
-      // 记录不存在时，get()会抛出错误
-      existingRecord = { data: null }
+    let existingRecord = { data: null }
+    let recordId = null
+
+    if (queryResult.data.length > 0) {
+      existingRecord = { data: queryResult.data[0] }
+      recordId = queryResult.data[0]._id
+    } else {
+      // 如果记录不存在，创建新的recordId
+      recordId = `${userId}_${word_id}`
     }
 
     const record = existingRecord.data
 
     if (actionType === 'start') {
       // 开始学习新单词
+      const { level, next_review_date } = calcNextReviewDate(null)
+      
       if (existingRecord.data) {
         // 更新现有记录
-        const { level, next_review_date } = calcNextReviewDate(null)
         await db.collection('word_records').doc(recordId).update({
           data: {
             level: level,
@@ -327,12 +357,27 @@ async function updateWordRecord(userId, { word, actionType }) {
             updated_at: nowTimestamp
           }
         })
-
-        // 同步更新每日学习统计
-        await updateDailyStatsSync(userId, todayString, 'learn')
+      } else {
+        // 创建新记录
+        await db.collection('word_records').doc(recordId).set({
+          data: {
+            user_id: userId,
+            word_id: word_id,
+            level: level,
+            first_learn_date: todayString,
+            next_review_date: next_review_date,
+            actual_learn_dates: [todayString],
+            actual_review_dates: [],
+            created_at: nowTimestamp,
+            updated_at: nowTimestamp
+          }
+        })
       }
+
+      // 同步更新每日学习统计
+      await updateDailyStatsSync(userId, todayString, 'learn')
     } else if (actionType === 'review') {
-      const { new_level, next_review_date } = calcNextReviewDate(record.level)
+      const { level: new_level, next_review_date } = calcNextReviewDate(record.level)
       await db.collection('word_records').doc(recordId).update({
         data: {
           level: new_level,
@@ -487,8 +532,10 @@ async function getWordsByDate(userId, { date, type }) {
 
         return {
           id: record._id,
+          word_id: record.word_id,  // 添加word_id字段
           word: vocab.word,
           phonetic: vocab.phonetic_us || vocab.phonetic_uk || vocab.phonetic,
+          audioUrl: vocab.audio_url_us || vocab.audio_url || vocab.audio_url_uk,
           translations: vocab.translation.slice(0, 3).map(t => ({
             partOfSpeech: t.type,
             meaning: t.meaning

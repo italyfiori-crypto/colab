@@ -750,6 +750,7 @@ Page({
                 data: {
                     type: currentWord.isCollected ? 'removeWordFromCollection' : 'addWordToCollection',
                     word: currentWord.word,
+                    wordId: currentWord._id || currentWord.id,
                     bookId: this.data.bookId,
                     chapterId: this.data.chapterId
                 }

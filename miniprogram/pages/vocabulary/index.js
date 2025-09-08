@@ -141,7 +141,7 @@ Page({
                 name: 'wordStudy',
                 data: {
                     action: 'updateWordRecord',
-                    word: word.word,
+                    word_id: word.word_id,  // 传递vocabularies的单词ID
                     actionType: 'start'
                 }
             });
@@ -184,7 +184,7 @@ Page({
                 name: 'wordStudy',
                 data: {
                     action: 'updateWordRecord',
-                    word: word.word,
+                    word_id: word.word_id,  // 传递vocabularies的单词ID
                     actionType: 'review'  // 默认复习成功
                 }
             });
@@ -239,7 +239,7 @@ Page({
                 name: 'wordStudy',
                 data: {
                     action: 'updateWordRecord',
-                    word: word.word,
+                    word_id: word.word_id,  // 传递vocabularies的单词ID
                     actionType: action
                 }
             });

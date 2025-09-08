@@ -3,10 +3,10 @@ Page({
   data: {
     // 当前选中的日期
     selectedDate: '',
-    
+
     // tab相关
     activeTab: 'learned', // learned | reviewed
-    
+
     // 单词列表
     words: [],
     loading: false,
@@ -16,18 +16,18 @@ Page({
     wx.setNavigationBarTitle({
       title: '单词详情'
     });
-    
+
     if (options.date) {
       // 从word-study页面跳转过来，显示该日期的单词列表
       this.setData({
         selectedDate: options.date
       });
       this.loadWordsByDate(options.date);
-      
+
       // 设置页面标题显示日期
       const dateStr = this.formatDisplayDate(options.date);
       wx.setNavigationBarTitle({
-        title: dateStr + ' 单词记录'
+        title: dateStr + ' 学习记录'
       });
     }
   },
@@ -46,7 +46,7 @@ Page({
     this.setData({
       activeTab: tab
     });
-    
+
     // 重新加载单词数据
     if (this.data.selectedDate) {
       this.loadWordsByDate(this.data.selectedDate);
@@ -57,7 +57,7 @@ Page({
   async loadWordsByDate(date) {
     try {
       this.setData({ loading: true });
-      
+
       // 调用云函数获取指定日期的单词记录
       const result = await wx.cloud.callFunction({
         name: 'wordStudy',
@@ -70,7 +70,7 @@ Page({
 
       if (result.result.success) {
         console.log("获取日期单词成功:", result.result.data);
-        
+
         this.setData({
           words: result.result.data,
           loading: false
