@@ -32,34 +32,22 @@
   transform: scale(0.98);
 }
 
-.word-item.new {
-  /* 移除左侧颜色边框 */
-  /* border-left: 6rpx solid #007AFF; */
-}
-
-.word-item.review {
-  /* 移除左侧颜色边框 */
-  /* border-left: 6rpx solid #34C759; */
-}
-
-
 /* 学习相关：待学习和已学习统一为淡蓝色 */
 .word-item.new,
 .word-item.learned {
   background: linear-gradient(135deg, #e3f2fd 0%, #f0f9ff 100%);
-  border-left: 4rpx solid #42a5f5;
+  
 }
 
 /* 复习相关：待复习和已复习统一为薄荷绿色 */
 .word-item.review,
 .word-item.reviewed {
   background: linear-gradient(135deg, #ecfdf5 0%, #f0fdf4 100%);
-  border-left: 4rpx solid #22c55e;
+  
 }
 
 .word-item.overdue {
   background: linear-gradient(135deg, #ffebee 0%, #fff5f5 100%);
-  border-left: 4rpx solid #f44336;
   box-shadow: 0 4rpx 16rpx rgba(255, 143, 90, 0.15);
 }
 

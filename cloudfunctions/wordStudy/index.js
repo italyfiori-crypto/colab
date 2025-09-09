@@ -574,12 +574,25 @@ async function getWordsByDate(userId, { date, type }) {
 }
 
 // 计算学习强度等级（0-4）
-function calculateIntensityLevel(totalActivity) {
-  if (totalActivity === 0) return 0
-  if (totalActivity <= 2) return 1
-  if (totalActivity <= 5) return 2
-  if (totalActivity <= 10) return 3
-  return 4
+function calculateIntensityLevel(learnedCount, reviewedCount) {
+  // 计算学习强度 (基数20)
+  let learnIntensity;
+  if (learnedCount === 0) learnIntensity = 0;
+  else if (learnedCount <= 5) learnIntensity = 1;   // 1-5个
+  else if (learnedCount <= 10) learnIntensity = 2;  // 6-10个
+  else if (learnedCount <= 15) learnIntensity = 3;  // 11-15个
+  else learnIntensity = 4;                          // 16+个
+
+  // 计算复习强度 (基数120)
+  let reviewIntensity;
+  if (reviewedCount === 0) reviewIntensity = 0;
+  else if (reviewedCount <= 30) reviewIntensity = 1;   // 1-30个
+  else if (reviewedCount <= 60) reviewIntensity = 2;   // 31-60个
+  else if (reviewedCount <= 90) reviewIntensity = 3;   // 61-90个
+  else reviewIntensity = 4;                            // 91+个
+
+  // 取最大值
+  return Math.max(learnIntensity, reviewIntensity);
 }
 
 // 同步更新每日学习统计（内部函数）

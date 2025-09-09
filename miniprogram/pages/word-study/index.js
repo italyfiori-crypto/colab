@@ -5,7 +5,7 @@ Page({
     newWordsCount: 0,
     reviewWordsCount: 0,
     overdueWordsCount: 0,
-    
+
     // 页面状态
     loading: true,
     refreshing: false,
@@ -101,11 +101,11 @@ Page({
   async onRefresh() {
     console.log('🔄 [DEBUG] word-study页面用户触发下拉刷新');
     this.setData({ refreshing: true });
-    
+
     try {
       // 重新加载学习统计数据
       await this.loadStudyStats();
-      
+
       wx.showToast({
         title: '刷新成功',
         icon: 'success',
@@ -129,7 +129,7 @@ Page({
     const now = new Date();
     const year = now.getFullYear();
     const month = now.getMonth() + 1;
-    
+
     this.generateCalendar(year, month);
   },
 
@@ -137,22 +137,22 @@ Page({
   async generateCalendar(year, month) {
     const today = new Date();
     const todayStr = this.formatDate(today);
-    
+
     // 获取当月第一天和最后一天
     const firstDay = new Date(year, month - 1, 1);
     const lastDay = new Date(year, month, 0);
     const daysInMonth = lastDay.getDate();
-    
+
     // 获取当月第一天是星期几
     const firstDayWeek = firstDay.getDay();
-    
+
     const calendarDays = [];
-    
+
     // 添加当月日期
     for (let i = 1; i <= daysInMonth; i++) {
       const date = new Date(year, month - 1, i);
       const dateStr = this.formatDate(date);
-      
+
       calendarDays.push({
         date: i,
         fullDate: dateStr,
@@ -161,13 +161,14 @@ Page({
         intensityLevel: 0
       });
     }
-    
+
     // 加载学习统计数据
+    console.log('📅 [DEBUG] 生成的初始日历数据:', calendarDays);
     await this.loadCalendarStats(year, month, calendarDays);
-    
-    this.setData({
-      'monthInfo.calendarDays': calendarDays
-    });
+
+    console.log('📅 [DEBUG] loadCalendarStats执行后的日历数据:', calendarDays);
+    // 移除重复的setData，因为loadCalendarStats内部已经正确设置了数据
+    console.log('💾 [DEBUG] generateCalendar完成，当前页面数据:', this.data.monthInfo.calendarDays);
   },
 
   // 格式化日期为YYYY-MM-DD
@@ -187,15 +188,16 @@ Page({
         month = this.data.currentMonth;
         calendarDays = this.data.monthInfo?.calendarDays || [];
       }
-      
+
       // 获取当前月份的第一天和最后一天
       const firstDay = new Date(year, month - 1, 1);
       const lastDay = new Date(year, month, 0);
-      
+
       const startDate = this.formatDate(firstDay);
       const endDate = this.formatDate(lastDay);
-      
+
       // 调用云函数获取日期统计数据
+      console.log('☁️ [DEBUG] 准备调用云函数 getDailyStats，参数:', { startDate, endDate });
       const { result } = await wx.cloud.callFunction({
         name: 'wordStudy',
         data: {
@@ -206,49 +208,77 @@ Page({
           }
         }
       });
-      
+
+      console.log('☁️ [DEBUG] 云函数 getDailyStats 返回结果:', result);
+
       if (result.success && result.data) {
         // 创建日期到强度等级的映射
         const dateToIntensityMap = {};
-        
+        console.log('📊 [DEBUG] 开始处理云函数返回的统计数据，数量:', result.data.length);
+
         result.data.forEach(item => {
-          const totalActivity = (item.learned_count || 0) + (item.reviewed_count || 0);
-          const intensityLevel = this.calculateIntensityLevel(totalActivity);
+          const learnedCount = item.learned_count || 0;
+          const reviewedCount = item.reviewed_count || 0;
+          const intensityLevel = this.calculateIntensityLevel(learnedCount, reviewedCount);
           dateToIntensityMap[item.date] = intensityLevel;
+          console.log(`📊 [DEBUG] 日期 ${item.date}: learned=${learnedCount}, reviewed=${reviewedCount}, intensity=${intensityLevel}`);
         });
-        
+
+        console.log('📊 [DEBUG] 构建完成的强度映射表:', dateToIntensityMap);
+
         // 更新日历天数的强度等级
         if (calendarDays && calendarDays.length > 0) {
+          console.log('🔄 [DEBUG] 开始更新日历数据，原始calendarDays数量:', calendarDays.length);
           const updatedDays = calendarDays.map(day => {
             if (day.fullDate && dateToIntensityMap[day.fullDate]) {
-              return { ...day, intensityLevel: dateToIntensityMap[day.fullDate], hasStudy: true };
+              const updatedDay = { ...day, intensityLevel: dateToIntensityMap[day.fullDate], hasStudy: true };
+              console.log(`🔄 [DEBUG] 更新日期 ${day.fullDate}: intensity=${dateToIntensityMap[day.fullDate]}`);
+              return updatedDay;
             }
             return day;
           });
-          
+
+          console.log('🔄 [DEBUG] 更新完成的日历数据:', updatedDays);
           this.setData({
             'monthInfo.calendarDays': updatedDays
           });
+          console.log('💾 [DEBUG] setData后的页面数据:', this.data.monthInfo.calendarDays);
         }
       }
     } catch (error) {
       console.error('加载日历统计失败:', error);
     }
   },
-  
+
   // 计算学习强度等级（0-4）
-  calculateIntensityLevel(totalActivity) {
-    if (totalActivity === 0) return 0
-    if (totalActivity <= 2) return 1
-    if (totalActivity <= 5) return 2
-    if (totalActivity <= 10) return 3
-    return 4
+  calculateIntensityLevel(learnedCount, reviewedCount) {
+    // 计算学习强度 (基数20)
+    let learnIntensity;
+    if (learnedCount === 0) learnIntensity = 0;
+    else if (learnedCount <= 5) learnIntensity = 1;   // 1-5个
+    else if (learnedCount <= 10) learnIntensity = 2;  // 6-10个
+    else if (learnedCount <= 15) learnIntensity = 3;  // 11-15个
+    else learnIntensity = 4;                          // 16+个
+
+    // 计算复习强度 (基数120)
+    let reviewIntensity;
+    if (reviewedCount === 0) reviewIntensity = 0;
+    else if (reviewedCount <= 30) reviewIntensity = 1;   // 1-30个
+    else if (reviewedCount <= 60) reviewIntensity = 2;   // 31-60个
+    else if (reviewedCount <= 90) reviewIntensity = 3;   // 61-90个
+    else reviewIntensity = 4;                            // 91+个
+
+    // 取最大值
+    const intensityLevel = Math.max(learnIntensity, reviewIntensity);
+    
+    console.log(`🎯 [DEBUG] calculateIntensityLevel: learned=${learnedCount}(${learnIntensity}), reviewed=${reviewedCount}(${reviewIntensity}) -> intensity=${intensityLevel}`);
+    return intensityLevel;
   },
 
   // 日历日期点击事件
   onCalendarDayTap(e) {
     const { fullDate } = e.currentTarget.dataset;
-    
+
     // 确保有完整日期才进行跳转，并检查fullDate是否为有效字符串
     if (fullDate && typeof fullDate === 'string' && fullDate.length > 0) {
       wx.navigateTo({
