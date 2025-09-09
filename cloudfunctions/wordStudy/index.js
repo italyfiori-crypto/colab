@@ -7,32 +7,39 @@ cloud.init({
 
 const db = cloud.database()
 
+// 中国时区偏移 (UTC+8)
+const CHINA_TIMEZONE_OFFSET_HOURS = 8
+
 // 时间戳和日期工具函数
 function getNowTimestamp() {
   return Date.now()
 }
 
 function getTodayString() {
+  // 使用中国时区 (UTC+8)
   const now = new Date()
-  const year = now.getFullYear()
-  const month = String(now.getMonth() + 1).padStart(2, '0')
-  const day = String(now.getDate()).padStart(2, '0')
+  const chinaTime = new Date(now.getTime() + (CHINA_TIMEZONE_OFFSET_HOURS * 60 * 60 * 1000))
+  const year = chinaTime.getUTCFullYear()
+  const month = String(chinaTime.getUTCMonth() + 1).padStart(2, '0')
+  const day = String(chinaTime.getUTCDate()).padStart(2, '0')
   return `${year}-${month}-${day}`
 }
 
 function addDaysToToday(days) {
-  const date = new Date()
-  date.setDate(date.getDate() + days)
-  const year = date.getFullYear()
-  const month = String(date.getMonth() + 1).padStart(2, '0')
-  const day = String(date.getDate()).padStart(2, '0')
+  // 使用中国时区 (UTC+8)
+  const now = new Date()
+  const chinaTime = new Date(now.getTime() + (CHINA_TIMEZONE_OFFSET_HOURS * 60 * 60 * 1000))
+  chinaTime.setUTCDate(chinaTime.getUTCDate() + days)
+  const year = chinaTime.getUTCFullYear()
+  const month = String(chinaTime.getUTCMonth() + 1).padStart(2, '0')
+  const day = String(chinaTime.getUTCDate()).padStart(2, '0')
   return `${year}-${month}-${day}`
 }
 
 // 艾宾浩斯复习间隔 (当前等级进入下一等级需要的天数)
 const REVIEW_INTERVALS = [1, 2, 4, 7, 15, 30, 36500]
 const MAX_LEVEL = REVIEW_INTERVALS.length - 1
-const MAX_DAILY_NEW = 20
+const MAX_DAILY_NEW = 30
 
 exports.main = async (event, context) => {
   const { action, ...params } = event
@@ -71,11 +78,11 @@ exports.main = async (event, context) => {
 // 计算下次复习时间
 function calcNextReviewDate(cur_level) {
   // 新词从1级开始（第一次复习），已学词汇等级+1但不超过最大等级
-  const newLevel = cur_level == null ? 1 : Math.min(cur_level + 1, MAX_LEVEL)
+  const newLevel = cur_level == null ? 0 : Math.min(cur_level + 1, MAX_LEVEL)
 
   return {
     level: newLevel,
-    next_review_date: addDaysToToday(REVIEW_INTERVALS[newLevel - 1]) // 数组从0开始，level从1开始
+    next_review_date: addDaysToToday(REVIEW_INTERVALS[newLevel]) // 数组从0开始，level从1开始
   }
 }
 
@@ -120,8 +127,6 @@ async function getStudyStats(userId) {
 
   console.log("todayString:", todayString)
 
-
-
   // 计算今日已学习的新单词数量（今日首次学习的单词）
   const studiedTodayResult = await db.collection('word_records')
     .where({
@@ -144,7 +149,7 @@ async function getStudyStats(userId) {
         first_learn_date: null
       })
       .count()
-    
+
     // 返回实际可学习的数量（总数与剩余配额的较小值）
     newWordsCount = Math.min(totalNewWordsResult.total, maxRemainingToday)
   }
@@ -220,7 +225,7 @@ async function getWordList(userId, { type, limit = 50 }) {
       query = db.collection('word_records')
         .where({
           user_id: userId,
-          level: db.command.gte(1).and(db.command.lt(MAX_LEVEL)),
+          level: db.command.lt(MAX_LEVEL),
           next_review_date: todayString
         })
         .orderBy('updated_at', 'asc')
@@ -345,13 +350,13 @@ async function updateWordRecord(userId, { word_id, actionType }) {
     if (actionType === 'start') {
       // 开始学习新单词
       const { level, next_review_date } = calcNextReviewDate(null)
-      
-      console.log('📖 [DEBUG] 开始学习新单词，计算结果:', { 
-        level, 
-        next_review_date, 
-        existingRecord: !!existingRecord.data 
+
+      console.log('📖 [DEBUG] 开始学习新单词，计算结果:', {
+        level,
+        next_review_date,
+        existingRecord: !!existingRecord.data
       })
-      
+
       if (existingRecord.data) {
         // 更新现有记录
         console.log('📖 [DEBUG] 更新现有记录:', recordId)

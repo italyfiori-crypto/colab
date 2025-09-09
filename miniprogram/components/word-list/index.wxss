@@ -25,7 +25,6 @@
   min-height: 140rpx;
   overflow: hidden;
   box-shadow: 0 2rpx 12rpx rgba(0, 0, 0, 0.08);
-  transition: all 0.3s ease;
   opacity: 1;
 }
 
@@ -44,21 +43,18 @@
 }
 
 
-.word-item.new {
-  background: linear-gradient(135deg, #e3f2fd 0%, #f0f9ff 100%);
-  border-left: 4rpx solid #2196f3;
-}
-
+/* 学习相关：待学习和已学习统一为淡蓝色 */
+.word-item.new,
 .word-item.learned {
-  background: linear-gradient(135deg, #e8f5e8 0%, #f0fff4 100%);
-  border-left: 4rpx solid #4caf50;
-  animation: bounce 0.6s ease-out;
+  background: linear-gradient(135deg, #e3f2fd 0%, #f0f9ff 100%);
+  border-left: 4rpx solid #42a5f5;
 }
 
+/* 复习相关：待复习和已复习统一为薄荷绿色 */
+.word-item.review,
 .word-item.reviewed {
-  background: linear-gradient(135deg, #f3e5f5 0%, #faf5ff 100%);
-  border-left: 4rpx solid #9c27b0;
-  animation: bounce 0.6s ease-out;
+  background: linear-gradient(135deg, #ecfdf5 0%, #f0fdf4 100%);
+  border-left: 4rpx solid #22c55e;
 }
 
 .word-item.overdue {
@@ -68,7 +64,7 @@
 }
 
 .word-item.completed {
-  animation: pulse 0.5s ease-out;
+  /* 完成状态不需要特殊样式，只触发动画 */
 }
 
 .word-item.removing {
@@ -90,15 +86,16 @@
   border-top-left-radius: 20rpx;
   border-bottom-left-radius: 20rpx;
   z-index: 1;
-  transition: all 0.3s ease;
 }
 
+/* 学习相关序号容器：淡蓝色 */
 .word-number-container.learned-bg {
   background-color: #e1f5fe;
 }
 
+/* 复习相关序号容器：薄荷绿色 */
 .word-number-container.reviewed-bg {
-  background-color: #e8f5e8;
+  background-color: #dcfce7;
 }
 
 .word-number {
@@ -118,7 +115,7 @@
   align-items: center;
   width: calc(100% - 48rpx);
   margin-left: 48rpx;
-  min-height: 140rpx;
+  min-height: 100rpx;
   gap: 16rpx;
   padding: 0 32rpx 0 16rpx;
   position: relative;
@@ -139,8 +136,8 @@
   flex-direction: column;
   justify-content: center;
   align-items: flex-start;
-  min-height: 140rpx;
-  padding: 24rpx 16rpx;
+  min-height: 100rpx;
+  padding: 16rpx 12rpx;
   position: relative;
 }
 
@@ -240,8 +237,8 @@
   flex-direction: column;
   align-items: flex-start;
   justify-content: center;
-  min-height: 140rpx;
-  padding: 24rpx 0;
+  min-height: 100rpx;
+  padding: 16rpx 0;
   overflow: hidden;
   position: relative;
 }
@@ -263,6 +260,11 @@
   max-width: 100%;
 }
 
+/* 隐藏超过3个的释义条目 */
+.translation-item:nth-child(n+4) {
+  display: none;
+}
+
 .part-of-speech {
   flex: 0 0 auto;
   font-size: 22rpx;
@@ -276,8 +278,9 @@
   font-size: 26rpx;
   color: #4b5563;
   line-height: 1.4;
-  word-wrap: break-word;
-  word-break: break-all;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 /* 简化遮罩层样式 */
@@ -398,7 +401,7 @@
 .word-item-readonly {
   background: #ffffff;
   border-radius: 12rpx;
-  padding: 20rpx;
+  padding: 12rpx 16rpx;
   display: flex;
   gap: 20rpx;
   box-shadow: 0 1rpx 4rpx rgba(0, 0, 0, 0.04);
@@ -410,7 +413,7 @@
   max-width: 160rpx;
   display: flex;
   flex-direction: column;
-  gap: 6rpx;
+  gap: 4rpx;
 }
 
 .word-header-readonly {
@@ -438,7 +441,7 @@
   flex: 1;
   display: flex;
   flex-direction: column;
-  gap: 6rpx;
+  gap: 4rpx;
 }
 
 .translation-item-readonly {
@@ -465,23 +468,14 @@
   text-overflow: ellipsis;
 }
 
+/* 隐藏超过3个的只读释义条目 */
+.translation-item-readonly:nth-child(n+4) {
+  display: none;
+}
+
 /* ==================== 动画效果 ==================== */
 
-@keyframes bounce {
-  0%,
-  20%,
-  50%,
-  80%,
-  100% {
-    transform: translateY(0);
-  }
-  40% {
-    transform: translateY(-8rpx);
-  }
-  60% {
-    transform: translateY(-4rpx);
-  }
-}
+/* 移除复杂的缩放动画，保持简洁 */
 
 @keyframes slideOutLeft {
   0% {
@@ -494,14 +488,3 @@
   }
 }
 
-@keyframes pulse {
-  0% {
-    transform: scale(1);
-  }
-  50% {
-    transform: scale(1.05);
-  }
-  100% {
-    transform: scale(1);
-  }
-}

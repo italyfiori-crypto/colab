@@ -3,7 +3,7 @@
 // 常量定义
 const WORD_TYPE = {
     NEW: 'new',
-    REVIEW: 'review', 
+    REVIEW: 'review',
     OVERDUE: 'overdue'
 };
 
@@ -14,18 +14,18 @@ const DISPLAY_MODE = {
 };
 
 const PAGE_CONFIG = {
-    [WORD_TYPE.NEW]: { 
-        title: '新学单词', 
+    [WORD_TYPE.NEW]: {
+        title: '新学单词',
         navTitle: '新学单词',
         displayMode: DISPLAY_MODE.CHINESE_MASK
     },
-    [WORD_TYPE.REVIEW]: { 
-        title: '复习单词', 
+    [WORD_TYPE.REVIEW]: {
+        title: '复习单词',
         navTitle: '复习单词',
         displayMode: DISPLAY_MODE.CHINESE_MASK
     },
-    [WORD_TYPE.OVERDUE]: { 
-        title: '逾期单词', 
+    [WORD_TYPE.OVERDUE]: {
+        title: '逾期单词',
         navTitle: '逾期单词',
         displayMode: DISPLAY_MODE.BOTH
     }
@@ -39,7 +39,7 @@ const ERROR_CONFIG = {
         canRetry: true
     },
     SERVER_ERROR: {
-        title: '服务器异常', 
+        title: '服务器异常',
         message: '服务暂时不可用，请稍后重试',
         canRetry: true
     },
@@ -110,14 +110,13 @@ Page({
         try {
             console.log('🔄 [DEBUG] 开始加载单词列表:', {
                 类型: type,
-                重试次数: retryCount,
-                时间: new Date().toISOString().split('T')[0]
+                重试次数: retryCount
             });
 
             this.setData({ loading: true });
 
             const result = await this.fetchWordList(type);
-            
+
             if (result.success) {
                 this.handleLoadSuccess(result.data, type);
             } else {
@@ -145,6 +144,7 @@ Page({
 
         console.log('📥 [DEBUG] 云函数返回结果:', {
             成功: result.result.success,
+            result: result,
             单词数量: result.result.data ? result.result.data.length : 0
         });
 
@@ -233,7 +233,7 @@ Page({
      */
     async startLearning(index) {
         const word = this.data.words[index];
-        
+
         if (!word) {
             console.error('❌ 单词不存在:', index);
             return;
@@ -246,7 +246,7 @@ Page({
             });
 
             const result = await this.updateWordRecord(word.word_id, 'start');
-            
+
             if (result.success) {
                 this.updateWordState(index, {
                     isExpanded: true,
@@ -267,7 +267,7 @@ Page({
      */
     async startReviewing(index) {
         const word = this.data.words[index];
-        
+
         if (!word) {
             console.error('❌ 单词不存在:', index);
             return;
@@ -280,7 +280,7 @@ Page({
             });
 
             const result = await this.updateWordRecord(word.word_id, 'review');
-            
+
             if (result.success) {
                 this.updateWordState(index, {
                     isExpanded: true,
@@ -307,7 +307,7 @@ Page({
      */
     checkReviewCompletion() {
         const unreviewedWords = this.data.words.filter(w => !w.isReviewed);
-        
+
         if (unreviewedWords.length === 0) {
             setTimeout(() => {
                 wx.showToast({
@@ -340,7 +340,7 @@ Page({
             });
 
             const result = await this.updateWordRecord(word.word_id, action);
-            
+
             if (result.success) {
                 this.handleOverdueSuccess(index, action);
             } else {
@@ -363,7 +363,7 @@ Page({
 
         const actionText = {
             remember: '还记得',
-            vague: '有点模糊', 
+            vague: '有点模糊',
             forgot: '忘记了'
         };
 
@@ -404,11 +404,11 @@ Page({
     async onRefresh() {
         console.log('🔄 [DEBUG] 用户触发下拉刷新');
         this.setData({ refreshing: true });
-        
+
         try {
             // 重新加载当前类型的单词数据
             await this.loadWordsByType(this.data.wordType);
-            
+
             wx.showToast({
                 title: '刷新成功',
                 icon: 'success',
@@ -439,8 +439,8 @@ Page({
      */
     handleMaskInteraction(index) {
         const { wordType } = this.data;
-        
-        switch(wordType) {
+
+        switch (wordType) {
             case 'new':
                 this.startLearning(index);
                 break;
@@ -495,6 +495,7 @@ Page({
         });
         this.setData(updateData);
     },
+
 
     /**
      * 显示错误提示

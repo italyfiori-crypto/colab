@@ -25,6 +25,7 @@
     <word-list 
       wx:else
       words="{{words}}" 
+      wordType="{{activeTab === 'reviewed' ? 'reviewed' : 'learned'}}"
       bind:wordTap="onWordTap">
     </word-list>
 

@@ -130,42 +130,45 @@ Component({
         audio.destroy();
       });
       
-      // 播放错误事件
-      audio.onError((error) => {
-        console.error('🎵 [ERROR] 音频播放失败:', error);
-        wx.showToast({
-          title: '音频播放失败',
-          icon: 'none',
-          duration: 2000
-        });
-        this.setData({ 
-          playingIndex: -1,
-          currentAudio: null
-        });
-        this.updateWordPlayingState(-1);
-        audio.destroy();
+      // 播放错误事件 - 静默处理
+      audio.onError(() => {
+        this.cleanupAudio(audio);
       });
       
-      // 设置播放超时（防止音频资源加载失败导致的无限等待）
+      // 简化的超时处理 - 直接尝试播放，失败就清理
       setTimeout(() => {
         if (this.data.playingIndex === indexNum && audio) {
-          console.warn('🎵 [WARN] 音频加载超时，尝试直接播放');
-          audio.play().catch(err => {
-            console.error('🎵 [ERROR] 音频直接播放也失败:', err);
-            wx.showToast({
-              title: '音频加载失败',
-              icon: 'none',
-              duration: 2000
-            });
-            this.setData({ 
-              playingIndex: -1,
-              currentAudio: null
-            });
-            this.updateWordPlayingState(-1);
-            audio.destroy();
-          });
+          try {
+            // 直接调用play，不检查返回值类型
+            const result = audio.play();
+            // 如果返回Promise就添加错误处理，否则忽略
+            if (result && result.catch) {
+              result.catch(() => this.cleanupAudio(audio));
+            }
+          } catch (err) {
+            this.cleanupAudio(audio);
+          }
         }
-      }, 3000); // 3秒超时
+      }, 3000);
+    },
+
+    // 简化的音频清理方法
+    cleanupAudio(audio = null) {
+      // 静默重置播放状态
+      this.setData({ 
+        playingIndex: -1,
+        currentAudio: null
+      });
+      this.updateWordPlayingState(-1);
+      
+      // 销毁音频对象
+      if (audio && typeof audio.destroy === 'function') {
+        try {
+          audio.destroy();
+        } catch (e) {
+          // 静默处理销毁错误
+        }
+      }
     },
 
     // 更新单词播放状态
