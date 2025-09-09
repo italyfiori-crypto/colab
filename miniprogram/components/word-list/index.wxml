@@ -12,7 +12,7 @@
       bindtap="onWordTap"
     >
       <!-- 序号容器 -->
-      <view wx:if="{{showNumber}}" class="word-number-container {{item.isLearned ? 'learned-bg' : ''}} {{item.isReviewed ? 'reviewed-bg' : ''}}">
+      <view wx:if="{{showNumber}}" class="word-number-container {{(wordType === 'new' || wordType === 'learned') ? 'learned-bg' : ''}} {{(wordType === 'review' || wordType === 'reviewed') ? 'reviewed-bg' : ''}} {{wordType === 'overdue' ? 'overdue-bg' : ''}}">
         <view class="word-number">{{index + 1}}</view>
       </view>
       
