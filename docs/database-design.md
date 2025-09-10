@@ -57,21 +57,23 @@
 ```javascript
 {
   _id: string,              // 微信openid (主键)
+  user_id: number,          // 用户数字ID (唯一，显示用)
   nickname: string,         // 用户昵称
-  avatar: string,           // 头像URL
-  level: number,            // 用户等级 (1-10)
-  study_days: number,       // 连续学习天数
-  total_study_time: number, // 总学习时长(秒)
-
-  // 学习偏好 (合并到用户表)
-  display_mode: string,     // 显示模式 (both/chinese-mask/english-mask)
-
-  // 统计信息 (合并到用户表)
-  total_words: number,      // 学习过的总单词数
-  mastered_words: number,   // 已掌握单词数
-
+  avatar_url: string,       // 头像URL
+  
+  // 阅读设置
+  reading_settings: {
+    subtitle_lang: string,    // 字幕语言: 中英双语/仅英文/仅中文
+    playback_speed: number    // 播放速度: 0.5/0.75/1.0/1.25/1.5/2.0
+  },
+  
+  // 学习设置
+  learning_settings: {
+    voice_type: string,       // 语音类型: 美式发音/英式发音
+    daily_word_limit: number  // 每日新词最大数量: 10/15/20/25/30/40/50
+  },
+  
   created_at: number,           // 创建时间戳（毫秒）
-  last_login_at: number,        // 最后登录时间戳（毫秒）
   updated_at: number            // 更新时间戳（毫秒）
 }
 ```
@@ -80,9 +82,10 @@
 
 ```javascript
 [
-  { _id: 1 }, // 主键索引
-  { level: -1 }, // 等级查询
-  { last_login_at: -1 }, // 活跃度查询
+  { _id: 1 }, // 主键索引 (openid)
+  { user_id: 1 }, // 用户ID查询 (唯一)
+  { created_at: -1 }, // 注册时间查询
+  { updated_at: -1 }, // 活跃度查询
 ];
 ```
 

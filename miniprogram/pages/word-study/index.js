@@ -35,11 +35,17 @@ Page({
     try {
       this.setData({ loading: true });
 
-      // 调用云函数获取学习统计
+      // 获取用户设置
+      const settingsUtils = require('../../utils/settingsUtils.js');
+      const userInfo = await settingsUtils.getCompleteUserInfo();
+      const dailyWordLimit = userInfo.learning_settings?.daily_word_limit || 20;
+
+      // 调用云函数获取学习统计，传入用户设置的每日上限
       const result = await wx.cloud.callFunction({
         name: 'wordStudy',
         data: {
-          action: 'getStudyStats'
+          action: 'getStudyStats',
+          dailyWordLimit: dailyWordLimit
         }
       });
 

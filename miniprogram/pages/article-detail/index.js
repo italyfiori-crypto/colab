@@ -1,3 +1,6 @@
+// 文章详情页逻辑
+const settingsUtils = require('../../utils/settingsUtils.js');
+
 Page({
     data: {
         // 章节信息
@@ -19,7 +22,7 @@ Page({
         currentTime: 0,
         duration: 0, // 从数据库获取
         playSpeed: 1,
-        speedOptions: [0.7, 0.85, 1.0, 1.25],
+        speedOptions: [0.5, 0.75, 1.0, 1.25, 1.5, 2.0], // 扩展速度选项
         isLooping: false, // 循环播放当前字幕
         manualControl: false, // 手动控制标志
 
@@ -43,13 +46,17 @@ Page({
         wordDetailCache: {}, // 单词信息缓存
         audioCache: {}, // 音频实例缓存
 
-        // 进度相关
+        // 用户设置
+        userSettings: {}
     },
 
-    onLoad(options) {
+    async onLoad(options) {
         const chapterId = options.chapterId;
         const bookId = options.bookId;
         const chapterTitle = options.chapterTitle ? decodeURIComponent(options.chapterTitle) : '';
+
+        // 加载用户设置并初始化页面
+        await this.loadUserSettings();
 
         this.setData({
             chapterId,
@@ -70,6 +77,32 @@ Page({
 
         // 获取容器高度
         this.getContainerHeight();
+    },
+
+    /**
+     * 加载用户设置并应用
+     */
+    async loadUserSettings() {
+        const userInfo = await settingsUtils.getCompleteUserInfo();
+        const readingSettings = userInfo.reading_settings || {};
+
+        // 应用字幕语言设置
+        const subtitleMode = settingsUtils.mapSubtitleLangToMode(readingSettings.subtitle_lang || '中英双语');
+        
+        // 应用播放速度设置
+        const playSpeed = readingSettings.playback_speed || 1.0;
+
+        this.setData({ 
+            userSettings: userInfo,
+            subtitleMode: subtitleMode,
+            playSpeed: playSpeed
+        });
+
+        console.log('✅ [DEBUG] 用户设置已应用:', {
+            字幕模式: subtitleMode,
+            播放速度: playSpeed,
+            原始设置: readingSettings.subtitleLang
+        });
     },
 
     onUnload() {

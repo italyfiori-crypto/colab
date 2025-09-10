@@ -39,7 +39,7 @@ function addDaysToToday(days) {
 // 艾宾浩斯复习间隔 (当前等级进入下一等级需要的天数)
 const REVIEW_INTERVALS = [1, 2, 4, 7, 15, 30, 36500]
 const MAX_LEVEL = REVIEW_INTERVALS.length - 1
-const MAX_DAILY_NEW = 30
+const MAX_DAILY_NEW = 20
 
 exports.main = async (event, context) => {
   const { action, ...params } = event
@@ -49,7 +49,7 @@ exports.main = async (event, context) => {
   try {
     switch (action) {
       case 'getStudyStats':
-        return await getStudyStats(userId)
+        return await getStudyStats(userId, params)
       case 'getWordList':
         return await getWordList(userId, params)
       case 'updateWordRecord':
@@ -122,10 +122,20 @@ function handleOverdueWordLevel(originalLevel, action, overdueDays) {
 
 
 // 获取学习统计数据
-async function getStudyStats(userId) {
+async function getStudyStats(userId, { dailyWordLimit } = {}) {
   const todayString = getTodayString()
 
-  console.log("todayString:", todayString)
+  // 参数验证和默认值处理
+  let dailyLimit = MAX_DAILY_NEW
+  if (dailyWordLimit !== undefined && dailyWordLimit !== null) {
+    // 确保是有效的正整数
+    const parsedLimit = parseInt(dailyWordLimit)
+    if (parsedLimit > 0 && parsedLimit <= 100) { // 合理范围限制
+      dailyLimit = parsedLimit
+    }
+  }
+
+  console.log("todayString:", todayString, "dailyLimit:", dailyLimit, "原始参数:", dailyWordLimit)
 
   // 计算今日已学习的新单词数量（今日首次学习的单词）
   const studiedTodayResult = await db.collection('word_records')
@@ -136,7 +146,7 @@ async function getStudyStats(userId) {
     .count()
 
   const studiedToday = studiedTodayResult.total
-  const maxRemainingToday = Math.max(0, MAX_DAILY_NEW - studiedToday)
+  const maxRemainingToday = Math.max(0, dailyLimit - studiedToday)
 
   // 如果今日配额已满，待学习数量为0
   let newWordsCount = 0
@@ -182,14 +192,39 @@ async function getStudyStats(userId) {
   }
 }
 
-// 获取指定类型的单词列表
-async function getWordList(userId, { type, limit = 50 }) {
+// 获取指定类型的单词列表  
+async function getWordList(userId, { type, limit = 50, dailyWordLimit, sortOrder }) {
   const todayString = getTodayString()
+
+  // 参数验证和默认值处理
+  let validLimit = 50
+  if (limit !== undefined && limit !== null) {
+    const parsedLimit = parseInt(limit)
+    if (parsedLimit > 0 && parsedLimit <= 200) { // 合理范围限制
+      validLimit = parsedLimit
+    }
+  }
+
+  let validSortOrder = 'asc'
+  if (sortOrder && ['asc', 'desc'].includes(sortOrder)) {
+    validSortOrder = sortOrder
+  }
+
+  console.log(`🔍 [DEBUG] getWordList参数验证: type=${type}, limit=${validLimit}, dailyWordLimit=${dailyWordLimit}, sortOrder=${validSortOrder}`)
 
   let query
 
   switch (type) {
     case 'new':
+      // 参数验证和默认值处理
+      let maxDailyNew = MAX_DAILY_NEW
+      if (dailyWordLimit !== undefined && dailyWordLimit !== null) {
+        const parsedLimit = parseInt(dailyWordLimit)
+        if (parsedLimit > 0 && parsedLimit <= 100) {
+          maxDailyNew = parsedLimit
+        }
+      }
+      
       // 计算今日已学习的新单词数量（今日首次学习的单词）
       const studiedTodayResult = await db.collection('word_records')
         .where({
@@ -199,9 +234,9 @@ async function getWordList(userId, { type, limit = 50 }) {
         .count()
 
       const studiedToday = studiedTodayResult.total
-      const maxRemainingToday = Math.max(0, MAX_DAILY_NEW - studiedToday)
+      const maxRemainingToday = Math.max(0, maxDailyNew - studiedToday)
 
-      console.log(`🔄 [DEBUG] 今日新学单词统计: 已学${studiedToday}个，剩余${maxRemainingToday}个`)
+      console.log(`🔄 [DEBUG] 今日新学单词统计: 已学${studiedToday}个，剩余${maxRemainingToday}个，上限${maxDailyNew}个`)
 
       if (maxRemainingToday === 0) {
         return {
@@ -218,7 +253,7 @@ async function getWordList(userId, { type, limit = 50 }) {
           first_learn_date: null
         })
         .orderBy('created_at', 'asc') // 固定排序确保每次进入看到相同顺序
-        .limit(Math.min(maxRemainingToday, limit))
+        .limit(Math.min(maxRemainingToday, validLimit))
       break
 
     case 'review':
@@ -228,8 +263,10 @@ async function getWordList(userId, { type, limit = 50 }) {
           level: db.command.lt(MAX_LEVEL),
           next_review_date: todayString
         })
-        .orderBy('updated_at', 'asc')
-        .limit(limit)
+        .orderBy('updated_at', validSortOrder)
+        .limit(validLimit)
+      
+      console.log(`🔄 [DEBUG] 复习单词排序方式: ${validSortOrder}`)
       break
 
     case 'overdue':
@@ -239,7 +276,10 @@ async function getWordList(userId, { type, limit = 50 }) {
           level: db.command.gte(1).and(db.command.lt(MAX_LEVEL)),
           next_review_date: db.command.lt(todayString)
         })
-        .limit(limit)
+        .orderBy('updated_at', validSortOrder)
+        .limit(validLimit)
+      
+      console.log(`🔄 [DEBUG] 逾期单词排序方式: ${validSortOrder}`)
       break
 
     default:

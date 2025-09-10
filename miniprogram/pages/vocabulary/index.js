@@ -1,4 +1,5 @@
 // vocabulary单词本页面逻辑
+const settingsUtils = require('../../utils/settingsUtils.js');
 
 // 常量定义
 const WORD_TYPE = {
@@ -70,16 +71,20 @@ Page({
         // 显示模式：both(中英), chinese-mask(中文遮罩), english-mask(英文遮罩)
         displayMode: 'both',
 
+        // 用户设置
+        userSettings: {}
     },
 
     /**
      * 页面加载时的初始化
      * @param {Object} options - 页面参数
      */
-    onLoad(options) {
+    async onLoad(options) {
         const { type = WORD_TYPE.NEW } = options;
         const config = PAGE_CONFIG[type] || PAGE_CONFIG[WORD_TYPE.NEW];
 
+        // 加载用户设置
+        await this.loadUserSettings();
         this.initializePage(type, config);
         this.loadWordsByType(type);
     },
@@ -89,6 +94,14 @@ Page({
      * @param {string} type - 单词类型
      * @param {Object} config - 页面配置
      */
+    /**
+     * 加载用户设置
+     */
+    async loadUserSettings() {
+        const userInfo = await settingsUtils.getCompleteUserInfo();
+        this.setData({ userSettings: userInfo });
+    },
+
     initializePage(type, config) {
         this.setData({
             wordType: type,
@@ -133,13 +146,30 @@ Page({
      * @returns {Promise<Object>} 云函数结果
      */
     async fetchWordList(type) {
+        const { userSettings } = this.data;
+        const learningSettings = userSettings.learning_settings || {};
+        
+        // 准备云函数参数
+        const cloudFunctionData = {
+            action: 'getWordList',
+            type: type,
+            limit: 50
+        };
+
+        // 根据单词类型添加特定参数
+        if (type === 'new') {
+            // 新学单词需要每日上限参数
+            cloudFunctionData.dailyWordLimit = learningSettings.dailyWordLimit || 20;
+        } else if (type === 'review' || type === 'overdue') {
+            // 复习和逾期单词需要排序参数
+            cloudFunctionData.sortOrder = settingsUtils.mapReviewSortOrder('优先新词'); // 暂时使用固定值，因为已移除复习排序设置
+        }
+
+        console.log('☁️ [DEBUG] 调用云函数参数:', cloudFunctionData);
+
         const result = await wx.cloud.callFunction({
             name: 'wordStudy',
-            data: {
-                action: 'getWordList',
-                type: type,
-                limit: 50
-            }
+            data: cloudFunctionData
         });
 
         console.log('📥 [DEBUG] 云函数返回结果:', {
@@ -157,16 +187,26 @@ Page({
      * @param {string} type - 单词类型
      */
     handleLoadSuccess(wordsData, type) {
-        const words = wordsData.map(word => ({
-            ...word,
-            isExpanded: type === WORD_TYPE.OVERDUE, // 逾期单词默认展开
-            isLearned: false,
-            isReviewed: false
-        }));
+        const { userSettings } = this.data;
+        const learningSettings = userSettings.learning_settings || {};
+        
+        const words = wordsData.map(word => {
+            // 根据用户语音设置获取合适的音频URL
+            const audioUrl = settingsUtils.getWordAudioUrl(word, learningSettings.voice_type || '美式发音');
+            
+            return {
+                ...word,
+                audioUrl, // 使用根据设置选择的音频URL
+                isExpanded: type === WORD_TYPE.OVERDUE, // 逾期单词默认展开
+                isLearned: false,
+                isReviewed: false
+            };
+        });
 
         console.log('✅ [DEBUG] 单词列表加载成功:', {
             类型: type,
-            数量: words.length
+            数量: words.length,
+            语音设置: learningSettings.voiceType
         });
 
         this.setData({

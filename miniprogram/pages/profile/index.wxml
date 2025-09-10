@@ -1,48 +1,109 @@
-<!--profile页面-->
-<view class="profile-container">
+<!-- 设置页面 -->
+<scroll-view class="settings-container" scroll-y="true">
   <!-- 用户信息卡片 -->
   <view class="user-card">
-    <view class="user-avatar">
-      <image class="avatar-image" src="{{userInfo.avatar}}" mode="aspectFill"></image>
+    <view class="user-avatar" bindtap="onEditAvatar">
+      <image class="avatar-image" src="{{userInfo.avatarUrl}}" mode="aspectFill"></image>
+      <view class="avatar-edit-icon">📷</view>
     </view>
-    <text class="user-name">{{userInfo.name}}</text>
+    <view class="user-info">
+      <view class="user-name-section" bindtap="onEditNickname">
+        <text class="user-name">{{userInfo.nickName}}</text>
+        <text class="edit-icon">✏️</text>
+      </view>
+      <text class="user-id">ID: {{userInfo.userId || '未设置'}}</text>
+    </view>
   </view>
 
-  <!-- 学习统计数据 -->
-  <view class="stats-section">
-    <view class="stats-grid">
-      <view class="stat-card" wx:for="{{studyStats}}" wx:key="id">
-        <view class="stat-icon-wrapper">
-          <image class="stat-icon" src="{{item.iconPath}}" mode="aspectFit"></image>
+  <!-- 阅读设置 -->
+  <view class="settings-section">
+    <view class="settings-list">
+      <!-- 字幕语言 -->
+      <view class="setting-item" bindtap="onSelectSubtitleLang">
+        <view class="setting-left">
+          <text class="setting-icon">🌐</text>
+          <text class="setting-label">字幕语言</text>
         </view>
-        <text class="stat-value">{{item.value}}</text>
-        <text class="stat-label">{{item.label}}</text>
+        <view class="setting-right">
+          <text class="setting-value">{{readingSettings.subtitleLang}}</text>
+        </view>
       </view>
+      
+      <!-- 播放速度 -->
+      <view class="setting-item" bindtap="onSelectPlaybackSpeed">
+        <view class="setting-left">
+          <text class="setting-icon">⏱️</text>
+          <text class="setting-label">播放速度</text>
+        </view>
+        <view class="setting-right">
+          <text class="setting-value">{{readingSettings.playbackSpeed}}x</text>
+        </view>
+      </view>
+      
     </view>
   </view>
 
-  <!-- 学习日历 -->
-  <view class="calendar-section">
-    <view class="section-header">
-      <text class="section-title">学习日历</text>
-    </view>
-    
-    <!-- 星期标题 -->
-    <view class="weekdays-header">
-      <view class="weekday-item" wx:for="{{monthInfo.weekDays}}" wx:key="*this">
-        <text class="weekday-text">{{item}}</text>
+  <!-- 学习设置 -->
+  <view class="settings-section">
+    <view class="settings-list">
+      <!-- 语音类型 -->
+      <view class="setting-item" bindtap="onSelectVoiceType">
+        <view class="setting-left">
+          <text class="setting-icon">🔊</text>
+          <text class="setting-label">语音类型</text>
+        </view>
+        <view class="setting-right">
+          <text class="setting-value">{{learningSettings.voiceType}}</text>
+        </view>
       </view>
+      
+      <!-- 每日新学上限 -->
+      <view class="setting-item" bindtap="onSetDailyWordLimit">
+        <view class="setting-left">
+          <text class="setting-icon">📚</text>
+          <text class="setting-label">每日新学上限</text>
+        </view>
+        <view class="setting-right">
+          <text class="setting-value">{{learningSettings.dailyWordLimit}}个</text>
+        </view>
+      </view>
+      
     </view>
-    
-    <!-- 日历网格 -->
-    <view class="calendar-grid">
-      <view 
-        class="calendar-day {{item.hasStudy ? 'has-study' : ''}} {{item.isToday ? 'is-today' : ''}}"
-        wx:for="{{monthInfo.calendarDays}}" 
-        wx:key="index"
-      >
-        <text class="day-number" wx:if="{{item.date}}">{{item.date}}</text>
+  </view>
+
+  <!-- 其他设置 -->
+  <view class="settings-section">
+    <view class="settings-list">
+      <!-- 帮助 -->
+      <view class="setting-item" bindtap="onShowHelp">
+        <view class="setting-left">
+          <text class="setting-icon">❓</text>
+          <text class="setting-label">帮助</text>
+        </view>
+        <view class="setting-right">
+        </view>
+      </view>
+      
+      <!-- 意见反馈 -->
+      <view class="setting-item" bindtap="onFeedback">
+        <view class="setting-left">
+          <text class="setting-icon">💬</text>
+          <text class="setting-label">意见反馈</text>
+        </view>
+        <view class="setting-right">
+        </view>
+      </view>
+      
+      <!-- 版本信息 -->
+      <view class="setting-item">
+        <view class="setting-left">
+          <text class="setting-icon">ℹ️</text>
+          <text class="setting-label">版本信息</text>
+        </view>
+        <view class="setting-right">
+          <text class="setting-value">v1.0.0</text>
+        </view>
       </view>
     </view>
   </view>
-</view>
+</scroll-view>
