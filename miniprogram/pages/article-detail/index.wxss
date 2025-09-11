@@ -350,6 +350,21 @@
   user-select: none;
 }
 
+/* 单词列表标题 */
+.vocabulary-title {
+  font-size: 32rpx;
+  font-weight: 600;
+  color: #333;
+  padding: 20rpx 40rpx 16rpx;
+  background: #fff;
+  border-bottom: 1rpx solid #f0f0f0;
+}
+
+/* word-list组件自定义样式 */
+.article-word-list {
+  background: #fff;
+}
+
 /* 单词卡片弹出层样式 */
 .vocabulary-overlay {
   position: fixed;

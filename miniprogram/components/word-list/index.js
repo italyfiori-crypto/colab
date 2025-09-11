@@ -31,27 +31,79 @@ Component({
     customClass: {
       type: String,
       value: ''
+    },
+    // 是否显示收藏按钮
+    showFavoriteBtn: {
+      type: Boolean,
+      value: false
     }
   },
 
   // 组件的初始数据
   data: {
     currentAudio: null, // 当前播放的音频实例
-    playingIndex: -1    // 当前播放的单词索引
+    playingIndex: -1,   // 当前播放的单词索引
+    userSettings: {}    // 用户设置
+  },
+
+  // 组件生命周期
+  attached() {
+    // 组件附加到页面时，获取用户设置
+    this.getUserSettings();
   },
 
   // 组件的方法列表
   methods: {
+    // 获取用户设置
+    async getUserSettings() {
+      try {
+        const settingsUtils = require('../../utils/settingsUtils.js');
+        const userInfo = await settingsUtils.getCompleteUserInfo();
+        this.setData({ userSettings: userInfo });
+      } catch (error) {
+        console.error('获取用户设置失败:', error);
+      }
+    },
+
+    // 根据用户设置选择音频和音标
+    getAudioAndPhonetic(word) {
+      const { userSettings } = this.data;
+      const voiceType = userSettings.learning_settings?.voice_type || '美式发音';
+      
+      if (voiceType === '美式发音') {
+        return {
+          audioUrl: word.audio_url_us || word.audio_url_uk || '',
+          phonetic: word.phonetic_us || word.phonetic_uk || ''
+        };
+      } else {
+        return {
+          audioUrl: word.audio_url_uk || word.audio_url_us || '',
+          phonetic: word.phonetic_uk || word.phonetic_us || ''
+        };
+      }
+    },
+
     // 单词点击事件 - 现在也处理音频播放
     onWordTap(e) {
       const { word, index } = e.currentTarget.dataset;
+      const { audioUrl } = this.getAudioAndPhonetic(word);
       
-      // 如果单词有音频，先播放音频
-      if (word && word.audioUrl) {
-        this.playAudio(parseInt(index), word.audioUrl);
+      console.log('🔊 [DEBUG] 单词点击事件:', { 
+        word: word?.word, 
+        index, 
+        hasAudio: !!audioUrl,
+        audioUrl
+      });
+      
+      // 如果单词有音频，播放音频
+      if (audioUrl) {
+        console.log('🎵 [DEBUG] 开始播放音频:', audioUrl);
+        this.playAudio(parseInt(index), audioUrl);
+      } else {
+        console.warn('⚠️ [DEBUG] 单词没有音频URL');
       }
       
-      // 触发原有的单词点击事件
+      // 触发原有的单词点击事件给父组件
       this.triggerEvent('wordtap', { word, index });
     },
 
@@ -59,13 +111,27 @@ Component({
     onToggleMask(e) {
       const { index } = e.currentTarget.dataset;
       const indexNum = parseInt(index);
+      const word = this.data.words[indexNum];
+      const { audioUrl } = this.getAudioAndPhonetic(word);
+      
+      console.log('🎭 [DEBUG] 遮罩点击事件:', { 
+        index: indexNum, 
+        word: word?.word,
+        hasAudio: !!audioUrl
+      });
+      
+      // 如果单词有音频，播放音频
+      if (audioUrl) {
+        console.log('🎵 [DEBUG] 遮罩点击播放音频:', audioUrl);
+        this.playAudio(indexNum, audioUrl);
+      }
       
       // 切换当前单词的展开状态
-      const words = this.data.words.map((word, i) => {
+      const words = this.data.words.map((w, i) => {
         if (i === indexNum) {
-          return { ...word, isExpanded: !word.isExpanded };
+          return { ...w, isExpanded: !w.isExpanded };
         }
-        return word;
+        return w;
       });
       
       // 更新组件内的words数据
@@ -79,6 +145,23 @@ Component({
     onHandleOverdue(e) {
       const { index, action } = e.currentTarget.dataset;
       this.triggerEvent('overdueHandle', { index, action });
+    },
+
+    // 收藏按钮点击事件
+    onToggleFavorite(e) {
+      const { index } = e.currentTarget.dataset;
+      const word = this.data.words[index];
+      
+      console.log('⭐ [DEBUG] 收藏按钮点击:', {
+        word: word.word,
+        currentState: word.is_favorited
+      });
+      
+      this.triggerEvent('favoriteToggle', { 
+        index: parseInt(index), 
+        word,
+        currentState: word.is_favorited 
+      });
     },
 
     // 音频播放方法

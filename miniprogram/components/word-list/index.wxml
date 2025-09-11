@@ -22,8 +22,18 @@
         <view class="word-main {{displayMode === 'english-mask' ? 'has-mask' : ''}}">
           <view class="word-header">
             <view class="word-text">{{item.word}}</view>
+            <!-- 收藏按钮 -->
+            <view 
+              wx:if="{{showFavoriteBtn}}" 
+              class="favorite-btn"
+              bindtap="onToggleFavorite"
+              data-index="{{index}}"
+              catchtap
+            >
+              {{item.is_favorited ? '⭐' : '☆'}}
+            </view>
           </view>
-          <view class="word-phonetic">{{item.phonetic}}</view>
+          <view class="word-phonetic">{{item.phonetic_us || item.phonetic_uk}}</view>
           <!-- 英文简化显示切换 -->
           <view wx:if="{{displayMode === 'english-mask' && !item.isExpanded}}" 
                 class="simple-mask-overlay" 
@@ -81,8 +91,18 @@
       <view class="word-main-readonly">
         <view class="word-header-readonly">
           <view class="word-text-readonly">{{item.word}}</view>
+          <!-- 收藏按钮（只读模式） -->
+          <view 
+            wx:if="{{showFavoriteBtn}}" 
+            class="favorite-btn-readonly"
+            bindtap="onToggleFavorite"
+            data-index="{{index}}"
+            catchtap
+          >
+            {{item.is_favorited ? '⭐' : '☆'}}
+          </view>
         </view>
-        <view class="word-phonetic-readonly">{{item.phonetic}}</view>
+        <view class="word-phonetic-readonly">{{item.phonetic_us || item.phonetic_uk}}</view>
       </view>
       
       <!-- 翻译信息 -->

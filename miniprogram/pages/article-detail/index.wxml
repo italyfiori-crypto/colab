@@ -113,56 +113,27 @@
       <!-- 简单的拖拽把手 -->
       <view class="drag-handle"></view>
       
-      <!-- 单词列表 -->
+      <!-- 重点单词列表 -->
+      <view class="vocabulary-title">重点单词</view>
       <scroll-view 
         class="vocabulary-content" 
         scroll-y="{{true}}" 
         bindscrolltolower="onScrollToLower">
-        <view class="word-list">
-          <view 
-            wx:for="{{vocabularyWords}}" 
-            wx:key="id"
-            class="word-item"
-            data-word="{{item}}"
-          >
-            <!-- 序号容器 -->
-            <view class="word-number-container">
-              <view class="word-number">{{index + 1}}</view>
-            </view>
-            
-            <!-- 内容区域 -->  
-            <view class="word-content">
-              <!-- 单词信息 -->
-              <view class="word-main" bindtap="onWordTap" data-word="{{item}}">
-                <view class="word-text">{{item.word}}</view>
-                <view wx:if="{{item.phonetic_us || item.phonetic_uk}}" class="word-phonetic">
-                  /{{item.phonetic_us || item.phonetic_uk}}/
-                </view>
-              </view>
-              
-              <!-- 翻译区域 -->
-              <view class="word-translation">
-                <view class="translation-content">
-                  <view wx:for="{{item.translation}}" wx:key="index" wx:for-item="trans" class="translation-item">
-                    <text wx:if="{{trans.type}}" class="part-of-speech">{{trans.type}}</text>
-                    <text class="meaning">{{trans.meaning}}</text>
-                  </view>
-                </view>
-              </view>
-              
-              <!-- 右侧：收藏按钮 -->
-              <view class="word-actions" catchtap="onToggleFavorite" data-id="{{item._id}}">
-                <view class="favorite-btn {{item.isFavorited ? 'favorited' : ''}}">
-                  <image class="favorite-icon" src="{{item.isFavorited ? '/resource/icons/star-fill.png' : '/resource/icons/star.png'}}" mode="aspectFit"></image>
-                </view>
-              </view>
-            </view>
-          </view>
-          
-          <!-- 加载状态提示 -->
-          <view wx:if="{{loadingMore}}" class="loading-more">加载中...</view>
-          <view wx:elif="{{!hasMoreWords && vocabularyWords.length > 0}}" class="no-more">没有更多了</view>
-        </view>
+        
+        <!-- 使用word-list组件 -->
+        <word-list 
+          words="{{vocabularyWords}}"
+          mode="readonly"
+          showFavoriteBtn="{{true}}"
+          showNumber="{{true}}"
+          customClass="article-word-list"
+          bind:wordtap="onWordTap"
+          bind:favoriteToggle="onToggleFavorite"
+        ></word-list>
+        
+        <!-- 加载状态提示 -->
+        <view wx:if="{{loadingMore}}" class="loading-more">加载中...</view>
+        <view wx:elif="{{!hasMoreWords && vocabularyWords.length > 0}}" class="no-more">没有更多了</view>
       </scroll-view>
     </view>
   </view>

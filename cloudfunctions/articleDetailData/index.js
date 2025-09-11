@@ -233,7 +233,7 @@ async function getChapterVocabularies(chapterId, user_id, page = 1, pageSize = 2
         is_mastered: userRecord ? userRecord.level >= 7 : false,
         last_review_at: userRecord ? userRecord.last_review_at : null,
         // 收藏状态 - 来自word_records的都是收藏状态
-        isFavorited: true
+        is_favorited: true
       }
     })
 
@@ -414,7 +414,7 @@ async function getWordDetail(word, user_id, bookId, chapterId) {
     // 3. 组装返回数据
     const result = {
       ...wordInfo,
-      isCollected: isCollected
+      is_favorited: isCollected
     }
 
     console.log('✅ [DEBUG] 单词详情获取成功:', { word, isCollected })

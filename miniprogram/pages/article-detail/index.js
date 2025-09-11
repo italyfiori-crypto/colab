@@ -1072,9 +1072,10 @@ Page({
         });
     },
 
-    // 切换收藏状态
+    // 切换收藏状态（来自word-list组件）
     async onToggleFavorite(e) {
-        const wordId = e.currentTarget.dataset.id;
+        const { index, word, currentState } = e.detail;
+        const wordId = word._id;
 
         if (!wordId) {
             console.error('单词ID不存在:', wordId);
@@ -1086,53 +1087,44 @@ Page({
             return;
         }
 
-        // 找到对应的单词
-        const targetWord = this.data.vocabularyWords.find(w => w._id === wordId);
-        if (!targetWord) {
-            console.error('未找到对应单词:', wordId);
-            wx.showToast({
-                title: '操作失败，未找到单词',
-                icon: 'none',
-                duration: 2000
-            });
-            return;
-        }
+        console.log('⭐ [DEBUG] 收藏状态切换:', {
+            word: word.word,
+            currentState,
+            wordId
+        });
 
         try {
             // 显示加载状态
             wx.showLoading({
-                title: targetWord.isFavorited ? '移除中...' : '添加中...'
+                title: currentState ? '移除中...' : '添加中...'
             });
 
             // 调用云函数更新收藏状态
             const result = await wx.cloud.callFunction({
                 name: 'articleDetailData',
                 data: {
-                    type: targetWord.isFavorited ? 'removeWordFromCollection' : 'addWordToCollection',
-                    word: targetWord.word,
-                    wordId: targetWord._id,
+                    type: currentState ? 'removeWordFromCollection' : 'addWordToCollection',
+                    word: word.word,
+                    wordId: word._id,
                     bookId: this.data.bookId,
                     chapterId: this.data.chapterId
                 }
             });
-            console.log("toggle word:", targetWord, this.data, this.data.vocabularyWords)
-
             wx.hideLoading();
 
             if (result.result.code === 0) {
                 // 更新前端状态
-                const vocabularyWords = this.data.vocabularyWords.map(word => {
-                    if (word._id === wordId) {
-                        return { ...word, isFavorited: !word.isFavorited };
+                const vocabularyWords = this.data.vocabularyWords.map(w => {
+                    if (w._id === wordId) {
+                        return { ...w, is_favorited: !currentState };
                     }
-                    return word;
+                    return w;
                 });
 
                 this.setData({ vocabularyWords });
 
-                const updatedWord = vocabularyWords.find(w => w._id === wordId);
                 wx.showToast({
-                    title: updatedWord.isFavorited ? '已加入单词本' : '已从单词本移除',
+                    title: !currentState ? '已加入单词本' : '已从单词本移除',
                     icon: 'success',
                     duration: 1500
                 });

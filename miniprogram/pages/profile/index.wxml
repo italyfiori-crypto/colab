@@ -1,5 +1,5 @@
 <!-- 设置页面 -->
-<scroll-view class="settings-container" scroll-y="true">
+<view class="settings-container">
   <!-- 用户信息卡片 -->
   <view class="user-card">
     <view class="user-avatar" bindtap="onEditAvatar">
@@ -117,4 +117,4 @@
       </view>
     </view>
   </view>
-</scroll-view>
+</view>

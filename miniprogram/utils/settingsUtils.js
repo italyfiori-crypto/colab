@@ -331,19 +331,6 @@ function mapVoiceTypeToPriority(voiceType) {
   };
 }
 
-/**
- * 根据设置获取单词音频URL
- * @param {Object} word - 单词对象
- * @param {string} voiceType - 语音类型设置
- * @returns {string} 音频URL
- */
-function getWordAudioUrl(word, voiceType) {
-  const priority = mapVoiceTypeToPriority(voiceType);
-  
-  return word[priority.primary] || 
-         word[priority.secondary] || 
-         word[priority.fallback] || '';
-}
 
 /**
  * 获取云存储文件的临时访问链接
@@ -447,6 +434,5 @@ module.exports = {
   mapReviewSortOrder,
   mapNewWordSortOrder,
   mapVoiceTypeToPriority,
-  getWordAudioUrl,
   clearUserSettings
 };

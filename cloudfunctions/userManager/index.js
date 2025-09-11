@@ -215,7 +215,6 @@ async function createDefaultUser(userId) {
   const uniqueUserId = await generateUniqueUserId()
   
   const defaultUser = {
-    _id: userId,
     user_id: uniqueUserId,
     nickname: `学习者${randomNum}`,
     avatar_url: '/resource/icons/avatar.svg',
@@ -229,7 +228,8 @@ async function createDefaultUser(userId) {
     // 学习设置
     learning_settings: {
       voice_type: '美式发音',
-      daily_word_limit: 20
+      daily_word_limit: 20,
+      new_word_sort: '优先新词'
     },
 
     created_at: Date.now(),

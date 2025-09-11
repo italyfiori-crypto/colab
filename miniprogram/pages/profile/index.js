@@ -27,14 +27,14 @@ Page({
   async loadCompleteUserInfo(forceRefresh = false) {
     try {
       this.setData({ loading: true });
-      
+
       console.log('🔄 [DEBUG] 设置页开始加载完整用户信息');
-      
+
       // 获取用户信息（支持强制刷新）
       const completeInfo = await settingsUtils.getCompleteUserInfo(forceRefresh);
-      
+
       console.log('✅ [DEBUG] 获取到完整用户信息:', completeInfo);
-      
+
       // 直接使用云端返回的头像URL（云端已处理临时链接）
       this.setData({
         userInfo: {
@@ -53,9 +53,9 @@ Page({
         },
         loading: false
       });
-      
+
       console.log('✅ [DEBUG] 设置页用户信息加载完成');
-      
+
     } catch (error) {
       console.error('❌ [DEBUG] 加载用户信息失败:', error);
       wx.showToast({
@@ -64,7 +64,7 @@ Page({
         duration: 3000
       });
       this.setData({ loading: false });
-      
+
       // 如果是网络问题，建议用户重试
       setTimeout(() => {
         wx.showModal({
@@ -89,7 +89,7 @@ Page({
   async saveCurrentSettings() {
     try {
       console.log('💾 [DEBUG] 开始保存当前设置');
-      
+
       const completeInfo = {
         user_id: this.data.userInfo.userId,
         nickname: this.data.userInfo.nickName,
@@ -105,9 +105,9 @@ Page({
         },
         updated_at: Date.now()
       };
-      
+
       const success = await settingsUtils.saveCompleteUserInfo(completeInfo);
-      
+
       if (success) {
         wx.showToast({
           title: '设置已保存',
@@ -136,15 +136,15 @@ Page({
   async onPullDownRefresh() {
     try {
       console.log('🔄 [DEBUG] 用户触发下拉刷新');
-      
+
       // 强制从云端获取最新数据
       await this.loadCompleteUserInfo(true);
-      
+
       wx.showToast({
         title: '刷新成功',
         icon: 'success'
       });
-      
+
       console.log('✅ [DEBUG] 下拉刷新完成');
     } catch (error) {
       console.error('❌ [DEBUG] 下拉刷新失败:', error);
@@ -232,7 +232,7 @@ Page({
             'learningSettings.dailyWordLimit': limits[res.tapIndex]
           });
           this.saveCurrentSettings();
-          
+
           // 提示用户设置已生效
           wx.showToast({
             title: `已设置为${limits[res.tapIndex]}个/天`,
@@ -257,7 +257,7 @@ Page({
             'learningSettings.newWordSort': options[res.tapIndex]
           });
           this.saveCurrentSettings();
-          
+
           // 提示用户设置已生效
           wx.showToast({
             title: `已设置为${options[res.tapIndex]}`,
@@ -272,19 +272,19 @@ Page({
   async onEditAvatar() {
     try {
       wx.showLoading({ title: '上传中...' });
-      
+
       const tempFilePath = await settingsUtils.chooseAvatar();
       const uploadResult = await settingsUtils.uploadAvatar(tempFilePath);
-      
+
       if (uploadResult.success) {
         // 更新页面显示
         this.setData({
           'userInfo.avatarUrl': uploadResult.avatarUrl
         });
-        
+
         // 保存到云端
         await this.saveCurrentSettings();
-        
+
         wx.showToast({
           title: '头像更新成功',
           icon: 'success'
@@ -309,16 +309,16 @@ Page({
   // 编辑昵称
   onEditNickname() {
     const currentNickname = this.data.userInfo.nickName;
-    
+
     wx.showModal({
       title: '修改昵称',
-      content: `当前昵称：${currentNickname}`,
+      content: `${currentNickname}`,
       placeholderText: '请输入新昵称',
       editable: true,
       success: async (res) => {
         if (res.confirm && res.content) {
           const newNickname = res.content.trim();
-          
+
           if (newNickname.length > 20) {
             wx.showToast({
               title: '昵称不能超过20个字符',
@@ -326,16 +326,16 @@ Page({
             });
             return;
           }
-          
+
           if (newNickname !== currentNickname) {
             // 更新页面显示
             this.setData({
               'userInfo.nickName': newNickname
             });
-            
+
             // 保存到云端
             await this.saveCurrentSettings();
-            
+
             wx.showToast({
               title: '昵称更新成功',
               icon: 'success'
@@ -369,18 +369,18 @@ Page({
   // 头像加载错误处理
   onAvatarLoadError(e) {
     console.error('❌ [DEBUG] 头像加载失败:', e.detail);
-    
+
     const currentUrl = this.data.userInfo.avatarUrl;
     console.log('🔄 [DEBUG] 尝试使用代理服务加载头像:', currentUrl);
-    
+
     // 如果不是默认头像且未使用代理，尝试使用代理服务
-    if (currentUrl && 
-        !currentUrl.includes('/resource/icons/avatar.svg') && 
-        !currentUrl.includes('images.weserv.nl')) {
-      
+    if (currentUrl &&
+      !currentUrl.includes('/resource/icons/avatar.svg') &&
+      !currentUrl.includes('images.weserv.nl')) {
+
       const proxyUrl = settingsUtils.getProxyImageUrl(currentUrl);
       console.log('🔄 [DEBUG] 使用代理URL:', proxyUrl);
-      
+
       this.setData({
         'userInfo.avatarUrl': proxyUrl
       });

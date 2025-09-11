@@ -166,7 +166,6 @@
 {
   _id: string,              // 单词ID (主键)
   word: string,             // 单词 (唯一)
-  phonetic: string,         // 音标
   phonetic_uk: string,      // 音标(英式)
   phonetic_us: string,      // 音标(美式)
 
@@ -187,7 +186,6 @@
 
   bnc: number,              // BNC词频
   frq: number,              // 频率值
-  audio_url: string,        // 发音音频URL
   audio_url_uk: string,     // 发音音频URL(英式)
   audio_url_us: string,     // 发音音频URL(美式)
 

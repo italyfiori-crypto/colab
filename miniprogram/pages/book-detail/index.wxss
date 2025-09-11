@@ -197,9 +197,8 @@ page {
 
 /* 章节列表 */
 .chapters-list {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
+  height: 50vh;
+  padding: 16px 0;
 }
 
 .chapter-item {
@@ -207,6 +206,7 @@ page {
   justify-content: space-between;
   align-items: center;
   padding: 16px;
+  margin-bottom: 10px;
   background-color: #f8f9fa;
   border-radius: 12px;
   border: 1px solid #f0f0f0;
@@ -343,6 +343,39 @@ page {
 .filter-option.active {
   background-color: rgba(0, 122, 255, 0.1);
   color: #007AFF;
+}
+
+/* 加载更多和状态提示 */
+.loading-more, .no-more {
+  text-align: center;
+  padding: 20px;
+}
+
+.loading-text, .no-more-text {
+  font-size: 14px;
+  color: #999;
+}
+
+.loading-more {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.loading-more::before {
+  content: '';
+  width: 16px;
+  height: 16px;
+  border: 2px solid #e0e0e0;
+  border-top: 2px solid #007AFF;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
 }
 
 /* 响应式调整 */

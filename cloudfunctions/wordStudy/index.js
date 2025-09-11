@@ -325,7 +325,7 @@ async function getWordList(userId, { type, limit = 50, dailyWordLimit, sortOrder
     vocabularyMap.set(vocab._id, vocab)
   })
 
-  // 处理单词记录并匹配词汇详情
+  // 处理单词记录并匹配词汇详情，保持原有排序
   const words = wordsResult.data
     .filter(record => record.word_id && vocabularyMap.has(record.word_id))
     .map(record => {
@@ -333,14 +333,19 @@ async function getWordList(userId, { type, limit = 50, dailyWordLimit, sortOrder
 
       let wordData = {
         id: record._id,
-        word_id: record.word_id,  // 添加word_id字段
+        word_id: record.word_id,
         word: vocab.word,
-        phonetic: vocab.phonetic_us || vocab.phonetic_uk || vocab.phonetic,
-        audioUrl: vocab.audio_url_us || vocab.audio_url || vocab.audio_url_uk,
+        phonetic_uk: vocab.phonetic_uk,
+        phonetic_us: vocab.phonetic_us,
+        audio_url_uk: vocab.audio_url_uk,
+        audio_url_us: vocab.audio_url_us,
         translations: vocab.translation.slice(0, 3).map(t => ({
           partOfSpeech: t.type,
           meaning: t.meaning
-        }))
+        })),
+        // 保留原始记录的排序字段
+        updated_at: record.updated_at,
+        created_at: record.created_at
       }
 
       // 如果是逾期单词，添加逾期天数
@@ -350,6 +355,27 @@ async function getWordList(userId, { type, limit = 50, dailyWordLimit, sortOrder
 
       return wordData
     })
+
+  // 根据类型和排序参数重新排序，确保排序生效
+  if (type === 'review' || type === 'overdue') {
+    words.sort((a, b) => {
+      if (validSortOrder === 'asc') {
+        return new Date(a.updated_at) - new Date(b.updated_at)
+      } else {
+        return new Date(b.updated_at) - new Date(a.updated_at)
+      }
+    })
+    console.log(`🔄 [DEBUG] ${type}单词已重新排序: ${validSortOrder}, 首个单词更新时间: ${words[0]?.updated_at}`)
+  } else if (type === 'new') {
+    words.sort((a, b) => {
+      if (validSortOrder === 'asc') {
+        return new Date(a.created_at) - new Date(b.created_at)
+      } else {
+        return new Date(b.created_at) - new Date(a.created_at)
+      }
+    })
+    console.log(`🔄 [DEBUG] 新学单词已重新排序: ${validSortOrder}, 首个单词创建时间: ${words[0]?.created_at}`)
+  }
 
   console.log('📊 [DEBUG] 成功处理单词数量:', words.length, '原始记录数:', wordsResult.data.length)
 

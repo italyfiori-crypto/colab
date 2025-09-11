@@ -195,16 +195,9 @@ Page({
      * @param {string} type - 单词类型
      */
     handleLoadSuccess(wordsData, type) {
-        const { userSettings } = this.data;
-        const learningSettings = userSettings.learning_settings || {};
-        
         const words = wordsData.map(word => {
-            // 根据用户语音设置获取合适的音频URL
-            const audioUrl = settingsUtils.getWordAudioUrl(word, learningSettings.voice_type);
-            
             return {
                 ...word,
-                audioUrl, // 使用根据设置选择的音频URL
                 isExpanded: type === WORD_TYPE.OVERDUE, // 逾期单词默认展开
                 isLearned: false,
                 isReviewed: false
@@ -214,8 +207,7 @@ Page({
         console.log('✅ [DEBUG] 单词列表加载成功:', {
             类型: type,
             数量: words.length,
-            语音设置: learningSettings.voice_type,
-            首个单词音频: words[0]?.audioUrl || '无'
+            首个单词: words[0]?.word || '无'
         });
 
         this.setData({

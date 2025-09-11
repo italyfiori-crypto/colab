@@ -145,7 +145,26 @@ async function getBookDetail(bookId, user_id, page = 1, pageSize = 20) {
     progress: progressPercent
   }
 
-  // 6. 为章节添加学习状态 - 使用新的chapter_progress结构
+  // 6. 处理书籍封面临时链接
+  if (book.cover_url && book.cover_url.startsWith('cloud://')) {
+    try {
+      const tempUrlResult = await cloud.getTempFileURL({
+        fileList: [{
+          fileID: book.cover_url,
+          maxAge: 86400 // 24小时
+        }]
+      })
+      
+      if (tempUrlResult.fileList && tempUrlResult.fileList.length > 0) {
+        bookInfo.cover_url = tempUrlResult.fileList[0].tempFileURL
+        console.log('✅ [DEBUG] 书籍封面临时链接获取成功')
+      }
+    } catch (error) {
+      console.error('❌ [DEBUG] 获取书籍封面临时链接失败:', error)
+    }
+  }
+
+  // 7. 为章节添加学习状态 - 使用新的chapter_progress结构
   console.log('🔄 [DEBUG] 开始处理章节状态')
   const chapters = actualChapters.map(chapter => {
     const chapterProgress = userProgress && userProgress.chapter_progress
