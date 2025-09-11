@@ -63,10 +63,16 @@
   min-height: 140rpx;
 }
 
-/* 逾期单词需要更多高度来容纳操作按钮 */
+/* 逾期单词恢复正常高度，因为操作按钮已移出卡片 */
 .word-item.overdue {
-  height: auto;
-  min-height: 220rpx;
+  height: 160rpx;
+}
+
+/* 逾期单词包装器 */
+.word-item-wrapper.overdue {
+  display: flex;
+  flex-direction: column;
+  margin-bottom: 32rpx;
 }
 
 /* 序号容器 */
@@ -349,6 +355,13 @@
   text-align: center;
 }
 
+/* 逾期信息（显示在单词右侧） */
+.overdue-info {
+  display: flex;
+  align-items: center;
+  margin-left: 8rpx;
+}
+
 .overdue-text {
   font-size: 20rpx;
   color: #ffffff;
@@ -403,6 +416,46 @@
   background: linear-gradient(135deg, #ff4d4f 0%, #cf1322 100%);
   color: #ffffff;
   border: 1rpx solid rgba(207, 19, 34, 0.3);
+}
+
+/* 外部逾期单词操作按钮 - 位于卡片下方 */
+.overdue-actions-external {
+  width: 100%;
+  padding: 16rpx 0;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.overdue-actions-group {
+  display: flex;
+  align-items: center;
+  gap: 12rpx;
+  background: linear-gradient(135deg, #fafafa 0%, #f5f5f5 100%);
+  border: 1rpx solid #e5e5e5;
+  border-radius: 28rpx;
+  padding: 12rpx 20rpx;
+  box-shadow: 0 2rpx 8rpx rgba(0, 0, 0, 0.06);
+}
+
+.overdue-info-badge {
+  flex-shrink: 0;
+}
+
+.overdue-info-badge .overdue-text {
+  font-size: 20rpx;
+  color: #ffffff;
+  font-weight: 600;
+  background: #ff8f5a;
+  padding: 0;
+  width: 40rpx;
+  height: 40rpx;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  white-space: nowrap;
+  border: none;
 }
 
 

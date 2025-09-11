@@ -1,5 +1,5 @@
 <!--book-detail页面-->
-<view class="book-detail-container">
+<scroll-view class="book-detail-container" scroll-y="true" bindscrolltolower="onScrollToLower" enable-back-to-top="true">
   <!-- 书籍信息区域 -->
   <view class="book-info-section">
     <view class="book-detail-card">
@@ -52,7 +52,6 @@
     </view>
   </view>
 
-
   <!-- 章节列表 -->
   <view class="chapters-section">
     <view class="section-header">
@@ -63,14 +62,8 @@
       </view>
     </view>
     
-    
     <!-- 章节列表 -->
-    <scroll-view 
-      class="chapters-list" 
-      scroll-y="true"
-      bindscrolltolower="onScrollToLower"
-      enable-back-to-top="true"
-    >
+    <view class="chapters-list">
       <view 
         wx:for="{{chapters}}" 
         wx:key="id"
@@ -121,9 +114,9 @@
       <view wx:elif="{{!hasMoreChapters && chapters.length > 0}}" class="no-more">
         <text class="no-more-text">已加载全部章节</text>
       </view>
-    </scroll-view>
+    </view>
   </view>
-</view>
+</scroll-view>
 
 <!-- 筛选器模态框 -->
 <view 

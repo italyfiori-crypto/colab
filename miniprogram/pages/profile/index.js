@@ -275,7 +275,7 @@ Page({
 
       const tempFilePath = await settingsUtils.chooseAvatar();
       const uploadResult = await settingsUtils.uploadAvatar(tempFilePath);
-
+      console.log("uploadResult:", uploadResult)
       if (uploadResult.success) {
         // 更新页面显示
         this.setData({

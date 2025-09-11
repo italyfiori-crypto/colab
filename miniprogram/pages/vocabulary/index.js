@@ -385,11 +385,11 @@ Page({
     },
 
     /**
-     * 处理逾期单词操作
+     * 处理逾期单词操作 - 接收组件事件
      * @param {Object} e - 事件对象
      */
-    async onHandleOverdue(e) {
-        const { index, action } = e.currentTarget.dataset;
+    async onOverdueHandle(e) {
+        const { index, action } = e.detail;
         const word = this.data.words[index];
 
         if (!word) {

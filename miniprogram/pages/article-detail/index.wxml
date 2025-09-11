@@ -113,6 +113,12 @@
       <!-- 简单的拖拽把手 -->
       <view class="drag-handle"></view>
       
+      <!-- 弹窗标题 -->
+      <view class="vocabulary-header">
+        <text class="vocabulary-title">章节单词</text>
+        <text class="vocabulary-count">共{{vocabularyWords.length}}个</text>
+      </view>
+      
       <!-- 单词列表 -->
       <scroll-view 
         class="vocabulary-content" 
@@ -124,6 +130,7 @@
             wx:key="id"
             class="word-item"
             data-word="{{item}}"
+            bindtap="onWordTap"
           >
             <!-- 序号容器 -->
             <view class="word-number-container">
@@ -133,7 +140,7 @@
             <!-- 内容区域 -->  
             <view class="word-content">
               <!-- 单词信息 -->
-              <view class="word-main" bindtap="onWordTap" data-word="{{item}}">
+              <view class="word-main">
                 <view class="word-text">{{item.word}}</view>
                 <view wx:if="{{item.displayPhonetic}}" class="word-phonetic">
                   /{{item.displayPhonetic}}/

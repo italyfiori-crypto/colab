@@ -90,10 +90,6 @@ exports.main = async (event, context) => {
     switch (action) {
       case 'getUserInfo':
         return await getUserInfo(userId)
-      case 'updateUserProfile':
-        return await updateUserProfile(userId, params)
-      case 'updateUserSettings':
-        return await updateUserSettings(userId, params)
       case 'updateUserInfo':
         return await updateUserInfo(userId, params)
       case 'uploadAvatar':
@@ -249,87 +245,6 @@ async function createDefaultUser(userId) {
   })
 
   return defaultUser
-}
-
-/**
- * 更新用户基础信息（昵称、头像）
- */
-async function updateUserProfile(userId, { profileData }) {
-  console.log('📝 [DEBUG] 更新用户基础信息:', { userId, profileData })
-
-  const updateData = {
-    updated_at: Date.now()
-  }
-
-  if (profileData.nickname) {
-    // 简单的昵称验证
-    if (profileData.nickname.length > 20) {
-      return {
-        success: false,
-        message: '昵称不能超过20个字符'
-      }
-    }
-    updateData.nickname = profileData.nickname.trim()
-  }
-
-  if (profileData.avatar_url) {
-    updateData.avatar_url = profileData.avatar_url
-  }
-
-  try {
-    await db.collection('users').doc(userId).update({
-      data: updateData
-    })
-
-    console.log('✅ [DEBUG] 用户基础信息更新成功')
-    return {
-      success: true,
-      message: '用户信息更新成功'
-    }
-  } catch (error) {
-    console.error('❌ [DEBUG] 更新用户基础信息失败:', error)
-    return {
-      success: false,
-      message: error.message
-    }
-  }
-}
-
-/**
- * 更新用户设置信息
- */
-async function updateUserSettings(userId, { settingsData }) {
-  console.log('⚙️ [DEBUG] 更新用户设置:', { userId, settingsData })
-
-  const updateData = {
-    updated_at: Date.now()
-  }
-
-  if (settingsData.reading_settings) {
-    updateData.reading_settings = settingsData.reading_settings
-  }
-
-  if (settingsData.learning_settings) {
-    updateData.learning_settings = settingsData.learning_settings
-  }
-
-  try {
-    await db.collection('users').doc(userId).update({
-      data: updateData
-    })
-
-    console.log('✅ [DEBUG] 用户设置更新成功')
-    return {
-      success: true,
-      message: '设置更新成功'
-    }
-  } catch (error) {
-    console.error('❌ [DEBUG] 更新用户设置失败:', error)
-    return {
-      success: false,
-      message: error.message
-    }
-  }
 }
 
 /**

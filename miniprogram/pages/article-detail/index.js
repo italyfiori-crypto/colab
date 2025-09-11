@@ -721,18 +721,14 @@ Page({
             return;
         }
 
-        // 显示播放提示
-        wx.showToast({
-            title: `播放${type === 'uk' ? '英' : '美'}音`,
-            icon: 'none',
-            duration: 800
-        });
 
         const cacheKey = `${this.data.currentWord.word}_${type}`;
 
         // 检查音频缓存
         if (this.data.audioCache[cacheKey]) {
             const cachedAudio = this.data.audioCache[cacheKey];
+            // 单词音频固定使用1倍速度
+            cachedAudio.playbackRate = 1.0;
             // 重置到开始位置并播放
             cachedAudio.seek(0);
             cachedAudio.play();
@@ -743,6 +739,8 @@ Page({
         const wordAudio = wx.createInnerAudioContext();
         wordAudio.src = audioUrl;
         wordAudio.autoplay = true;
+        // 单词音频固定使用1倍速度
+        wordAudio.playbackRate = 1.0;
 
         // 缓存音频实例
         this.setData({
@@ -1067,20 +1065,14 @@ Page({
             return;
         }
 
-        // 显示播放提示
-        wx.showToast({
-            title: `播放${audioType === 'uk' ? '英' : '美'}音`,
-            icon: 'none',
-            duration: 800
-        });
 
         const cacheKey = `${word.word}_${audioType}`;
 
         // 检查音频缓存
         if (this.data.audioCache[cacheKey]) {
             const cachedAudio = this.data.audioCache[cacheKey];
-            // 应用当前播放速度
-            cachedAudio.playbackRate = this.data.playSpeed;
+            // 单词音频固定使用1倍速度
+            cachedAudio.playbackRate = 1.0;
             // 重置到开始位置并播放
             cachedAudio.seek(0);
             cachedAudio.play();
@@ -1091,8 +1083,9 @@ Page({
         const wordAudio = wx.createInnerAudioContext();
         wordAudio.src = audioUrl;
         wordAudio.autoplay = true;
-        // 应用用户设置的播放速度
-        wordAudio.playbackRate = this.data.playSpeed;
+        // 单词音频固定使用1倍速度
+        wordAudio.playbackRate = 1.0;
+        // 单词音频固定使用1倍速度（已在上方设置）
 
         // 缓存音频实例
         this.setData({
@@ -1278,7 +1271,7 @@ Page({
 
     // 播放速度控制 - 使用弹窗选择
     onSpeedChange() {
-        const { playSpeed, speedOptions } = this.data;
+        const { playSpeed, speedOptions, isPlaying } = this.data;
         const options = speedOptions.map(speed => `${speed}x`);
         const currentIndex = speedOptions.indexOf(playSpeed);
 
@@ -1289,9 +1282,22 @@ Page({
                     const newSpeed = speedOptions[res.tapIndex];
                     this.setData({ playSpeed: newSpeed });
 
-                    // 如果音频对象已存在，立即应用速度
+                    // 如果音频对象已存在，先暂停再应用速度，然后恢复播放
                     if (this.audioContext) {
+                        const wasPlaying = isPlaying;
+                        
+                        // 暂停音频
+                        if (wasPlaying) {
+                            this.audioContext.pause();
+                        }
+                        
+                        // 应用新的播放速度
                         this.audioContext.playbackRate = newSpeed;
+                        
+                        // 如果之前在播放，则重新播放
+                        if (wasPlaying) {
+                            this.audioContext.play();
+                        }
                     }
 
                     wx.showToast({

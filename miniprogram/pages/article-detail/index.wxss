@@ -400,6 +400,30 @@
   flex-shrink: 0;
 }
 
+/* 弹窗标题 */
+.vocabulary-header {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  padding: 24rpx 32rpx 16rpx;
+  border-bottom: 1rpx solid #f0f0f0;
+  flex-shrink: 0;
+  text-align: center;
+}
+
+.vocabulary-title {
+  font-size: 32rpx;
+  font-weight: 600;
+  color: #1f2937;
+  margin-bottom: 8rpx;
+}
+
+.vocabulary-count {
+  font-size: 24rpx;
+  color: #6b7280;
+}
+
 
 /* 单词内容区域 */
 .vocabulary-content {
