@@ -775,13 +775,13 @@ Page({
 
         try {
             wx.showLoading({
-                title: currentWord.isCollected ? '移除中...' : '添加中...'
+                title: currentWord.is_favorited ? '移除中...' : '添加中...'
             });
 
             const result = await wx.cloud.callFunction({
                 name: 'articleDetailData',
                 data: {
-                    type: currentWord.isCollected ? 'removeWordFromCollection' : 'addWordToCollection',
+                    type: currentWord.is_favorited ? 'removeWordFromCollection' : 'addWordToCollection',
                     word: currentWord.word,
                     wordId: currentWord._id || currentWord.id,
                     bookId: this.data.bookId,
@@ -792,9 +792,9 @@ Page({
             wx.hideLoading();
 
             if (result.result.code === 0) {
-                const newCollectedStatus = !currentWord.isCollected;
+                const newCollectedStatus = !currentWord.is_favorited;
                 this.setData({
-                    'currentWord.isCollected': newCollectedStatus
+                    'currentWord.is_favorited': newCollectedStatus
                 });
 
                 wx.showToast({
@@ -911,11 +911,25 @@ Page({
                 const { vocabularies, hasMore } = result.result.data;
                 console.log("vocabularies:", result.result.data)
 
-                // 限制每个单词最多显示3行释义
-                const processedVocabularies = vocabularies.map(word => ({
-                    ...word,
-                    translation: word.translation ? word.translation.slice(0, 3) : []
-                }));
+                // 限制每个单词最多显示3行释义，并添加基于用户偏好的音标和音频
+                const processedVocabularies = vocabularies.map(word => {
+                    const baseWord = {
+                        ...word,
+                        translation: word.translation ? word.translation.slice(0, 3) : []
+                    };
+                    
+                    // 根据用户设置选择音标和音频
+                    const voiceType = this.data.userSettings.learning_settings?.voice_type || '美式发音';
+                    if (voiceType === '美式发音') {
+                        baseWord.displayPhonetic = word.phonetic_us || word.phonetic_uk || '';
+                        baseWord.audioUrl = word.audio_url_us || word.audio_url_uk || '';
+                    } else {
+                        baseWord.displayPhonetic = word.phonetic_uk || word.phonetic_us || '';
+                        baseWord.audioUrl = word.audio_url_uk || word.audio_url_us || '';
+                    }
+                    
+                    return baseWord;
+                });
 
                 if (isFirstLoad) {
                     // 首次加载，暂停音频播放并显示弹窗
@@ -1009,16 +1023,39 @@ Page({
             return;
         }
 
-        // 确定音频URL优先级：美式 > 英式
-        let audioUrl = null;
+        // 使用预处理好的音频URL，或者作为备用方案根据用户设置确定
+        let audioUrl = word.audioUrl;
         let audioType = null;
-
-        if (word.audio_url_us) {
-            audioUrl = word.audio_url_us;
-            audioType = 'us';
-        } else if (word.audio_url_uk) {
-            audioUrl = word.audio_url_uk;
-            audioType = 'uk';
+        
+        if (!audioUrl) {
+            // 备用逻辑：如果没有预处理的audioUrl，重新根据用户设置选择
+            const voiceType = this.data.userSettings.learning_settings?.voice_type || '美式发音';
+            if (voiceType === '美式发音') {
+                if (word.audio_url_us) {
+                    audioUrl = word.audio_url_us;
+                    audioType = 'us';
+                } else if (word.audio_url_uk) {
+                    audioUrl = word.audio_url_uk;
+                    audioType = 'uk';
+                }
+            } else {
+                if (word.audio_url_uk) {
+                    audioUrl = word.audio_url_uk;
+                    audioType = 'uk';
+                } else if (word.audio_url_us) {
+                    audioUrl = word.audio_url_us;
+                    audioType = 'us';
+                }
+            }
+        } else {
+            // 从预处理的audioUrl推断类型
+            if (word.audio_url_us && audioUrl === word.audio_url_us) {
+                audioType = 'us';
+            } else if (word.audio_url_uk && audioUrl === word.audio_url_uk) {
+                audioType = 'uk';
+            } else {
+                audioType = 'us'; // 默认显示美式
+            }
         }
 
         if (!audioUrl) {
@@ -1042,6 +1079,8 @@ Page({
         // 检查音频缓存
         if (this.data.audioCache[cacheKey]) {
             const cachedAudio = this.data.audioCache[cacheKey];
+            // 应用当前播放速度
+            cachedAudio.playbackRate = this.data.playSpeed;
             // 重置到开始位置并播放
             cachedAudio.seek(0);
             cachedAudio.play();
@@ -1052,6 +1091,8 @@ Page({
         const wordAudio = wx.createInnerAudioContext();
         wordAudio.src = audioUrl;
         wordAudio.autoplay = true;
+        // 应用用户设置的播放速度
+        wordAudio.playbackRate = this.data.playSpeed;
 
         // 缓存音频实例
         this.setData({
@@ -1072,10 +1113,9 @@ Page({
         });
     },
 
-    // 切换收藏状态（来自word-list组件）
+    // 切换收藏状态
     async onToggleFavorite(e) {
-        const { index, word, currentState } = e.detail;
-        const wordId = word._id;
+        const wordId = e.currentTarget.dataset.id;
 
         if (!wordId) {
             console.error('单词ID不存在:', wordId);
@@ -1087,44 +1127,53 @@ Page({
             return;
         }
 
-        console.log('⭐ [DEBUG] 收藏状态切换:', {
-            word: word.word,
-            currentState,
-            wordId
-        });
+        // 找到对应的单词
+        const targetWord = this.data.vocabularyWords.find(w => w._id === wordId);
+        if (!targetWord) {
+            console.error('未找到对应单词:', wordId);
+            wx.showToast({
+                title: '操作失败，未找到单词',
+                icon: 'none',
+                duration: 2000
+            });
+            return;
+        }
 
         try {
             // 显示加载状态
             wx.showLoading({
-                title: currentState ? '移除中...' : '添加中...'
+                title: targetWord.is_favorited ? '移除中...' : '添加中...'
             });
 
             // 调用云函数更新收藏状态
             const result = await wx.cloud.callFunction({
                 name: 'articleDetailData',
                 data: {
-                    type: currentState ? 'removeWordFromCollection' : 'addWordToCollection',
-                    word: word.word,
-                    wordId: word._id,
+                    type: targetWord.is_favorited ? 'removeWordFromCollection' : 'addWordToCollection',
+                    word: targetWord.word,
+                    wordId: targetWord._id,
                     bookId: this.data.bookId,
                     chapterId: this.data.chapterId
                 }
             });
+            console.log("toggle word:", targetWord, this.data, this.data.vocabularyWords)
+
             wx.hideLoading();
 
             if (result.result.code === 0) {
                 // 更新前端状态
-                const vocabularyWords = this.data.vocabularyWords.map(w => {
-                    if (w._id === wordId) {
-                        return { ...w, is_favorited: !currentState };
+                const vocabularyWords = this.data.vocabularyWords.map(word => {
+                    if (word._id === wordId) {
+                        return { ...word, is_favorited: !word.is_favorited };
                     }
-                    return w;
+                    return word;
                 });
 
                 this.setData({ vocabularyWords });
 
+                const updatedWord = vocabularyWords.find(w => w._id === wordId);
                 wx.showToast({
-                    title: !currentState ? '已加入单词本' : '已从单词本移除',
+                    title: updatedWord.is_favorited ? '已加入单词本' : '已从单词本移除',
                     icon: 'success',
                     duration: 1500
                 });

@@ -71,6 +71,9 @@ Page({
         // 显示模式：both(中英), chinese-mask(中文遮罩), english-mask(英文遮罩)
         displayMode: 'both',
 
+        // 播放速度
+        playSpeed: 1.0,
+
         // 用户设置
         userSettings: {}
     },
@@ -99,7 +102,12 @@ Page({
      */
     async loadUserSettings() {
         const userInfo = await settingsUtils.getCompleteUserInfo();
-        this.setData({ userSettings: userInfo });
+        // 从用户设置中获取播放速度，默认为1.0
+        const playSpeed = userInfo.learning_settings?.playback_speed || 1.0;
+        this.setData({ 
+            userSettings: userInfo,
+            playSpeed: playSpeed
+        });
     },
 
     initializePage(type, config) {
@@ -195,9 +203,24 @@ Page({
      * @param {string} type - 单词类型
      */
     handleLoadSuccess(wordsData, type) {
+        const { userSettings } = this.data;
+        const voiceType = userSettings.learning_settings?.voice_type || '美式发音';
+        
         const words = wordsData.map(word => {
+            // 根据用户设置选择音标和音频
+            let displayPhonetic, audioUrl;
+            if (voiceType === '美式发音') {
+                displayPhonetic = word.phonetic_us || word.phonetic_uk || '';
+                audioUrl = word.audio_url_us || word.audio_url_uk || '';
+            } else {
+                displayPhonetic = word.phonetic_uk || word.phonetic_us || '';
+                audioUrl = word.audio_url_uk || word.audio_url_us || '';
+            }
+            
             return {
                 ...word,
+                displayPhonetic,
+                audioUrl,
                 isExpanded: type === WORD_TYPE.OVERDUE, // 逾期单词默认展开
                 isLearned: false,
                 isReviewed: false
@@ -207,7 +230,8 @@ Page({
         console.log('✅ [DEBUG] 单词列表加载成功:', {
             类型: type,
             数量: words.length,
-            首个单词: words[0]?.word || '无'
+            首个单词: words[0]?.word || '无',
+            音频偏好: voiceType
         });
 
         this.setData({

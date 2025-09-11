@@ -12,7 +12,7 @@ const CACHE_DURATION = 24 * 60 * 60 * 1000; // 24小时缓存时间
  */
 function getCompleteUserInfo(forceRefresh = false) {
   console.log('🔍 [DEBUG] 开始获取完整用户信息');
-  
+
   // 1. 检查本地缓存（除非强制刷新）
   if (!forceRefresh) {
     const cachedInfo = getCachedUserInfo();
@@ -23,7 +23,7 @@ function getCompleteUserInfo(forceRefresh = false) {
   } else {
     console.log('🔄 [DEBUG] 强制刷新，跳过缓存检查');
   }
-  
+
   // 2. 从云端获取（包含自动创建逻辑）
   console.log('☁️ [DEBUG] 从云端获取用户信息');
   return getUserInfoFromCloud()
@@ -34,7 +34,7 @@ function getCompleteUserInfo(forceRefresh = false) {
         cacheUserInfo(cloudInfo);
         return cloudInfo;
       }
-      
+
       // 4. 云端没有返回数据，抛出错误
       console.log('❌ [DEBUG] 云端没有返回数据');
       throw new Error('获取用户信息失败：云端无数据');
@@ -127,29 +127,31 @@ function getCachedUserInfo() {
  */
 function saveCompleteUserInfo(userInfo) {
   console.log('💾 [DEBUG] 保存完整用户信息:', userInfo);
-  
-  // 1. 先同步到云端
+
+  // 使用统一的用户信息更新接口
   return wx.cloud.callFunction({
     name: 'userManager',
     data: {
-      action: 'updateUserSettings',
-      settingsData: {
+      action: 'updateUserInfo',
+      userInfo: {
+        nickname: userInfo.nickname,
+        avatar_url: userInfo.avatar_url,
         reading_settings: userInfo.reading_settings,
         learning_settings: userInfo.learning_settings
       }
     }
   }).then(result => {
     if (result.result.success) {
-      console.log('✅ [DEBUG] 设置同步到云端成功');
-      
-      // 2. 云端同步成功后，清除缓存并更新新缓存
+      console.log('✅ [DEBUG] 用户信息同步到云端成功');
+
+      // 云端同步成功后，清除缓存并更新新缓存
       clearUserCache();
       cacheUserInfo(userInfo);
       console.log('💾 [DEBUG] 缓存已更新');
-      
+
       return true;
     } else {
-      console.error('❌ [DEBUG] 设置同步到云端失败:', result.result.message);
+      console.error('❌ [DEBUG] 同步到云端失败:', result.result.message);
       return false;
     }
   }).catch(error => {
@@ -163,7 +165,7 @@ function saveCompleteUserInfo(userInfo) {
  */
 function updateUserProfile(profileData) {
   console.log('👤 [DEBUG] 更新用户基础信息:', profileData);
-  
+
   return wx.cloud.callFunction({
     name: 'userManager',
     data: {
@@ -173,11 +175,11 @@ function updateUserProfile(profileData) {
   }).then(result => {
     if (result.result.success) {
       console.log('✅ [DEBUG] 用户基础信息更新成功');
-      
+
       // 清除缓存，下次获取时会从云端重新获取最新数据
       clearUserCache();
       console.log('💾 [DEBUG] 已清除缓存，下次将从云端获取最新数据');
-      
+
       return { success: true };
     } else {
       console.error('❌ [DEBUG] 用户基础信息更新失败:', result.result.message);
@@ -268,11 +270,11 @@ function chooseAvatar() {
  */
 function uploadAvatar(tempFilePath) {
   console.log('📤 [DEBUG] 开始上传头像');
-  
+
   // 读取文件内容
   const fileManager = wx.getFileSystemManager();
   const fileContent = fileManager.readFileSync(tempFilePath, 'base64');
-  
+
   // 调用云函数上传
   return wx.cloud.callFunction({
     name: 'userManager',
@@ -318,7 +320,7 @@ function mapVoiceTypeToPriority(voiceType) {
     };
   } else if (voiceType === '英式发音') {
     return {
-      primary: 'audio_url_uk', 
+      primary: 'audio_url_uk',
       secondary: 'audio_url',
       fallback: 'audio_url_us'
     };
@@ -340,11 +342,11 @@ function mapVoiceTypeToPriority(voiceType) {
 function getTempFileURL(fileList) {
   const files = Array.isArray(fileList) ? fileList : [fileList];
   const validFiles = files.filter(fileId => fileId && typeof fileId === 'string' && fileId.startsWith('cloud://'));
-  
+
   if (validFiles.length === 0) {
     return Promise.resolve({ fileList: [] });
   }
-  
+
   return wx.cloud.getTempFileURL({
     fileList: validFiles.map(fileId => ({
       fileID: fileId,
@@ -368,12 +370,12 @@ function getSingleTempFileURL(fileId) {
   if (!fileId || typeof fileId !== 'string') {
     return Promise.resolve('');
   }
-  
+
   // 如果不是云存储文件ID，直接返回
   if (!fileId.startsWith('cloud://')) {
     return Promise.resolve(fileId);
   }
-  
+
   return getTempFileURL([fileId]).then(res => {
     if (res.fileList && res.fileList.length > 0) {
       return res.fileList[0].tempFileURL || '';
@@ -389,12 +391,12 @@ function getSingleTempFileURL(fileId) {
  */
 function getProxyImageUrl(originalUrl) {
   if (!originalUrl) return '';
-  
+
   // 如果已经是代理URL，直接返回
   if (originalUrl.includes('images.weserv.nl')) {
     return originalUrl;
   }
-  
+
   // 使用图片代理服务绕过防盗链
   return `https://images.weserv.nl/?url=${encodeURIComponent(originalUrl)}`;
 }
@@ -419,16 +421,16 @@ module.exports = {
   saveCompleteUserInfo,
   updateUserProfile,
   clearUserCache,
-  
+
   // 头像相关方法
   chooseAvatar,
   uploadAvatar,
-  
+
   // 图片处理方法
   getTempFileURL,
   getSingleTempFileURL,
   getProxyImageUrl,
-  
+
   // 映射和工具方法
   mapSubtitleLangToMode,
   mapReviewSortOrder,

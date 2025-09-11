@@ -36,6 +36,11 @@ Component({
     showFavoriteBtn: {
       type: Boolean,
       value: false
+    },
+    // 播放速度
+    playSpeed: {
+      type: Number,
+      value: 1.0
     }
   },
 
@@ -86,13 +91,19 @@ Component({
     // 单词点击事件 - 现在也处理音频播放
     onWordTap(e) {
       const { word, index } = e.currentTarget.dataset;
-      const { audioUrl } = this.getAudioAndPhonetic(word);
+      // 优先使用预处理的audioUrl，否则使用getAudioAndPhonetic方法
+      let audioUrl = word.audioUrl;
+      if (!audioUrl) {
+        const { audioUrl: computedAudioUrl } = this.getAudioAndPhonetic(word);
+        audioUrl = computedAudioUrl;
+      }
       
       console.log('🔊 [DEBUG] 单词点击事件:', { 
         word: word?.word, 
         index, 
         hasAudio: !!audioUrl,
-        audioUrl
+        audioUrl,
+        usingPreprocessed: !!word.audioUrl
       });
       
       // 如果单词有音频，播放音频
@@ -112,12 +123,18 @@ Component({
       const { index } = e.currentTarget.dataset;
       const indexNum = parseInt(index);
       const word = this.data.words[indexNum];
-      const { audioUrl } = this.getAudioAndPhonetic(word);
+      // 优先使用预处理的audioUrl，否则使用getAudioAndPhonetic方法
+      let audioUrl = word.audioUrl;
+      if (!audioUrl) {
+        const { audioUrl: computedAudioUrl } = this.getAudioAndPhonetic(word);
+        audioUrl = computedAudioUrl;
+      }
       
       console.log('🎭 [DEBUG] 遮罩点击事件:', { 
         index: indexNum, 
         word: word?.word,
-        hasAudio: !!audioUrl
+        hasAudio: !!audioUrl,
+        usingPreprocessed: !!word.audioUrl
       });
       
       // 如果单词有音频，播放音频
@@ -188,6 +205,8 @@ Component({
       // 创建新的音频实例
       const audio = wx.createInnerAudioContext();
       audio.src = audioUrl;
+      // 应用播放速度
+      audio.playbackRate = this.properties.playSpeed;
       
       // 设置播放状态
       this.setData({ 

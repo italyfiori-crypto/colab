@@ -224,7 +224,7 @@ async function getWordList(userId, { type, limit = 50, dailyWordLimit, sortOrder
           maxDailyNew = parsedLimit
         }
       }
-      
+
       // 计算今日已学习的新单词数量（今日首次学习的单词）
       const studiedTodayResult = await db.collection('word_records')
         .where({
@@ -265,7 +265,7 @@ async function getWordList(userId, { type, limit = 50, dailyWordLimit, sortOrder
         })
         .orderBy('updated_at', validSortOrder)
         .limit(validLimit)
-      
+
       console.log(`🔄 [DEBUG] 复习单词排序方式: ${validSortOrder}`)
       break
 
@@ -273,12 +273,12 @@ async function getWordList(userId, { type, limit = 50, dailyWordLimit, sortOrder
       query = db.collection('word_records')
         .where({
           user_id: userId,
-          level: db.command.gte(1).and(db.command.lt(MAX_LEVEL)),
+          level: db.command.lt(MAX_LEVEL),
           next_review_date: db.command.lt(todayString)
         })
         .orderBy('updated_at', validSortOrder)
         .limit(validLimit)
-      
+
       console.log(`🔄 [DEBUG] 逾期单词排序方式: ${validSortOrder}`)
       break
 

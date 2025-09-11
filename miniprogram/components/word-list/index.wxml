@@ -6,7 +6,7 @@
     <view 
       wx:for="{{words}}" 
       wx:key="id"
-      class="word-item {{wordType}} {{item.isLearned ? 'learned' : ''}} {{item.isReviewed ? 'reviewed' : ''}} {{item.isExpanded ? 'expanded' : ''}} {{item.completed ? 'completed' : ''}} {{item.removing ? 'removing' : ''}}"
+      class="word-item {{wordType}} {{item.isLearned ? 'learned' : ''}} {{item.isReviewed ? 'reviewed' : ''}} {{item.isExpanded ? 'expanded' : ''}} {{item.completed ? 'completed' : ''}} {{item.removing ? 'removing' : ''}} {{showFavoriteBtn ? 'has-favorite-btn' : ''}}"
       data-word="{{item}}"
       data-index="{{index}}"
       bindtap="onWordTap"
@@ -22,18 +22,8 @@
         <view class="word-main {{displayMode === 'english-mask' ? 'has-mask' : ''}}">
           <view class="word-header">
             <view class="word-text">{{item.word}}</view>
-            <!-- 收藏按钮 -->
-            <view 
-              wx:if="{{showFavoriteBtn}}" 
-              class="favorite-btn"
-              bindtap="onToggleFavorite"
-              data-index="{{index}}"
-              catchtap
-            >
-              {{item.is_favorited ? '⭐' : '☆'}}
-            </view>
           </view>
-          <view class="word-phonetic">{{item.phonetic_us || item.phonetic_uk}}</view>
+          <view wx:if="{{item.displayPhonetic || item.phonetic_us || item.phonetic_uk}}" class="word-phonetic">{{item.displayPhonetic || item.phonetic_us || item.phonetic_uk}}</view>
           <!-- 英文简化显示切换 -->
           <view wx:if="{{displayMode === 'english-mask' && !item.isExpanded}}" 
                 class="simple-mask-overlay" 
@@ -76,6 +66,17 @@
           </view>
         </view>
       </view>
+      
+      <!-- 收藏按钮（位于整个卡片的最右侧） -->
+      <view 
+        wx:if="{{showFavoriteBtn}}" 
+        class="favorite-btn"
+        bindtap="onToggleFavorite"
+        data-index="{{index}}"
+        catchtap
+      >
+        {{item.is_favorited ? '⭐' : '☆'}}
+      </view>
     </view>
   </view>
 
@@ -87,30 +88,36 @@
       wx:key="id"
       class="word-item-readonly"
     >
-      <!-- 单词信息 -->
-      <view class="word-main-readonly">
-        <view class="word-header-readonly">
-          <view class="word-text-readonly">{{item.word}}</view>
-          <!-- 收藏按钮（只读模式） -->
-          <view 
-            wx:if="{{showFavoriteBtn}}" 
-            class="favorite-btn-readonly"
-            bindtap="onToggleFavorite"
-            data-index="{{index}}"
-            catchtap
-          >
-            {{item.is_favorited ? '⭐' : '☆'}}
+      <!-- 内容区域容器 -->
+      <view class="word-content-readonly">
+        <!-- 单词信息 -->
+        <view class="word-main-readonly">
+          <view class="word-header-readonly">
+            <view class="word-text-readonly">{{item.word}}</view>
+          </view>
+          <view wx:if="{{item.displayPhonetic || item.phonetic_us || item.phonetic_uk}}" class="word-phonetic-readonly">{{item.displayPhonetic || item.phonetic_us || item.phonetic_uk}}</view>
+        </view>
+        
+        <!-- 翻译信息 -->
+        <view class="word-translation-readonly">
+          <view class="translation-content-readonly">
+            <view wx:for="{{item.translations}}" wx:key="*this" class="translation-item-readonly">
+              <text class="part-of-speech-readonly">{{item.partOfSpeech}}</text>
+              <text class="meaning-readonly">{{item.meaning}}</text>
+            </view>
           </view>
         </view>
-        <view class="word-phonetic-readonly">{{item.phonetic_us || item.phonetic_uk}}</view>
       </view>
       
-      <!-- 翻译信息 -->
-      <view class="word-translation-readonly">
-        <view wx:for="{{item.translations}}" wx:key="*this" class="translation-item-readonly">
-          <text class="part-of-speech-readonly">{{item.partOfSpeech}}</text>
-          <text class="meaning-readonly">{{item.meaning}}</text>
-        </view>
+      <!-- 收藏按钮（位于整个卡片的最右侧） -->
+      <view 
+        wx:if="{{showFavoriteBtn}}" 
+        class="favorite-btn-readonly"
+        bindtap="onToggleFavorite"
+        data-index="{{index}}"
+        catchtap
+      >
+        {{item.is_favorited ? '⭐' : '☆'}}
       </view>
     </view>
   </view>

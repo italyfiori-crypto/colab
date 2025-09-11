@@ -333,13 +333,26 @@ Page({
               'userInfo.nickName': newNickname
             });
 
-            // 保存到云端
-            await this.saveCurrentSettings();
-
-            wx.showToast({
-              title: '昵称更新成功',
-              icon: 'success'
+            // 保存到云端 - 使用专门的用户信息更新方法
+            const updateResult = await settingsUtils.updateUserProfile({
+              nickname: newNickname
             });
+
+            if (updateResult.success) {
+              wx.showToast({
+                title: '昵称更新成功',
+                icon: 'success'
+              });
+            } else {
+              // 如果更新失败，恢复原来的昵称
+              this.setData({
+                'userInfo.nickName': currentNickname
+              });
+              wx.showToast({
+                title: updateResult.message || '昵称更新失败',
+                icon: 'none'
+              });
+            }
           }
         }
       }

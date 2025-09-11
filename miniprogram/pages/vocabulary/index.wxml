@@ -20,6 +20,7 @@
       displayMode="{{displayMode}}"
       showNumber="{{true}}"
       customClass="vocabulary-word-list"
+      playSpeed="{{playSpeed}}"
       bind:maskToggle="onMaskToggle"
       bind:overdueHandle="onOverdueHandle"
       bind:wordtap="onWordTap"

@@ -16,11 +16,11 @@ const db = cloud.database()
 async function getTempFileURL(fileList) {
   const files = Array.isArray(fileList) ? fileList : [fileList]
   const validFiles = files.filter(fileId => fileId && typeof fileId === 'string' && fileId.startsWith('cloud://'))
-  
+
   if (validFiles.length === 0) {
     return { fileList: [] }
   }
-  
+
   try {
     const result = await cloud.getTempFileURL({
       fileList: validFiles.map(fileId => ({
@@ -28,7 +28,7 @@ async function getTempFileURL(fileList) {
         maxAge: 86400 // 24小时有效期
       }))
     })
-    
+
     console.log('✅ [DEBUG] 云端获取临时链接成功:', result.fileList.length, '个文件')
     return result
   } catch (error) {
@@ -46,12 +46,12 @@ async function getSingleTempFileURL(fileId) {
   if (!fileId || typeof fileId !== 'string') {
     return ''
   }
-  
+
   // 如果不是云存储文件ID，直接返回
   if (!fileId.startsWith('cloud://')) {
     return fileId
   }
-  
+
   const result = await getTempFileURL([fileId])
   if (result.fileList && result.fileList.length > 0) {
     return result.fileList[0].tempFileURL || ''
@@ -68,7 +68,7 @@ async function processUserImages(userData) {
   if (!userData || !userData.avatar_url) {
     return userData
   }
-  
+
   try {
     const tempUrl = await getSingleTempFileURL(userData.avatar_url)
     return {
@@ -94,6 +94,8 @@ exports.main = async (event, context) => {
         return await updateUserProfile(userId, params)
       case 'updateUserSettings':
         return await updateUserSettings(userId, params)
+      case 'updateUserInfo':
+        return await updateUserInfo(userId, params)
       case 'uploadAvatar':
         return await uploadAvatar(userId, params)
       default:
@@ -116,9 +118,9 @@ exports.main = async (event, context) => {
  */
 async function getUserInfo(userId) {
   console.log('📋 [DEBUG] 获取用户信息:', userId)
-  
+
   let userResult
-  
+
   // 使用then/catch语法查询数据库，避免查不到数据时抛异常
   await db.collection('users').doc(userId).get()
     .then(res => {
@@ -129,33 +131,33 @@ async function getUserInfo(userId) {
       console.error('❌ [DEBUG] 查询用户信息失败:', err)
       userResult = { data: null }
     })
-  
+
   if (userResult.data) {
     console.log('✅ [DEBUG] 用户已存在，返回用户信息')
-    
+
     // 处理用户头像临时链接
     const processedUserData = await processUserImages(userResult.data)
-    
+
     return {
       success: true,
       data: processedUserData
     }
   }
-  
+
   try {
     // 用户不存在，创建默认用户
     console.log('🆕 [DEBUG] 用户不存在，创建默认用户')
     const defaultUser = await createDefaultUser(userId)
-    
+
     await db.collection('users').doc(userId).set({
       data: defaultUser
     })
-    
+
     console.log('✅ [DEBUG] 默认用户创建成功')
-    
+
     // 处理新创建用户的头像
     const processedUserData = await processUserImages(defaultUser)
-    
+
     return {
       success: true,
       data: processedUserData
@@ -174,11 +176,11 @@ async function getUserInfo(userId) {
  */
 async function generateUniqueUserId() {
   const maxAttempts = 10
-  
+
   for (let attempts = 0; attempts < maxAttempts; attempts++) {
     const userId = Math.floor(100000 + Math.random() * 900000)
     let existingUser
-    
+
     // 使用then/catch语法查询数据库
     await db.collection('users')
       .where({ user_id: userId })
@@ -192,15 +194,15 @@ async function generateUniqueUserId() {
         console.error('❌ [DEBUG] 检查用户ID时出错:', err)
         existingUser = { data: [] }
       })
-    
+
     if (existingUser.data.length === 0) {
       console.log('✅ [DEBUG] 生成唯一用户ID:', userId)
       return userId
     }
-    
+
     console.log('⚠️ [DEBUG] 用户ID冲突，重新生成:', userId)
   }
-  
+
   // 如果多次尝试失败，使用时间戳后6位
   const fallbackId = parseInt(Date.now().toString().slice(-6))
   console.log('⚠️ [DEBUG] 使用后备用户ID:', fallbackId)
@@ -213,7 +215,7 @@ async function generateUniqueUserId() {
 async function createDefaultUser(userId) {
   const randomNum = Math.floor(Math.random() * 9999).toString().padStart(4, '0')
   const uniqueUserId = await generateUniqueUserId()
-  
+
   const defaultUser = {
     user_id: uniqueUserId,
     nickname: `学习者${randomNum}`,
@@ -278,7 +280,7 @@ async function updateUserProfile(userId, { profileData }) {
     await db.collection('users').doc(userId).update({
       data: updateData
     })
-    
+
     console.log('✅ [DEBUG] 用户基础信息更新成功')
     return {
       success: true,
@@ -315,7 +317,7 @@ async function updateUserSettings(userId, { settingsData }) {
     await db.collection('users').doc(userId).update({
       data: updateData
     })
-    
+
     console.log('✅ [DEBUG] 用户设置更新成功')
     return {
       success: true,
@@ -331,27 +333,81 @@ async function updateUserSettings(userId, { settingsData }) {
 }
 
 /**
+ * 统一更新用户信息接口（基础信息 + 设置信息）
+ */
+async function updateUserInfo(userId, { userInfo }) {
+  console.log('🔄 [DEBUG] 统一更新用户信息:', { userId, userInfo })
+
+  const updateData = {
+    updated_at: Date.now()
+  }
+
+  // 处理用户基础信息
+  if (userInfo.nickname) {
+    // 简单的昵称验证
+    if (userInfo.nickname.length > 20) {
+      return {
+        success: false,
+        message: '昵称不能超过20个字符'
+      }
+    }
+    updateData.nickname = userInfo.nickname.trim()
+  }
+
+  if (userInfo.avatar_url) {
+    updateData.avatar_url = userInfo.avatar_url
+  }
+
+  // 处理用户设置信息
+  if (userInfo.reading_settings) {
+    updateData.reading_settings = userInfo.reading_settings
+  }
+
+  if (userInfo.learning_settings) {
+    updateData.learning_settings = userInfo.learning_settings
+  }
+
+  try {
+    await db.collection('users').doc(userId).update({
+      data: updateData
+    })
+
+    console.log('✅ [DEBUG] 用户信息统一更新成功')
+    return {
+      success: true,
+      message: '用户信息更新成功'
+    }
+  } catch (error) {
+    console.error('❌ [DEBUG] 统一更新用户信息失败:', error)
+    return {
+      success: false,
+      message: error.message
+    }
+  }
+}
+
+/**
  * 上传头像到云存储
  */
 async function uploadAvatar(userId, { fileContent, fileName }) {
   console.log('📷 [DEBUG] 开始上传头像:', { userId, fileName })
-  
+
   try {
     // 生成云存储路径
     const cloudPath = `user-avatars/${userId}/${Date.now()}_${fileName || 'avatar.jpg'}`
-    
+
     // 上传到云存储
     const uploadResult = await cloud.uploadFile({
       cloudPath: cloudPath,
       fileContent: Buffer.from(fileContent, 'base64')
     })
-    
+
     console.log('📤 [DEBUG] 头像上传成功:', uploadResult.fileID)
-    
+
     // 获取临时访问链接
     const tempUrl = await getSingleTempFileURL(uploadResult.fileID)
     console.log('🔗 [DEBUG] 获取头像临时链接:', tempUrl)
-    
+
     // 更新用户表中的头像URL
     await db.collection('users').doc(userId).update({
       data: {
@@ -359,7 +415,7 @@ async function uploadAvatar(userId, { fileContent, fileName }) {
         updated_at: Date.now()
       }
     })
-    
+
     console.log('✅ [DEBUG] 用户头像更新成功')
     return {
       success: true,
