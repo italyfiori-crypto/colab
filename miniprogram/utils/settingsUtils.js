@@ -3,35 +3,25 @@ const SETTINGS_KEY = 'userSettings';
 const USER_INFO_KEY = 'userCompleteInfo';
 const CACHE_DURATION = 24 * 60 * 60 * 1000; // 24小时缓存时间
 
-// 最基本的前端硬编码默认值（仅用于网络异常时的降级）
-const FALLBACK_USER_INFO = {
-  user_id: 100000,
-  nickname: '学习者',
-  avatar_url: '/resource/icons/avatar.svg',
-  reading_settings: {
-    subtitle_lang: '中英双语',
-    playback_speed: 1.0
-  },
-  learning_settings: {
-    voice_type: '美式发音',
-    daily_word_limit: 20
-  },
-  created_at: Date.now(),
-  updated_at: Date.now()
-};
+// 移除硬编码默认值，所有数据都从云端获取
 
 /**
  * 获取完整用户信息（优先本地缓存）
+ * @param {boolean} forceRefresh - 是否强制从云端刷新
  * @returns {Promise<Object>} 完整的用户信息对象
  */
-function getCompleteUserInfo() {
+function getCompleteUserInfo(forceRefresh = false) {
   console.log('🔍 [DEBUG] 开始获取完整用户信息');
   
-  // 1. 检查本地缓存
-  const cachedInfo = getCachedUserInfo();
-  if (cachedInfo && !isCacheExpired(cachedInfo)) {
-    console.log('💾 [DEBUG] 使用本地缓存数据');
-    return Promise.resolve(cachedInfo);
+  // 1. 检查本地缓存（除非强制刷新）
+  if (!forceRefresh) {
+    const cachedInfo = getCachedUserInfo();
+    if (cachedInfo && !isCacheExpired(cachedInfo)) {
+      console.log('💾 [DEBUG] 使用本地缓存数据');
+      return Promise.resolve(cachedInfo);
+    }
+  } else {
+    console.log('🔄 [DEBUG] 强制刷新，跳过缓存检查');
   }
   
   // 2. 从云端获取（包含自动创建逻辑）
@@ -45,14 +35,19 @@ function getCompleteUserInfo() {
         return cloudInfo;
       }
       
-      // 4. 降级使用默认设置（这种情况应该很少发生）
-      console.log('⚠️ [DEBUG] 云端没有返回数据，使用降级默认值');
-      return FALLBACK_USER_INFO;
+      // 4. 云端没有返回数据，抛出错误
+      console.log('❌ [DEBUG] 云端没有返回数据');
+      throw new Error('获取用户信息失败：云端无数据');
     })
     .catch(error => {
       console.error('❌ [DEBUG] 获取用户信息失败:', error);
-      // 降级策略：使用缓存或最基本的硬编码默认值
-      return getCachedUserInfo() || FALLBACK_USER_INFO;
+      // 降级策略：使用缓存，如果缓存也没有则抛出错误
+      const cachedInfo = getCachedUserInfo();
+      if (cachedInfo) {
+        console.log('⚠️ [DEBUG] 使用缓存作为降级方案');
+        return cachedInfo;
+      }
+      throw new Error('获取用户信息失败：' + error.message);
     });
 }
 
@@ -133,10 +128,7 @@ function getCachedUserInfo() {
 function saveCompleteUserInfo(userInfo) {
   console.log('💾 [DEBUG] 保存完整用户信息:', userInfo);
   
-  // 1. 更新本地缓存
-  cacheUserInfo(userInfo);
-  
-  // 2. 同步到云端
+  // 1. 先同步到云端
   return wx.cloud.callFunction({
     name: 'userManager',
     data: {
@@ -149,6 +141,12 @@ function saveCompleteUserInfo(userInfo) {
   }).then(result => {
     if (result.result.success) {
       console.log('✅ [DEBUG] 设置同步到云端成功');
+      
+      // 2. 云端同步成功后，清除缓存并更新新缓存
+      clearUserCache();
+      cacheUserInfo(userInfo);
+      console.log('💾 [DEBUG] 缓存已更新');
+      
       return true;
     } else {
       console.error('❌ [DEBUG] 设置同步到云端失败:', result.result.message);
@@ -176,15 +174,9 @@ function updateUserProfile(profileData) {
     if (result.result.success) {
       console.log('✅ [DEBUG] 用户基础信息更新成功');
       
-      // 更新本地缓存
-      const cachedInfo = getCachedUserInfo();
-      if (cachedInfo) {
-        const updatedInfo = { ...cachedInfo };
-        if (profileData.nickname) updatedInfo.nickname = profileData.nickname;
-        if (profileData.avatar_url) updatedInfo.avatar_url = profileData.avatar_url;
-        updatedInfo.updated_at = Date.now();
-        cacheUserInfo(updatedInfo);
-      }
+      // 清除缓存，下次获取时会从云端重新获取最新数据
+      clearUserCache();
+      console.log('💾 [DEBUG] 已清除缓存，下次将从云端获取最新数据');
       
       return { success: true };
     } else {
@@ -235,6 +227,19 @@ function mapReviewSortOrder(reviewSortOrder) {
     '优先老词': 'desc'    // 按updated_at降序，先显示较晚更新的（老词）
   };
   return mapping[reviewSortOrder] || 'asc';
+}
+
+/**
+ * 新学单词排序方式映射到数据库排序
+ * @param {string} newWordSort - 设置中的排序方式
+ * @returns {string} 数据库排序方式
+ */
+function mapNewWordSortOrder(newWordSort) {
+  const mapping = {
+    '优先新词': 'asc',    // 按created_at升序，先显示较早创建的（新词）
+    '优先旧词': 'desc'    // 按created_at降序，先显示较晚创建的（旧词）
+  };
+  return mapping[newWordSort] || 'asc';
 }
 
 /**
@@ -341,6 +346,73 @@ function getWordAudioUrl(word, voiceType) {
 }
 
 /**
+ * 获取云存储文件的临时访问链接
+ * @param {string|Array} fileList - 文件ID或文件ID数组
+ * @returns {Promise} 临时链接结果
+ */
+function getTempFileURL(fileList) {
+  const files = Array.isArray(fileList) ? fileList : [fileList];
+  const validFiles = files.filter(fileId => fileId && typeof fileId === 'string' && fileId.startsWith('cloud://'));
+  
+  if (validFiles.length === 0) {
+    return Promise.resolve({ fileList: [] });
+  }
+  
+  return wx.cloud.getTempFileURL({
+    fileList: validFiles.map(fileId => ({
+      fileID: fileId,
+      maxAge: 86400 // 24小时有效期
+    }))
+  }).then(res => {
+    console.log('✅ [DEBUG] 获取临时链接成功:', res.fileList.length, '个文件');
+    return res;
+  }).catch(error => {
+    console.error('❌ [DEBUG] 获取临时链接失败:', error);
+    return { fileList: [] };
+  });
+}
+
+/**
+ * 获取单个图片的临时链接
+ * @param {string} fileId - 云存储文件ID
+ * @returns {Promise<string>} 临时链接URL
+ */
+function getSingleTempFileURL(fileId) {
+  if (!fileId || typeof fileId !== 'string') {
+    return Promise.resolve('');
+  }
+  
+  // 如果不是云存储文件ID，直接返回
+  if (!fileId.startsWith('cloud://')) {
+    return Promise.resolve(fileId);
+  }
+  
+  return getTempFileURL([fileId]).then(res => {
+    if (res.fileList && res.fileList.length > 0) {
+      return res.fileList[0].tempFileURL || '';
+    }
+    return '';
+  });
+}
+
+/**
+ * 处理图片加载错误的降级方案
+ * @param {string} originalUrl - 原始图片URL
+ * @returns {string} 代理图片URL
+ */
+function getProxyImageUrl(originalUrl) {
+  if (!originalUrl) return '';
+  
+  // 如果已经是代理URL，直接返回
+  if (originalUrl.includes('images.weserv.nl')) {
+    return originalUrl;
+  }
+  
+  // 使用图片代理服务绕过防盗链
+  return `https://images.weserv.nl/?url=${encodeURIComponent(originalUrl)}`;
+}
+
+/**
  * 清除所有设置（重置为默认值）
  */
 function clearUserSettings() {
@@ -365,13 +437,16 @@ module.exports = {
   chooseAvatar,
   uploadAvatar,
   
+  // 图片处理方法
+  getTempFileURL,
+  getSingleTempFileURL,
+  getProxyImageUrl,
+  
   // 映射和工具方法
   mapSubtitleLangToMode,
   mapReviewSortOrder,
+  mapNewWordSortOrder,
   mapVoiceTypeToPriority,
   getWordAudioUrl,
-  clearUserSettings,
-  
-  // 常量  
-  FALLBACK_USER_INFO
+  clearUserSettings
 };

@@ -22,7 +22,7 @@ Page({
         currentTime: 0,
         duration: 0, // 从数据库获取
         playSpeed: 1,
-        speedOptions: [0.5, 0.75, 1.0, 1.25, 1.5, 2.0], // 扩展速度选项
+        speedOptions: [0.8, 0.9, 1.0, 1.1, 1.2, 1.3], // 扩展速度选项
         isLooping: false, // 循环播放当前字幕
         manualControl: false, // 手动控制标志
 
@@ -88,11 +88,11 @@ Page({
 
         // 应用字幕语言设置
         const subtitleMode = settingsUtils.mapSubtitleLangToMode(readingSettings.subtitle_lang || '中英双语');
-        
+
         // 应用播放速度设置
         const playSpeed = readingSettings.playback_speed || 1.0;
 
-        this.setData({ 
+        this.setData({
             userSettings: userInfo,
             subtitleMode: subtitleMode,
             playSpeed: playSpeed
@@ -867,7 +867,7 @@ Page({
     // 单词按钮 - 显示单词卡片
     async onDict() {
         console.log('字典按钮被点击');
-        
+
         // 重置分页状态
         this.setData({
             currentPage: 1,
@@ -910,13 +910,13 @@ Page({
             if (result.result.code === 0) {
                 const { vocabularies, hasMore } = result.result.data;
                 console.log("vocabularies:", result.result.data)
-                
+
                 // 限制每个单词最多显示3行释义
                 const processedVocabularies = vocabularies.map(word => ({
                     ...word,
                     translation: word.translation ? word.translation.slice(0, 3) : []
                 }));
-                
+
                 if (isFirstLoad) {
                     // 首次加载，暂停音频播放并显示弹窗
                     const wasPlaying = this.data.isPlaying;
@@ -935,7 +935,7 @@ Page({
                     // 分页加载，追加数据
                     const existingWords = this.data.vocabularyWords;
                     const mergedWords = [...existingWords, ...processedVocabularies];
-                    
+
                     this.setData({
                         vocabularyWords: mergedWords,
                         currentPage: page,
@@ -974,7 +974,7 @@ Page({
     // 滚动到底部加载更多
     async onScrollToLower() {
         const { hasMoreWords, loadingMore } = this.data;
-        
+
         // 如果没有更多数据或正在加载中，则返回
         if (!hasMoreWords || loadingMore) {
             return;
@@ -1211,55 +1211,55 @@ Page({
         });
     },
 
-    // 字幕设置 - 循环切换三种模式
+    // 字幕设置 - 使用弹窗选择
     onSubtitleSettings() {
         const { subtitleMode } = this.data;
-        const modes = ['en', 'zh', 'both'];
+        const modes = ['both', 'en', 'zh'];
+        const modeNames = ['双语模式', '仅英文', '仅中文'];
         const currentIndex = modes.indexOf(subtitleMode);
-        const nextIndex = (currentIndex + 1) % modes.length;
-        const newMode = modes[nextIndex];
 
-        this.setData({ subtitleMode: newMode });
+        wx.showActionSheet({
+            itemList: modeNames,
+            success: (res) => {
+                if (res.tapIndex !== currentIndex) {
+                    const newMode = modes[res.tapIndex];
+                    this.setData({ subtitleMode: newMode });
 
-        const modeNames = {
-            'en': '英语模式',
-            'zh': '中文模式',
-            'both': '双语模式'
-        };
-
-        wx.showToast({
-            title: modeNames[newMode],
-            icon: 'none',
-            duration: 1000
+                    wx.showToast({
+                        title: modeNames[res.tapIndex],
+                        icon: 'none',
+                        duration: 1000
+                    });
+                }
+            }
         });
     },
 
-    // 播放速度控制 - 循环切换速度
+    // 播放速度控制 - 使用弹窗选择
     onSpeedChange() {
-        const { playSpeed, speedOptions, isPlaying } = this.data;
+        const { playSpeed, speedOptions } = this.data;
+        const options = speedOptions.map(speed => `${speed}x`);
         const currentIndex = speedOptions.indexOf(playSpeed);
-        const nextIndex = (currentIndex + 1) % speedOptions.length;
-        const newSpeed = speedOptions[nextIndex];
 
-        this.setData({ playSpeed: newSpeed });
+        wx.showActionSheet({
+            itemList: options,
+            success: (res) => {
+                if (res.tapIndex !== currentIndex) {
+                    const newSpeed = speedOptions[res.tapIndex];
+                    this.setData({ playSpeed: newSpeed });
 
-        // 如果音频对象已存在，立即应用速度并强制重新播放
-        if (this.audioContext) {
-            this.audioContext.playbackRate = newSpeed;
+                    // 如果音频对象已存在，立即应用速度
+                    if (this.audioContext) {
+                        this.audioContext.playbackRate = newSpeed;
+                    }
 
-            // 如果正在播放，先暂停再播放以让速度立即生效
-            if (isPlaying) {
-                this.audioContext.pause();
-                setTimeout(() => {
-                    this.audioContext.play();
-                }, 50); // 短暂延迟确保暂停生效
+                    wx.showToast({
+                        title: `播放速度: ${newSpeed}x`,
+                        icon: 'none',
+                        duration: 1000
+                    });
+                }
             }
-        }
-
-        wx.showToast({
-            title: `播放速度: ${newSpeed}x`,
-            icon: 'none',
-            duration: 1000
         });
     },
 

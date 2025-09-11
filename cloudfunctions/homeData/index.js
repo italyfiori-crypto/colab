@@ -10,6 +10,106 @@ function getNowTimestamp() {
   return Date.now()
 }
 
+// 图片处理工具函数
+/**
+ * 获取云存储文件的临时访问链接
+ * @param {string|Array} fileList - 文件ID或文件ID数组
+ * @returns {Promise} 临时链接结果
+ */
+async function getTempFileURL(fileList) {
+  const files = Array.isArray(fileList) ? fileList : [fileList]
+  const validFiles = files.filter(fileId => fileId && typeof fileId === 'string' && fileId.startsWith('cloud://'))
+  
+  if (validFiles.length === 0) {
+    return { fileList: [] }
+  }
+  
+  try {
+    const result = await cloud.getTempFileURL({
+      fileList: validFiles.map(fileId => ({
+        fileID: fileId,
+        maxAge: 86400 // 24小时有效期
+      }))
+    })
+    
+    console.log('✅ [DEBUG] 云端获取封面临时链接成功:', result.fileList.length, '个文件')
+    return result
+  } catch (error) {
+    console.error('❌ [DEBUG] 云端获取封面临时链接失败:', error)
+    return { fileList: [] }
+  }
+}
+
+/**
+ * 获取单个图片的临时链接
+ * @param {string} fileId - 云存储文件ID
+ * @returns {Promise<string>} 临时链接URL
+ */
+async function getSingleTempFileURL(fileId) {
+  if (!fileId || typeof fileId !== 'string') {
+    return ''
+  }
+  
+  // 如果不是云存储文件ID，直接返回
+  if (!fileId.startsWith('cloud://')) {
+    return fileId
+  }
+  
+  const result = await getTempFileURL([fileId])
+  if (result.fileList && result.fileList.length > 0) {
+    return result.fileList[0].tempFileURL || ''
+  }
+  return ''
+}
+
+/**
+ * 处理书籍数据中的封面图片，将fileID转换为临时链接
+ * @param {Array} books - 书籍数据数组
+ * @returns {Promise<Array>} 处理后的书籍数据
+ */
+async function processBookCovers(books) {
+  if (!books || books.length === 0) {
+    return books
+  }
+  
+  try {
+    // 收集所有需要处理的图片ID
+    const coverIds = books
+      .map(book => book.cover_url)
+      .filter(url => url && url.startsWith('cloud://'))
+    
+    if (coverIds.length === 0) {
+      return books
+    }
+    
+    // 批量获取临时链接
+    const tempResult = await getTempFileURL(coverIds)
+    const tempUrls = {}
+    
+    if (tempResult.fileList) {
+      tempResult.fileList.forEach(item => {
+        if (item.tempFileURL) {
+          tempUrls[item.fileID] = item.tempFileURL
+        }
+      })
+    }
+    
+    // 更新书籍数据中的封面链接
+    return books.map(book => {
+      if (book.cover_url && tempUrls[book.cover_url]) {
+        return {
+          ...book,
+          cover_url: tempUrls[book.cover_url]
+        }
+      }
+      return book
+    })
+  } catch (error) {
+    console.error('❌ [DEBUG] 处理书籍封面失败:', error)
+    return books
+  }
+}
+
 // 写死的分类列表（后期可调整为数据库读取）
 const CATEGORY_LIST = [
   { name: '文学名著', active: true },
@@ -103,7 +203,10 @@ async function getRecentBooks(user_id) {
     }
   }
 
-  return { code: 0, data: recentBooks }
+  // 处理封面图片临时链接
+  const processedBooks = await processBookCovers(recentBooks)
+
+  return { code: 0, data: processedBooks }
 }
 
 // 获取分类书籍
@@ -127,7 +230,10 @@ async function getCategoryBooks(categoryName = '文学名著') {
     total_chapters: book.total_chapters
   }))
 
-  return { code: 0, data: books }
+  // 处理封面图片临时链接
+  const processedBooks = await processBookCovers(books)
+
+  return { code: 0, data: processedBooks }
 }
 
 // 搜索书籍
@@ -156,7 +262,10 @@ async function searchBooks(keyword) {
     category: book.category
   }))
 
-  return { code: 0, data: books }
+  // 处理封面图片临时链接
+  const processedBooks = await processBookCovers(books)
+
+  return { code: 0, data: processedBooks }
 }
 
 // 一次性获取首页数据

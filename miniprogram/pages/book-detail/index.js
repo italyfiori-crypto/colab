@@ -10,6 +10,11 @@ Page({
     currentFilterText: '全部章节',
     showFilterModal: false,
     loading: true,
+    // 分页相关
+    currentPage: 1,
+    pageSize: 20,
+    hasMoreChapters: true,
+    loadingMore: false,
   },
 
   onLoad(options) {
@@ -27,37 +32,63 @@ Page({
   },
 
   // 加载书籍详情数据
-  async loadBookDetail(bookId) {
+  async loadBookDetail(bookId, isFirstLoad = true) {
     try {
-      this.setData({ loading: true });
+      if (isFirstLoad) {
+        this.setData({ loading: true });
+        wx.showLoading({ title: '加载中...' });
+      } else {
+        this.setData({ loadingMore: true });
+      }
 
-      // 显示加载中
-      wx.showLoading({
-        title: '加载中...'
-      });
+      const { currentPage, pageSize } = this.data;
+      const requestPage = isFirstLoad ? 1 : currentPage;
 
       // 调用云函数获取数据
       const result = await wx.cloud.callFunction({
         name: 'bookDetailData',
-        data: { bookId }
+        data: { 
+          bookId,
+          page: requestPage,
+          pageSize: pageSize
+        }
       });
 
-      wx.hideLoading();
+      if (isFirstLoad) {
+        wx.hideLoading();
+      }
 
       if (result.result.code === 0) {
-        const { bookInfo, chapters, filterOptions } = result.result.data;
+        const { bookInfo, chapters, filterOptions, hasMoreChapters } = result.result.data;
 
         // 转换时长格式：秒 -> 小时+分钟
         const convertedBookInfo = this.convertDurationFormat(bookInfo);
         const convertedChapters = chapters.map(chapter => this.convertDurationFormat(chapter));
 
-        this.setData({
-          bookInfo: convertedBookInfo,
-          chapters: convertedChapters,
-          allChapters: convertedChapters, // 保存所有章节数据
-          filterOptions,
-          loading: false
-        });
+        if (isFirstLoad) {
+          // 首次加载
+          this.setData({
+            bookInfo: convertedBookInfo,
+            chapters: convertedChapters,
+            allChapters: convertedChapters, 
+            filterOptions,
+            hasMoreChapters,
+            currentPage: 1,
+            loading: false
+          });
+        } else {
+          // 分页加载
+          const existingChapters = this.data.chapters;
+          const allChapters = [...this.data.allChapters, ...convertedChapters];
+          
+          this.setData({
+            chapters: [...existingChapters, ...convertedChapters],
+            allChapters: allChapters,
+            hasMoreChapters,
+            currentPage: requestPage,
+            loadingMore: false
+          });
+        }
       } else {
         // 处理错误
         wx.showToast({
@@ -65,18 +96,26 @@ Page({
           icon: 'none',
           duration: 2000
         });
-        this.setData({ loading: false });
+        this.setData({ 
+          loading: isFirstLoad ? false : this.data.loading,
+          loadingMore: false 
+        });
       }
 
     } catch (error) {
-      wx.hideLoading();
+      if (isFirstLoad) {
+        wx.hideLoading();
+      }
       console.error('加载书籍详情失败:', error);
       wx.showToast({
         title: '网络异常，请重试',
         icon: 'none',
         duration: 2000
       });
-      this.setData({ loading: false });
+      this.setData({ 
+        loading: isFirstLoad ? false : this.data.loading,
+        loadingMore: false 
+      });
     }
   },
 
@@ -130,6 +169,22 @@ Page({
       chapters: filteredChapters,
       showFilterModal: false
     });
+  },
+
+  // 滚动到底部加载更多章节
+  async onScrollToLower() {
+    const { hasMoreChapters, loadingMore, bookInfo } = this.data;
+
+    // 如果没有更多数据或正在加载中，则返回
+    if (!hasMoreChapters || loadingMore) {
+      return;
+    }
+
+    console.log('📄 [DEBUG] 滚动到底部，加载更多章节');
+    const nextPage = this.data.currentPage + 1;
+    this.setData({ currentPage: nextPage });
+    
+    await this.loadBookDetail(bookInfo._id, false);
   },
 
   // 页面显示时

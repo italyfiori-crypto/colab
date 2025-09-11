@@ -24,30 +24,32 @@ Page({
   /**
    * 加载完整用户信息（使用缓存优先策略）
    */
-  async loadCompleteUserInfo() {
+  async loadCompleteUserInfo(forceRefresh = false) {
     try {
       this.setData({ loading: true });
       
       console.log('🔄 [DEBUG] 设置页开始加载完整用户信息');
       
-      // 使用新的缓存优先策略
-      const completeInfo = await settingsUtils.getCompleteUserInfo();
+      // 获取用户信息（支持强制刷新）
+      const completeInfo = await settingsUtils.getCompleteUserInfo(forceRefresh);
       
       console.log('✅ [DEBUG] 获取到完整用户信息:', completeInfo);
       
+      // 直接使用云端返回的头像URL（云端已处理临时链接）
       this.setData({
         userInfo: {
-          userId: completeInfo.user_id || 100000,
-          nickName: completeInfo.nickname || '学习者',
-          avatarUrl: completeInfo.avatar_url || '/resource/icons/avatar.svg'
+          userId: completeInfo.user_id,
+          nickName: completeInfo.nickname,
+          avatarUrl: completeInfo.avatar_url
         },
         readingSettings: {
-          subtitleLang: completeInfo.reading_settings?.subtitle_lang || '中英双语',
-          playbackSpeed: completeInfo.reading_settings?.playback_speed || 1.0
+          subtitleLang: completeInfo.reading_settings?.subtitle_lang,
+          playbackSpeed: completeInfo.reading_settings?.playback_speed
         },
         learningSettings: {
-          voiceType: completeInfo.learning_settings?.voice_type || '美式发音',
-          dailyWordLimit: completeInfo.learning_settings?.daily_word_limit || 20
+          voiceType: completeInfo.learning_settings?.voice_type,
+          dailyWordLimit: completeInfo.learning_settings?.daily_word_limit,
+          newWordSort: completeInfo.learning_settings?.new_word_sort
         },
         loading: false
       });
@@ -57,10 +59,27 @@ Page({
     } catch (error) {
       console.error('❌ [DEBUG] 加载用户信息失败:', error);
       wx.showToast({
-        title: '加载失败，使用默认设置',
-        icon: 'none'
+        title: '加载用户信息失败，请检查网络',
+        icon: 'none',
+        duration: 3000
       });
       this.setData({ loading: false });
+      
+      // 如果是网络问题，建议用户重试
+      setTimeout(() => {
+        wx.showModal({
+          title: '获取用户信息失败',
+          content: '无法从服务器获取您的设置信息，请检查网络连接后重试。',
+          showCancel: true,
+          cancelText: '稍后重试',
+          confirmText: '立即重试',
+          success: (res) => {
+            if (res.confirm) {
+              this.loadCompleteUserInfo();
+            }
+          }
+        });
+      }, 1000);
     }
   },
 
@@ -81,7 +100,8 @@ Page({
         },
         learning_settings: {
           voice_type: this.data.learningSettings.voiceType,
-          daily_word_limit: this.data.learningSettings.dailyWordLimit
+          daily_word_limit: this.data.learningSettings.dailyWordLimit,
+          new_word_sort: this.data.learningSettings.newWordSort
         },
         updated_at: Date.now()
       };
@@ -117,9 +137,8 @@ Page({
     try {
       console.log('🔄 [DEBUG] 用户触发下拉刷新');
       
-      // 清除缓存，强制从云端获取
-      settingsUtils.clearUserCache();
-      await this.loadCompleteUserInfo();
+      // 强制从云端获取最新数据
+      await this.loadCompleteUserInfo(true);
       
       wx.showToast({
         title: '刷新成功',
@@ -224,6 +243,31 @@ Page({
     });
   },
 
+  // 选择新学单词排序
+  onSelectNewWordSort() {
+    const options = ['优先新词', '优先旧词'];
+    const current = this.data.learningSettings?.newWordSort || '优先新词';
+    const currentIndex = options.indexOf(current);
+
+    wx.showActionSheet({
+      itemList: options,
+      success: (res) => {
+        if (res.tapIndex !== currentIndex) {
+          this.setData({
+            'learningSettings.newWordSort': options[res.tapIndex]
+          });
+          this.saveCurrentSettings();
+          
+          // 提示用户设置已生效
+          wx.showToast({
+            title: `已设置为${options[res.tapIndex]}`,
+            icon: 'success'
+          });
+        }
+      }
+    });
+  },
+
   // 编辑头像
   async onEditAvatar() {
     try {
@@ -320,6 +364,33 @@ Page({
       showCancel: false,
       confirmText: '好的'
     });
+  },
+
+  // 头像加载错误处理
+  onAvatarLoadError(e) {
+    console.error('❌ [DEBUG] 头像加载失败:', e.detail);
+    
+    const currentUrl = this.data.userInfo.avatarUrl;
+    console.log('🔄 [DEBUG] 尝试使用代理服务加载头像:', currentUrl);
+    
+    // 如果不是默认头像且未使用代理，尝试使用代理服务
+    if (currentUrl && 
+        !currentUrl.includes('/resource/icons/avatar.svg') && 
+        !currentUrl.includes('images.weserv.nl')) {
+      
+      const proxyUrl = settingsUtils.getProxyImageUrl(currentUrl);
+      console.log('🔄 [DEBUG] 使用代理URL:', proxyUrl);
+      
+      this.setData({
+        'userInfo.avatarUrl': proxyUrl
+      });
+    } else {
+      // 最终降级为默认头像
+      console.log('⚠️ [DEBUG] 使用默认头像');
+      this.setData({
+        'userInfo.avatarUrl': '/resource/icons/avatar.svg'
+      });
+    }
   },
 
 });

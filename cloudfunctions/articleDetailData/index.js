@@ -391,15 +391,22 @@ async function getWordDetail(word, user_id, bookId, chapterId) {
 
     const wordInfo = wordResult.data[0]
 
-    // 2. 查询用户收藏状态
+    // 2. 查询用户收藏状态（全局查询，不限章节）
     let isCollected = false
     if (user_id) {
-      const recordId = `${user_id}_${wordInfo._id}`
-      console.log('📤 [DEBUG] 查询用户单词记录:', recordId)
+      // 查询用户是否在任何章节收藏过这个单词
+      const userWordQuery = await db.collection('word_records').where({
+        user_id: user_id,
+        word_id: wordInfo._id
+      }).limit(1).get()
+      
+      console.log('📤 [DEBUG] 全局查询用户单词收藏状态:', {
+        user_id,
+        word_id: wordInfo._id,
+        found: userWordQuery.data.length > 0
+      })
 
-      const userWordResult = await db.collection('word_records').doc(recordId).get().catch(() => null)
-
-      if (userWordResult && userWordResult.data && userWordResult.data.is_collected) {
+      if (userWordQuery.data && userWordQuery.data.length > 0) {
         isCollected = true
       }
     }

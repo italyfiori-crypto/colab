@@ -278,6 +278,45 @@ Page({
     }
   },
 
+  // 书籍封面加载错误处理
+  onBookCoverError(e) {
+    const index = e.currentTarget.dataset.index;
+    const currentUrl = e.currentTarget.dataset.src;
+    
+    console.error('❌ [DEBUG] 书籍封面加载失败:', { index, currentUrl });
+    
+    // 获取设置工具
+    const settingsUtils = require('../../utils/settingsUtils.js');
+    
+    // 尝试使用代理服务
+    if (currentUrl && !currentUrl.includes('images.weserv.nl')) {
+      const proxyUrl = settingsUtils.getProxyImageUrl(currentUrl);
+      console.log('🔄 [DEBUG] 使用代理URL加载封面:', proxyUrl);
+      
+      // 更新对应的书籍封面URL
+      if (this.data.showSearchResults) {
+        this.setData({
+          [`searchResults[${index}].cover_url`]: proxyUrl
+        });
+      } else {
+        // 需要判断是哪个列表中的书籍
+        if (index < this.data.featuredBooks.length) {
+          this.setData({
+            [`featuredBooks[${index}].cover_url`]: proxyUrl
+          });
+        } else {
+          const popularIndex = index - this.data.featuredBooks.length;
+          this.setData({
+            [`popularBooks[${popularIndex}].cover_url`]: proxyUrl
+          });
+        }
+      }
+    } else {
+      console.log('⚠️ [DEBUG] 封面加载最终失败，使用默认封面');
+      // 可以设置默认封面或隐藏图片
+    }
+  },
+
   // 底部导航标签点击处理
   onTabTap(e) {
     const tab = e.currentTarget.dataset.tab;

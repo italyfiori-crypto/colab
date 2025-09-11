@@ -32,7 +32,7 @@
         data-book="{{item}}"
       >
         <view class="search-book-cover-wrapper">
-          <image class="search-book-cover" src="{{item.cover_url}}" mode="aspectFill" lazy-load="true"></image>
+          <image class="search-book-cover" src="{{item.cover_url}}" mode="aspectFill" lazy-load="true" binderror="onBookCoverError" data-index="{{index}}"></image>
         </view>
         <view class="search-book-info">
           <text class="search-book-title">{{item.title}}</text>
@@ -64,7 +64,7 @@
           data-book="{{item}}"
         >
           <view class="book-cover-wrapper">
-            <image class="book-cover" src="{{item.cover_url}}" mode="aspectFill" lazy-load="true"></image>
+            <image class="book-cover" src="{{item.cover_url}}" mode="aspectFill" lazy-load="true" binderror="onBookCoverError" data-index="{{index}}"></image>
           </view>
           <view class="book-info">
             <text class="book-title">{{item.title}}</text>

@@ -158,14 +158,22 @@ Page({
 
         // 根据单词类型添加特定参数
         if (type === 'new') {
-            // 新学单词需要每日上限参数
-            cloudFunctionData.dailyWordLimit = learningSettings.dailyWordLimit || 20;
+            // 新学单词需要每日上限参数和排序参数
+            cloudFunctionData.dailyWordLimit = learningSettings.daily_word_limit;
+            cloudFunctionData.sortOrder = settingsUtils.mapNewWordSortOrder(learningSettings.new_word_sort || '优先新词');
         } else if (type === 'review' || type === 'overdue') {
             // 复习和逾期单词需要排序参数
             cloudFunctionData.sortOrder = settingsUtils.mapReviewSortOrder('优先新词'); // 暂时使用固定值，因为已移除复习排序设置
         }
 
         console.log('☁️ [DEBUG] 调用云函数参数:', cloudFunctionData);
+        console.log('📋 [DEBUG] 用户设置详情:', {
+            learningSettings: learningSettings,
+            daily_word_limit: learningSettings.daily_word_limit,
+            new_word_sort: learningSettings.new_word_sort,
+            传递的dailyWordLimit: cloudFunctionData.dailyWordLimit,
+            传递的sortOrder: cloudFunctionData.sortOrder
+        });
 
         const result = await wx.cloud.callFunction({
             name: 'wordStudy',
@@ -192,7 +200,7 @@ Page({
         
         const words = wordsData.map(word => {
             // 根据用户语音设置获取合适的音频URL
-            const audioUrl = settingsUtils.getWordAudioUrl(word, learningSettings.voice_type || '美式发音');
+            const audioUrl = settingsUtils.getWordAudioUrl(word, learningSettings.voice_type);
             
             return {
                 ...word,
@@ -206,7 +214,8 @@ Page({
         console.log('✅ [DEBUG] 单词列表加载成功:', {
             类型: type,
             数量: words.length,
-            语音设置: learningSettings.voiceType
+            语音设置: learningSettings.voice_type,
+            首个单词音频: words[0]?.audioUrl || '无'
         });
 
         this.setData({
@@ -536,6 +545,21 @@ Page({
         this.setData(updateData);
     },
 
+
+    /**
+     * 单词点击事件处理（来自word-list组件）
+     * @param {Object} e - 事件对象
+     */
+    onWordTap(e) {
+        const { word, index } = e.detail;
+        console.log('🔊 [DEBUG] 单词点击:', {
+            word: word.word,
+            index: index,
+            hasAudioUrl: !!word.audioUrl,
+            audioUrl: word.audioUrl
+        });
+        // 音频播放已经在word-list组件中处理，这里可以添加其他逻辑
+    },
 
     /**
      * 显示错误提示

@@ -3,7 +3,7 @@
   <!-- 用户信息卡片 -->
   <view class="user-card">
     <view class="user-avatar" bindtap="onEditAvatar">
-      <image class="avatar-image" src="{{userInfo.avatarUrl}}" mode="aspectFill"></image>
+      <image class="avatar-image" src="{{userInfo.avatarUrl}}" mode="aspectFill" binderror="onAvatarLoadError"></image>
       <view class="avatar-edit-icon">📷</view>
     </view>
     <view class="user-info">
@@ -65,6 +65,17 @@
         </view>
         <view class="setting-right">
           <text class="setting-value">{{learningSettings.dailyWordLimit}}个</text>
+        </view>
+      </view>
+      
+      <!-- 新学单词排序 -->
+      <view class="setting-item" bindtap="onSelectNewWordSort">
+        <view class="setting-left">
+          <text class="setting-icon">🔄</text>
+          <text class="setting-label">新学单词排序</text>
+        </view>
+        <view class="setting-right">
+          <text class="setting-value">{{learningSettings.newWordSort}}</text>
         </view>
       </view>
       
