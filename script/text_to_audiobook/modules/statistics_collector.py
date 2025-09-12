@@ -14,7 +14,7 @@ from typing import List, Dict, Optional, TYPE_CHECKING
 from dataclasses import dataclass
 
 if TYPE_CHECKING:
-    from .subtitle_translator import SubtitleTranslator
+    from .subtitle_parser import SubtitleParser
 
 
 @dataclass
@@ -41,7 +41,7 @@ class StatisticsCollector:
                          sub_chapter_files: List[str], 
                          audio_files: List[str], 
                          output_dir: str,
-                         translator: Optional['SubtitleTranslator'] = None) -> Dict:
+                         translator: Optional['SubtitleParser'] = None) -> Dict:
         """
         收集书籍和章节统计信息
         

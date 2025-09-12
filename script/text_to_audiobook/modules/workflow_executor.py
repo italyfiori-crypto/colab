@@ -12,7 +12,7 @@ from .chapter_splitter import ChapterSplitter
 from .sub_chapter_splitter import SubChapterSplitter
 from .sentence_splitter import SentenceSplitter
 from .audio_generator import AudioGenerator, AudioGeneratorConfig
-from .subtitle_translator import SubtitleTranslator
+from .subtitle_parser import SubtitleParser
 from .audio_compressor import AudioCompressor
 from .vocabulary_manager import VocabularyManager, VocabularyManagerConfig
 from .statistics_collector import StatisticsCollector
@@ -129,55 +129,55 @@ def execute_audio_generation(sentence_files: List[str], output_dir: str, voice: 
     return audio_files, subtitle_files, elapsed_time
 
 
-def execute_subtitle_translation(subtitle_files: List[str], config, verbose: bool = False) -> Tuple[List[str], float]:
+def execute_subtitle_parsing(subtitle_files: List[str], output_dir: str, config, verbose: bool = False) -> Tuple[List[str], float]:
     """
-    执行字幕翻译
+    执行字幕解析
     
     Returns:
-        (翻译文件列表, 耗时)
+        (解析文件列表, 耗时)
     """
     if not subtitle_files:
-        print(f"\n⚠️ 未找到字幕文件，跳过翻译步骤（请先启用 --audio 生成字幕）")
+        print(f"\n⚠️ 未找到字幕文件，跳过解析步骤（请先启用 --audio 生成字幕）")
         return [], 0
     
-    print(f"\n🌏 开始字幕翻译处理...")
+    print(f"\n🔍 开始字幕解析处理...")
     
-    # 过滤需要翻译的字幕文件
-    files_to_translate, skipped_count = filter_files_for_subtitle_translation(subtitle_files)
+    # 过滤需要解析的字幕文件
+    files_to_parse, skipped_count = filter_files_for_subtitle_translation(subtitle_files)
     
     if skipped_count > 0:
         print(f"📋 跳过 {skipped_count} 个已包含中文翻译的字幕文件")
     
-    translated_files = []
+    parsed_files = []
     elapsed_time = 0
     
-    if files_to_translate:
-        print(f"🌐 需要翻译 {len(files_to_translate)} 个字幕文件")
+    if files_to_parse:
+        print(f"🔍 需要解析 {len(files_to_parse)} 个字幕文件")
         start_time = time.time()
         try:
-            # 配置翻译器
-            translator_config = config.subtitle_translator                
-            if not translator_config.api_key:
+            # 配置解析器
+            parser_config = config.subtitle_parser                
+            if not parser_config.api_key:
                 raise RuntimeError("缺少 SiliconFlow API 密钥，请通过 --api-key 参数或配置文件提供")
             
-            translator = SubtitleTranslator(translator_config)
-            translated_files = translator.translate_subtitle_files(files_to_translate)
+            parser = SubtitleParser(parser_config)
+            parsed_files = parser.parse_subtitle_files(files_to_parse, output_dir)
             elapsed_time = time.time() - start_time
             
-            total_translated = len(translated_files) + skipped_count
-            print(f"\n✅ 字幕翻译完成! 总计 {total_translated} 个字幕文件包含中文翻译 (新翻译 {len(translated_files)} 个) (耗时: {elapsed_time:.2f}秒)")
+            total_parsed = len(parsed_files) + skipped_count
+            print(f"\n✅ 字幕解析完成! 总计 {total_parsed} 个字幕文件包含中文翻译 (新解析 {len(parsed_files)} 个) (耗时: {elapsed_time:.2f}秒)")
         except Exception as e:
             elapsed_time = time.time() - start_time
-            print(f"\n⚠️ 字幕翻译失败: {e} (耗时: {elapsed_time:.2f}秒)")
+            print(f"\n⚠️ 字幕解析失败: {e} (耗时: {elapsed_time:.2f}秒)")
             if verbose:
                 import traceback
                 traceback.print_exc()
             print("继续执行其他步骤...")
     else:
-        print(f"✅ 所有字幕文件已包含中文翻译，跳过翻译步骤")
-        translated_files = subtitle_files  # 所有文件都已翻译
+        print(f"✅ 所有字幕文件已包含中文翻译，跳过解析步骤")
+        parsed_files = subtitle_files  # 所有文件都已解析
     
-    return translated_files, elapsed_time
+    return parsed_files, elapsed_time
 
 
 def execute_audio_compression(audio_files: List[str], output_dir: str, config, verbose: bool = False) -> float:
@@ -240,8 +240,8 @@ def execute_vocabulary_processing(sentence_files: List[str], output_dir: str, bo
         vocab_config = VocabularyManagerConfig()
         
         # 设置API密钥（如果需要）
-        if config.subtitle_translator.api_key:
-            vocab_config.enrichment.siliconflow_api_key = config.subtitle_translator.api_key
+        if config.subtitle_parser.api_key:
+            vocab_config.enrichment.siliconflow_api_key = config.subtitle_parser.api_key
         
         vocab_manager = VocabularyManager(vocab_config)
 
@@ -296,8 +296,8 @@ def execute_statistics_collection(sub_chapter_files: List[str], audio_files: Lis
         
         # 收集统计信息（如果有翻译器就传入用于翻译章节标题）
         translator_for_stats = None
-        if translate_enabled and config.subtitle_translator.api_key:
-            translator_for_stats = SubtitleTranslator(config.subtitle_translator)
+        if translate_enabled and config.subtitle_parser.api_key:
+            translator_for_stats = SubtitleParser(config.subtitle_parser)
         
         statistics = statistics_collector.collect_statistics(
             sub_chapter_files=sub_chapter_files,

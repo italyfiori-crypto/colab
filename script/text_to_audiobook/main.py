@@ -16,7 +16,7 @@ from modules.workflow_executor import (
     execute_sub_chapter_splitting, 
     execute_sentence_splitting,
     execute_audio_generation,
-    execute_subtitle_translation,
+    execute_subtitle_parsing,
     execute_audio_compression,
     execute_vocabulary_processing,
     execute_vocabulary_audio_compression,
@@ -44,7 +44,7 @@ def main():
 示例用法:
   %(prog)s data/greens.txt
   %(prog)s data/book.txt --output-dir ./my_output
-  %(prog)s data/book.txt --audio --translate --vocabulary
+  %(prog)s data/book.txt --audio --parse --vocabulary
   %(prog)s data/book.txt --vocabulary --master-vocab ./my_vocab.json
   %(prog)s data/book.txt --config my_config.json --verbose
   
@@ -67,8 +67,8 @@ def main():
     parser.add_argument('--voice', default='af_bella', help='语音模型 (默认: af_bella)')
     parser.add_argument('--speed', type=float, default=0.8, help='语音速度 (默认: 1.0)')
     
-    # 字幕翻译参数
-    parser.add_argument('--translate', action='store_true', help='启用字幕翻译')
+    # 字幕解析参数
+    parser.add_argument('--parse', action='store_true', help='启用字幕解析')
     
     # 音频压缩参数
     parser.add_argument('--compress', action='store_true', help='启用音频压缩')
@@ -131,10 +131,10 @@ def main():
         else:
             audio_files = get_audio_files(output_dir)
 
-        # 字幕翻译
-        translated_files, translate_time = [], 0
-        if args.translate:
-            translated_files, translate_time = execute_subtitle_translation(subtitle_files, config, args.verbose)
+        # 字幕解析
+        parsed_files, parse_time = [], 0
+        if args.parse:
+            parsed_files, parse_time = execute_subtitle_parsing(subtitle_files, output_dir, config, args.verbose)
 
         # 词汇处理
         chapter_vocab_files, vocabulary_time = [], 0
@@ -151,10 +151,10 @@ def main():
         # 统计信息收集
         statistics_time = 0
         if args.stats:
-            _, statistics_time = execute_statistics_collection(sub_chapter_files, audio_files, output_dir, config, args.translate, args.verbose)
+            _, statistics_time = execute_statistics_collection(sub_chapter_files, audio_files, output_dir, config, args.parse, args.verbose)
         
         # 计算总耗时
-        total_time = chapter_time + sub_chapter_time + sentence_time + audio_time + translate_time + vocabulary_time + compression_time + vocab_compression_time + statistics_time
+        total_time = chapter_time + sub_chapter_time + sentence_time + audio_time + parse_time + vocabulary_time + compression_time + vocab_compression_time + statistics_time
         program_total_time = time.time() - program_start_time
         
         # 打印耗时汇总
@@ -164,8 +164,8 @@ def main():
         print(f"  句子拆分: {sentence_time:.2f}秒 ({sentence_time/total_time*100:.1f}%)")
         if args.audio:
             print(f"  音频生成: {audio_time:.2f}秒 ({audio_time/total_time*100:.1f}%)")
-        if args.translate:
-            print(f"  字幕翻译: {translate_time:.2f}秒 ({translate_time/total_time*100:.1f}%)")
+        if args.parse:
+            print(f"  字幕解析: {parse_time:.2f}秒 ({parse_time/total_time*100:.1f}%)")
         if args.vocabulary:
             print(f"  词汇处理: {vocabulary_time:.2f}秒 ({vocabulary_time/total_time*100:.1f}%)")
         if args.compress and compression_time > 0:
@@ -186,8 +186,8 @@ def main():
                 print(f"生成的音频文件: {len(audio_files)} 个")
                 print(f"生成的字幕文件: {len(subtitle_files)} 个")
             
-            if args.translate and translated_files:
-                print(f"翻译的字幕文件: {len(translated_files)} 个")
+            if args.parse and parsed_files:
+                print(f"解析的字幕文件: {len(parsed_files)} 个")
             
             if args.vocabulary and chapter_vocab_files:
                 print(f"生成的章节词汇文件: {len(chapter_vocab_files)} 个")

@@ -40,12 +40,12 @@
     "enable_clause_splitting": true,
     "max_sentence_length": 100
   },
-  "subtitle_translator": {
+  "subtitle_parser": {
     "api_key": "sk-umedlfcxxcbzvyiobzxnigiyjrwgpeocgbffhhmwqmnlnein",
     "enabled": true,
     "batch_size": 5,
-    "model": "deepseek-ai/DeepSeek-V2.5",
-    "timeout": 30,
+    "model": "Qwen/Qwen3-8B",
+    "timeout": 120,
     "max_retries": 5
   },
   "statistics": {

@@ -10,7 +10,7 @@ from typing import List
 from dataclasses import dataclass
 from .sub_chapter_splitter import SubChapterConfig
 from .sentence_splitter import SentenceSplitterConfig
-from .subtitle_translator import SubtitleTranslatorConfig
+from .subtitle_parser import SubtitleParserConfig
 from .statistics_collector import StatisticsCollectorConfig
 
 
@@ -69,7 +69,7 @@ class AudiobookConfig:
     sentence: SentenceSplitterConfig
     
     # 字幕翻译配置
-    subtitle_translator: SubtitleTranslatorConfig
+    subtitle_parser: SubtitleParserConfig
     
     # 统计收集配置
     statistics: StatisticsCollectorConfig
@@ -110,13 +110,17 @@ class AudiobookConfig:
             config_data['sentence'] = sentence_config
         
         # 处理字幕翻译配置
-        if 'subtitle_translator' in config_data:
-            translator_config_data = config_data.pop('subtitle_translator')
-            translator_config = SubtitleTranslatorConfig(**translator_config_data)
-            config_data['subtitle_translator'] = translator_config
+        if 'subtitle_parser' in config_data:
+            parser_config_data = config_data.pop('subtitle_parser')
+            parser_config = SubtitleParserConfig(**parser_config_data)
+            config_data['subtitle_parser'] = parser_config
+        elif 'subtitle_translator' in config_data:  # 向后兼容旧配置
+            parser_config_data = config_data.pop('subtitle_translator')
+            parser_config = SubtitleParserConfig(**parser_config_data)
+            config_data['subtitle_parser'] = parser_config
         else:
             # 如果配置文件中没有翻译配置，使用默认值
-            config_data['subtitle_translator'] = SubtitleTranslatorConfig()
+            config_data['subtitle_parser'] = SubtitleParserConfig()
         
         # 处理统计收集配置
         if 'statistics' in config_data:

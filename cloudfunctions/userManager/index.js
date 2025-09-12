@@ -145,7 +145,8 @@ async function getUserInfo(userId) {
     console.log('🆕 [DEBUG] 用户不存在，创建默认用户')
     const defaultUser = await createDefaultUser(userId)
 
-    await db.collection('users').doc(userId).set({
+    defaultUser['_id'] = userId
+    await db.collection('users').add({
       data: defaultUser
     })
 
