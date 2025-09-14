@@ -32,32 +32,37 @@
   opacity: 0.5;
 }
 
+.left-column {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8rpx;
+  width: 80rpx;
+}
+
 .subtitle-content {
   flex: 1;
-  margin: 0 20rpx;
+  margin-left: 20rpx;
 }
 
 .ai-analysis-btn {
-  flex-shrink: 0;
   width: 60rpx;
-  height: 60rpx;
+  height: 30rpx;
   background: rgba(52, 152, 219, 0.1);
-  border-radius: 30rpx;
+  border-radius: 15rpx;
   display: flex;
   align-items: center;
   justify-content: center;
-  margin-left: auto;
   transition: all 0.3s ease;
+  font-size: 20rpx;
+  color: rgb(52, 152, 219);
+  font-weight: 500;
 }
 
 .ai-analysis-btn:active {
   background: rgba(52, 152, 219, 0.2);
   transform: scale(0.95);
-}
-
-.ai-icon {
-  width: 32rpx;
-  height: 32rpx;
 }
 
 .subtitle-item.active {
@@ -987,16 +992,14 @@
   background: #f3f4f6;
   border-radius: 30rpx;
   transition: all 0.2s ease;
+  font-size: 28rpx;
+  color: #666;
+  font-weight: bold;
 }
 
 .close-btn:active {
   background: #e5e7eb;
   transform: scale(0.95);
-}
-
-.close-icon {
-  width: 24rpx;
-  height: 24rpx;
 }
 
 /* AI解析内容区域 */
@@ -1044,11 +1047,6 @@
   height: 200rpx;
 }
 
-.error-icon {
-  width: 60rpx;
-  height: 60rpx;
-  margin-bottom: 20rpx;
-}
 
 .error-text {
   font-size: 28rpx;
@@ -1091,11 +1089,6 @@
   margin-bottom: 20rpx;
 }
 
-.section-icon {
-  width: 32rpx;
-  height: 32rpx;
-  margin-right: 16rpx;
-}
 
 .section-title {
   font-size: 30rpx;
