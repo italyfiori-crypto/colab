@@ -152,7 +152,7 @@ def main():
         # 统计信息收集
         statistics_time = 0
         if args.stats:
-            _, statistics_time = execute_statistics_collection(sub_chapter_files, audio_files, output_dir, config, args.parse, args.verbose)
+            _, statistics_time = execute_statistics_collection(sub_chapter_files, audio_files, output_dir, config, args.verbose)
         
         # 计算总耗时
         total_time = chapter_time + sub_chapter_time + sentence_time + audio_time + parse_time + vocabulary_time + compression_time + vocab_compression_time + statistics_time

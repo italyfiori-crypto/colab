@@ -42,7 +42,7 @@
   },
   "subtitle_parser": {
     "api_key": "sk-umedlfcxxcbzvyiobzxnigiyjrwgpeocgbffhhmwqmnlnein",
-    "model": "Qwen/Qwen3-30B-A3B-Thinking-2507",
+    "model": "deepseek-ai/DeepSeek-V2.5",
     "timeout": 180,
     "max_retries": 5,
     "max_concurrent_workers": 20

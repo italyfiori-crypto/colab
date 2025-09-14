@@ -11,6 +11,9 @@ import json
 import re
 import wave
 from typing import List, Dict, Optional, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from .chapter_title_translator import ChapterTitleTranslator
 from dataclasses import dataclass
 
 if TYPE_CHECKING:
@@ -41,7 +44,7 @@ class StatisticsCollector:
                          sub_chapter_files: List[str], 
                          audio_files: List[str], 
                          output_dir: str,
-                         translator: Optional['SubtitleParser'] = None) -> Dict:
+                         title_translator: Optional['ChapterTitleTranslator'] = None) -> Dict:
         """
         收集书籍和章节统计信息
         
@@ -49,7 +52,7 @@ class StatisticsCollector:
             sub_chapter_files: 子章节文件路径列表
             audio_files: 音频文件路径列表  
             output_dir: 输出目录
-            translator: 字幕翻译器实例(用于翻译章节标题)
+            title_translator: 章节标题翻译器实例(用于翻译章节标题)
             
         Returns:
             统计信息字典
@@ -60,10 +63,11 @@ class StatisticsCollector:
         chapters_info = self._collect_chapters_info(sub_chapter_files, audio_files, output_dir)
         
         # 翻译章节标题
-        if translator and chapters_info:
+        if title_translator and chapters_info:
+            # 从输出目录路径中提取书籍名称
+            book_name = os.path.basename(output_dir.rstrip('/\\'))
             chapter_titles = [ch['title'] for ch in chapters_info]
-            print(f"🌏 正在翻译 {len(chapter_titles)} 个章节标题...")
-            translated_titles = translator.translate_chapter_titles(chapter_titles)
+            translated_titles = title_translator.translate_chapter_titles(chapter_titles, book_name)
             
             # 更新章节信息中的中文标题
             for i, chapter in enumerate(chapters_info):

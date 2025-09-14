@@ -16,6 +16,7 @@ from .subtitle_parser import SubtitleParser
 from .audio_compressor import AudioCompressor
 from .vocabulary_manager import VocabularyManager, VocabularyManagerConfig
 from .statistics_collector import StatisticsCollector
+from .chapter_title_translator import ChapterTitleTranslator, ChapterTitleTranslatorConfig
 from .file_filter import filter_files_for_audio_generation, filter_files_for_subtitle_translation
 from .path_utils import get_expected_audio_file, get_expected_subtitle_file
 
@@ -272,7 +273,7 @@ def execute_vocabulary_processing(sentence_files: List[str], output_dir: str, bo
         return [], elapsed_time
 
 
-def execute_statistics_collection(sub_chapter_files: List[str], audio_files: List[str], output_dir: str, config, translate_enabled: bool = False, verbose: bool = False) -> Tuple[Optional[Dict[str, Any]], float]:
+def execute_statistics_collection(sub_chapter_files: List[str], audio_files: List[str], output_dir: str, config, verbose: bool = False) -> Tuple[Optional[Dict[str, Any]], float]:
     """
     执行统计信息收集
     
@@ -289,16 +290,21 @@ def execute_statistics_collection(sub_chapter_files: List[str], audio_files: Lis
     try:
         statistics_collector = StatisticsCollector(config.statistics)
         
-        # 收集统计信息（如果有翻译器就传入用于翻译章节标题）
-        translator_for_stats = None
-        if translate_enabled and config.subtitle_parser.api_key:
-            translator_for_stats = SubtitleParser(config.subtitle_parser)
+        # 收集统计信息（创建章节标题翻译器用于翻译章节标题）
+        title_translator_config = ChapterTitleTranslatorConfig(
+            api_key=config.subtitle_parser.api_key,
+            model=config.subtitle_parser.model,
+            timeout=config.subtitle_parser.timeout,
+            max_retries=config.subtitle_parser.max_retries,
+            batch_size=5  # 默认批量大小
+        )
+        title_translator = ChapterTitleTranslator(title_translator_config)
         
         statistics = statistics_collector.collect_statistics(
             sub_chapter_files=sub_chapter_files,
             audio_files=audio_files,
             output_dir=output_dir,
-            translator=translator_for_stats
+            title_translator=title_translator
         )
         
         elapsed_time = time.time() - start_time
