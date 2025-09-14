@@ -70,16 +70,22 @@ class SubtitleParser:
         
         print(f"🔄 开始解析 {total_files} 个字幕文件...")
         
+        total_stats = {
+            'files_processed': 0,
+            'files_failed': 0
+        }
+        
         for i, subtitle_file in enumerate(subtitle_files, 1):
             try:
                 filename = os.path.basename(subtitle_file)
-                print(f"🔍 解析字幕文件 ({i}/{total_files}): {filename}")
+                print(f"\n🔍 解析字幕文件 ({i}/{total_files}): {filename}")
                 
                 if self._parse_single_file(subtitle_file, analysis_dir):
                     parsed_files.append(subtitle_file)
-                    print(f"✅ 解析完成: {filename}")
+                    total_stats['files_processed'] += 1
                 else:
-                    print(f"❌ 解析失败: {filename}")
+                    total_stats['files_failed'] += 1
+                    total_stats['files_processed'] += 1
                 
                 # 添加延迟避免API限流
                 if i < total_files:
@@ -87,13 +93,21 @@ class SubtitleParser:
                     
             except Exception as e:
                 print(f"❌ 解析文件时出错 {os.path.basename(subtitle_file)}: {e}")
+                total_stats['files_failed'] += 1
+                total_stats['files_processed'] += 1
                 continue
+        
+        # 输出最终统计
+        print(f"\n📊 解析完成统计:")
+        print(f"   📁 处理文件: {total_stats['files_processed']}")
+        print(f"   ❌ 失败文件: {total_stats['files_failed']}")
         
         return parsed_files
     
     def _parse_single_file(self, subtitle_file: str, analysis_dir: str) -> bool:
         """
         解析单个字幕文件，生成中英文字幕和JSON解析文件
+        支持增量解析：只重新处理失败的字幕行
         
         Args:
             subtitle_file: 字幕文件路径
@@ -109,16 +123,87 @@ class SubtitleParser:
                 print(f"⚠️ 文件无有效字幕: {os.path.basename(subtitle_file)}")
                 return False
             
-            # 批量解析字幕条目
-            parsed_entries = self._parse_subtitle_entries(subtitle_entries)
-            if not parsed_entries:
+            # 检查现有解析结果
+            subtitle_name = os.path.splitext(os.path.basename(subtitle_file))[0]
+            json_file = os.path.join(analysis_dir, f"{subtitle_name}.json")
+            
+            # 获取需要重新处理的字幕索引（包括失败和未处理的）
+            total_subtitles = len(subtitle_entries)
+            unprocessed_indices = self._get_unprocessed_subtitle_indices(json_file, total_subtitles)
+            
+            if not unprocessed_indices:
+                print(f"✅ 所有字幕已成功解析，跳过文件: {os.path.basename(subtitle_file)}")
+                return True
+            
+            # 过滤出需要重新解析的字幕条目
+            entries_to_parse = [entry for entry in subtitle_entries 
+                              if int(entry['index']) in unprocessed_indices]
+            print(f"🔄 发现 {len(unprocessed_indices)} 条需要处理的字幕，共 {total_subtitles} 条")
+            print(f"📝 需要重新解析的字幕索引: {sorted(list(unprocessed_indices))}")
+            
+            if not entries_to_parse:
+                print(f"✅ 无需重新解析任何字幕")
+                return True
+            
+            # 批量解析需要处理的字幕条目
+            newly_parsed_entries = self._parse_subtitle_entries(entries_to_parse)
+            if not newly_parsed_entries:
                 return False
             
-            # 写回原文件，包含中英文
-            self._write_bilingual_srt(parsed_entries, subtitle_file)
+            # 如果是增量解析，需要合并结果
+            if unprocessed_indices and os.path.exists(json_file):
+                # 读取现有的所有结果
+                existing_results = self._load_existing_analysis(json_file)
+                
+                # 将新解析的结果转换为JSON格式
+                new_analysis_results = []
+                for entry in newly_parsed_entries:
+                    analysis_json = {
+                        "subtitle_index": int(entry['index']),
+                        "english_text": entry['english_text']
+                    }
+                    
+                    if 'analysis' in entry and entry['analysis']:
+                        analysis_json.update(entry['analysis'])
+                    else:
+                        # 如果没有分析结果，设置默认值
+                        analysis_json.update({
+                            "translation": entry.get('chinese_text', f"[解析失败] {entry['english_text']}"),
+                            "sentence_structure": "",
+                            "key_words": [],
+                            "fixed_phrases": [],
+                            "core_grammar": [],
+                            "colloquial_expression": []
+                        })
+                    
+                    new_analysis_results.append(analysis_json)
+                
+                # 合并现有结果与新结果
+                merged_results = self._merge_analysis_results(existing_results, new_analysis_results)
+                
+                # 更新字幕条目的中文翻译
+                for entry in subtitle_entries:
+                    entry_index = int(entry['index'])
+                    # 查找对应的解析结果
+                    for result in merged_results:
+                        if result.get('subtitle_index') == entry_index:
+                            entry['chinese_text'] = result.get('translation', f"[解析失败] {entry['english_text']}")
+                            break
+                
+                # 使用合并后的结果
+                final_parsed_entries = subtitle_entries
+                
+                # 直接写入合并后的JSON结果
+                self._write_merged_analysis_json(merged_results, json_file)
+            else:
+                # 首次解析，直接使用新结果
+                final_parsed_entries = newly_parsed_entries
+                # 写入JSON解析结果
+                self._write_analysis_json(final_parsed_entries, subtitle_file, analysis_dir)
             
-            # 写入JSON解析结果
-            self._write_analysis_json(parsed_entries, subtitle_file, analysis_dir)
+            # 写回原文件，包含中英文
+            self._write_bilingual_srt(final_parsed_entries, subtitle_file)
+            
             return True
             
         except Exception as e:
@@ -187,6 +272,149 @@ class SubtitleParser:
                 time.sleep(0.5)
         
         return parsed_entries
+    
+    def _get_unprocessed_subtitle_indices(self, json_file_path: str, total_subtitle_count: int) -> set:
+        """
+        读取现有JSON文件，返回需要重新处理的字幕索引集合（包括失败和未处理的）
+        
+        Args:
+            json_file_path: JSON解析结果文件路径
+            total_subtitle_count: SRT文件中的总字幕数
+            
+        Returns:
+            包含需要重新处理的字幕索引的集合
+        """
+        unprocessed_indices = set()
+        processed_indices = set()
+        
+        if not os.path.exists(json_file_path):
+            # 如果文件不存在，所有字幕都需要处理
+            return set(range(1, total_subtitle_count + 1))
+            
+        try:
+            with open(json_file_path, 'r', encoding='utf-8') as f:
+                content = f.read().strip()
+                
+            # 按行分割，每行是一个JSON对象
+            for line_num, line in enumerate(content.split('\n'), 1):
+                line = line.strip()
+                if not line:
+                    continue
+                    
+                try:
+                    analysis_data = json.loads(line)
+                    translation = analysis_data.get('translation', '')
+                    subtitle_index = analysis_data.get('subtitle_index', line_num)
+                    
+                    # 记录已处理的索引
+                    processed_indices.add(subtitle_index)
+                    
+                    # 检查是否包含失败标识
+                    if translation.startswith('[解析失败]'):
+                        unprocessed_indices.add(subtitle_index)
+                        
+                except json.JSONDecodeError as e:
+                    print(f"⚠️ 跳过无效JSON行 {line_num}: {e}")
+                    continue
+                    
+        except Exception as e:
+            print(f"⚠️ 读取现有解析文件失败 {json_file_path}: {e}")
+            # 出错时返回所有索引
+            return set(range(1, total_subtitle_count + 1))
+        
+        # 找出未处理的字幕索引
+        all_indices = set(range(1, total_subtitle_count + 1))
+        missing_indices = all_indices - processed_indices
+        
+        # 合并失败和未处理的索引
+        unprocessed_indices.update(missing_indices)
+        
+        return unprocessed_indices
+    
+    def _merge_analysis_results(self, existing_results: List[Dict], new_results: List[Dict]) -> List[Dict]:
+        """
+        合并现有解析结果与新解析结果
+        
+        Args:
+            existing_results: 现有的解析结果列表
+            new_results: 新的解析结果列表
+            
+        Returns:
+            合并后的解析结果列表
+        """
+        # 创建现有结果的索引映射
+        existing_map = {result.get('subtitle_index', 0): result for result in existing_results}
+        
+        # 创建新结果的索引映射
+        new_map = {result.get('subtitle_index', 0): result for result in new_results}
+        
+        # 合并结果：新结果优先，未更新的保持原结果
+        merged_results = []
+        all_indices = set(existing_map.keys()) | set(new_map.keys())
+        
+        for index in sorted(all_indices):
+            if index in new_map:
+                merged_results.append(new_map[index])
+            elif index in existing_map:
+                merged_results.append(existing_map[index])
+                
+        return merged_results
+    
+    def _load_existing_analysis(self, json_file_path: str) -> List[Dict]:
+        """
+        加载现有的解析结果JSON文件
+        
+        Args:
+            json_file_path: JSON文件路径
+            
+        Returns:
+            解析结果列表
+        """
+        existing_results = []
+        
+        if not os.path.exists(json_file_path):
+            return existing_results
+            
+        try:
+            with open(json_file_path, 'r', encoding='utf-8') as f:
+                content = f.read().strip()
+                
+            # 按行分割，每行是一个JSON对象
+            for line_num, line in enumerate(content.split('\n'), 1):
+                line = line.strip()
+                if not line:
+                    continue
+                    
+                try:
+                    analysis_data = json.loads(line)
+                    existing_results.append(analysis_data)
+                except json.JSONDecodeError as e:
+                    print(f"⚠️ 跳过无效JSON行 {line_num}: {e}")
+                    continue
+                    
+        except Exception as e:
+            print(f"⚠️ 加载现有解析结果失败 {json_file_path}: {e}")
+            
+        return existing_results
+    
+    def _write_merged_analysis_json(self, merged_results: List[Dict], json_file_path: str):
+        """
+        写入合并后的解析结果到JSON文件
+        
+        Args:
+            merged_results: 合并后的解析结果列表
+            json_file_path: JSON文件路径
+        """
+        try:
+            with open(json_file_path, 'w', encoding='utf-8') as f:
+                for result in merged_results:
+                    json_line = json.dumps(result, ensure_ascii=False)
+                    f.write(json_line + '\n')
+                    
+            print(f"✅ 合并解析结果已写入: {os.path.basename(json_file_path)}")
+            
+        except Exception as e:
+            print(f"❌ 写入合并解析结果失败: {e}")
     
     def _parse_batch(self, batch: List[Dict]) -> Optional[List[Dict]]:
         """解析一批字幕条目（并发版本）"""

@@ -42,7 +42,7 @@
   },
   "subtitle_parser": {
     "api_key": "sk-umedlfcxxcbzvyiobzxnigiyjrwgpeocgbffhhmwqmnlnein",
-    "model": "moonshotai/Kimi-K2-Instruct-0905",
+    "model": "Qwen/Qwen3-30B-A3B-Thinking-2507",
     "timeout": 180,
     "max_retries": 5,
     "max_concurrent_workers": 10

@@ -130,6 +130,7 @@ def main():
             audio_files, subtitle_files, audio_time = execute_audio_generation(sentence_files, output_dir, args.voice, args.speed, args.verbose)
         else:
             audio_files = get_audio_files(output_dir)
+            subtitle_files = get_subtitle_files(output_dir)
 
         # 字幕解析
         parsed_files, parse_time = [], 0

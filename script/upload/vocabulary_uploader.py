@@ -121,51 +121,7 @@ class VocabularyUploader:
             self.logger.error(f"词汇上传失败: {e}")
             return False
 
-    def upload_chapter_vocabularies(self, book_dir: str, book_id: str) -> bool:
-        """上传章节词汇关联数据"""
-        try:
-            subchapter_vocab_dir = os.path.join(book_dir, "vocabulary")
-            if not os.path.exists(subchapter_vocab_dir):
-                return True
-            
-            # 处理每个子章节的词汇文件
-            for vocab_file in sorted(glob.glob(os.path.join(subchapter_vocab_dir, "*.json"))):
-                try:
-                    with open(vocab_file, 'r', encoding='utf-8') as f:
-                        vocab_data = json.load(f)
-                    
-                    subchapter_id = os.path.basename(vocab_file).split('.')[0]
-
-                    chapter_vocab_record = {
-                        "_id": f"{book_id}_{subchapter_id}",
-                        "book_id": book_id,
-                        "chapter_id": subchapter_id,
-                        "word_list": vocab_data.get("word_list", []),
-                        "word_info_list": vocab_data.get("word_info_list", []),
-                        "created_at": int(time.time() * 1000)
-                    }
-                    
-                    # 检查是否已存在
-                    existing_record = self.api.query_database('chapter_vocabularies', 
-                                                            {'_id': chapter_vocab_record["_id"]}, limit=1)
-                    
-                    if not existing_record:
-                        if not self.api.add_database_records('chapter_vocabularies', [chapter_vocab_record]):
-                            self.logger.error(f"章节词汇插入失败: {subchapter_id}")
-                            return False
-                        else:
-                            self.logger.info(f"章节词汇插入成功: {subchapter_id}")
-                    
-                except Exception as e:
-                    self.logger.error(f"处理章节词汇文件失败 {vocab_file}: {e}")
-                    continue
-            
-            return True
-            
-        except Exception as e:
-            self.logger.error(f"章节词汇上传失败: {e}")
-            return False
-
+   
     def _collect_book_words(self, book_dir: str) -> List[str]:
         """收集当前书籍的所有单词（按顺序）"""
         book_words = []

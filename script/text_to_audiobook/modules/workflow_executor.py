@@ -142,12 +142,7 @@ def execute_subtitle_parsing(subtitle_files: List[str], output_dir: str, config,
     
     print(f"\n🔍 开始字幕解析处理...")
     
-    # 过滤需要解析的字幕文件
-    files_to_parse, skipped_count = filter_files_for_subtitle_translation(subtitle_files)
-    
-    if skipped_count > 0:
-        print(f"📋 跳过 {skipped_count} 个已包含中文翻译的字幕文件")
-    
+    files_to_parse = sorted(subtitle_files)
     parsed_files = []
     elapsed_time = 0
     

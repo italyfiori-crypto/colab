@@ -11,6 +11,7 @@ from wechat_api import WeChatCloudAPI
 from data_parser import DataParser
 from book_uploader import BookUploader
 from vocabulary_uploader import VocabularyUploader
+from subtitle_analysis_uploader import SubtitleAnalysisUploader
 
 
 def setup_logging():
@@ -70,6 +71,7 @@ def process_all_books(api_client: WeChatCloudAPI) -> bool:
     parser = DataParser(program_root)
     book_uploader = BookUploader(api_client, program_root)
     vocab_uploader = VocabularyUploader(api_client, program_root)
+    subtitle_uploader = SubtitleAnalysisUploader(api_client, program_root)
 
     if not os.path.exists(output_dir):
         print(f"❌ 输出目录不存在: {output_dir}")
@@ -155,7 +157,12 @@ def process_all_books(api_client: WeChatCloudAPI) -> bool:
             # 处理词汇
             print(f"📚 开始处理词汇...")
             vocab_uploader.upload_vocabularies(book_dir)
-            vocab_uploader.upload_chapter_vocabularies(book_dir, book_id)
+            
+            # 处理字幕解析信息
+            print(f"📝 开始处理字幕解析信息...")
+            analysis_stats = subtitle_uploader.process_book_analysis(book_dir, book_id)
+            if analysis_stats['total_records'] > 0:
+                print(f"📊 字幕解析统计: 新增{analysis_stats['added']}, 更新{analysis_stats['updated']}, 跳过{analysis_stats['skipped']}, 失败{analysis_stats['failed']}")
             
             print(f"✅ 书籍 {book_title} 处理完成")
             
