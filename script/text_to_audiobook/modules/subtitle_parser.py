@@ -11,6 +11,8 @@ import json
 from pathlib import Path
 from typing import List, Dict, Optional, Tuple
 from dataclasses import dataclass
+import concurrent.futures
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 import requests
 
@@ -21,16 +23,14 @@ class SubtitleParserConfig:
     
     # API 配置
     api_key: str = ""
-    model: str = "deepseek-ai/DeepSeek-V2.5"
-    base_url: str = "https://api.siliconflow.cn/v1"
-    
-    # 翻译配置
-    enabled: bool = False
-    batch_size: int = 5
-    
+    model: str = ""
+    timeout: int = 0
+    max_retries: int = 0
+    max_concurrent_workers: int = 0
+
+
     # 请求配置
-    timeout: int = 120
-    max_retries: int = 5
+    base_url: str = "https://api.siliconflow.cn/v1"
     initial_retry_delay: float = 1.0
     max_retry_delay: float = 30.0
 
@@ -162,11 +162,12 @@ class SubtitleParser:
         parsed_entries = []
         total_entries = len(subtitle_entries)
         
-        # 分批处理
-        for i in range(0, total_entries, self.config.batch_size):
-            batch = subtitle_entries[i:i + self.config.batch_size]
-            batch_num = i // self.config.batch_size + 1
-            total_batches = (total_entries + self.config.batch_size - 1) // self.config.batch_size
+        # 分批处理（按并发数分批）
+        batch_size = self.config.max_concurrent_workers
+        for i in range(0, total_entries, batch_size):
+            batch = subtitle_entries[i:i + batch_size]
+            batch_num = i // batch_size + 1
+            total_batches = (total_entries + batch_size - 1) // batch_size
             
             print(f"  解析批次 {batch_num}/{total_batches} ({len(batch)} 条字幕)")
             
@@ -182,43 +183,71 @@ class SubtitleParser:
                 parsed_entries.extend(batch)
             
             # 添加延迟避免API限流
-            if i + self.config.batch_size < total_entries:
+            if i + batch_size < total_entries:
                 time.sleep(0.5)
         
         return parsed_entries
     
     def _parse_batch(self, batch: List[Dict]) -> Optional[List[Dict]]:
-        """解析一批字幕条目"""
-        parsed_batch = []
+        """解析一批字幕条目（并发版本）"""
+        print(f"    🚀 开始并发解析 {len(batch)} 条字幕...")
         
-        # 逐个处理每个字幕条目，进行详细的语言学解析
-        for entry in batch:
-            try:
-                english_text = entry['english_text']
-                print(f"    解析字幕 {entry['index']}: {english_text}")
-                
-                # 调用API进行语言学解析
-                analysis_result = self._analyze_single_sentence(english_text)
-                if analysis_result:
-                    entry['chinese_text'] = analysis_result.get('translation', f"[翻译失败] {english_text}")
-                    entry['analysis'] = analysis_result
-                else:
-                    # 解析失败，保留原文并设置空分析
-                    entry['chinese_text'] = f"[解析失败] {english_text}"
+        # 使用线程池进行并发处理
+        max_workers = min(len(batch), self.config.max_concurrent_workers)
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            # 提交所有任务
+            future_to_entry = {
+                executor.submit(self._analyze_single_sentence_safe, entry): entry 
+                for entry in batch
+            }
+            
+            parsed_batch = []
+            completed_count = 0
+            for future in as_completed(future_to_entry):
+                entry = future_to_entry[future]
+                try:
+                    analysis_result = future.result()
+                    if analysis_result:
+                        entry['chinese_text'] = analysis_result.get('translation', f"[翻译失败] {entry['english_text']}")
+                        entry['analysis'] = analysis_result
+                    else:
+                        entry['chinese_text'] = f"[解析失败] {entry['english_text']}"
+                        entry['analysis'] = {}
+                    
+                    parsed_batch.append(entry)
+                    completed_count += 1
+                    print(f"    ✅ 解析完成字幕 {entry['index']} ({completed_count}/{len(batch)})")
+                    
+                except Exception as e:
+                    print(f"    ❌ 解析字幕 {entry['index']} 失败: {e}")
+                    entry['chinese_text'] = f"[解析失败] {entry['english_text']}"
                     entry['analysis'] = {}
-                
-                parsed_batch.append(entry)
-                
-                # 添加小延迟避免API限流
-                time.sleep(0.1)
-                
-            except Exception as e:
-                print(f"    ❌ 解析字幕 {entry['index']} 失败: {e}")
-                entry['chinese_text'] = f"[解析失败] {entry['english_text']}"
-                entry['analysis'] = {}
-                parsed_batch.append(entry)
+                    parsed_batch.append(entry)
         
+        # 按原始顺序排序
+        parsed_batch.sort(key=lambda x: int(x['index']))
         return parsed_batch
+    
+    def _analyze_single_sentence_safe(self, entry: Dict) -> Optional[Dict]:
+        """
+        线程安全的单个句子分析方法
+        
+        Args:
+            entry: 字幕条目字典
+            
+        Returns:
+            解析结果或None
+        """
+        try:
+            english_text = entry['english_text']
+            print(f"    📝 解析字幕 {entry['index']}: {english_text}")
+            
+            # 调用现有的分析方法
+            return self._analyze_single_sentence(english_text)
+            
+        except Exception as e:
+            print(f"    ❌ 线程解析失败: {e}")
+            return None
     
     def _analyze_single_sentence(self, english_text: str) -> Optional[Dict]:
         """
@@ -231,13 +260,15 @@ class SubtitleParser:
             包含翻译和语言学分析的字典，或None表示失败
         """
         # 构建语言学分析提示词
-        system_prompt = """作为英语语言学家，请分析用户输入的英语句子，并严格按以下JSON格式输出。必须返回纯JSON，无任何额外文本。
+        system_prompt = """IMPORTANT: 只返回JSON格式，不要任何额外文字或解释。
+
+作为英语语言学家，请分析用户输入的英语句子，并严格按以下JSON格式输出。
 
 字段要求:
-- translation: 自然流畅的中文翻译
+- translation: 中文翻译，要求信达雅（准确传达原意，语言自然流畅，表达优美）
 - sentence_structure: 句法成分分析（主语+谓语+宾语+状语等）
-- key_words: 重点词汇（难词、关键词、专有名词等）
-- fixed_phrases: 习语、固定搭配、phrasal verbs
+- key_words: 句子中有意义的词汇，排除the、a、is、Mrs.等常见词
+- fixed_phrases: 有固定含义的短语搭配，排除过于简单的组合
 - core_grammar: 重要语法现象（时态、语态、句式等）
 - colloquial_expression: 正式与口语表达对比
 
@@ -251,19 +282,31 @@ class SubtitleParser:
   "colloquial_expression": [{"formal": "正式表达", "informal": "口语表达", "explanation": "用法说明"}]
 }
 
-示例:
+示例1 (复合句):
 输入: "The project that we've been working on for months, which involves multiple stakeholders, will be completed once we receive the final approval."
 输出:
 {
   "translation": "我们已经工作了几个月的这个项目，涉及多个利益相关者，一旦我们收到最终批准就会完成。",
   "sentence_structure": "主语(The project) + 定语从句1(that we've been working on for months) + 定语从句2(which involves multiple stakeholders) + 谓语(will be completed) + 时间状语从句(once we receive the final approval)",
   "key_words": [{"word": "stakeholders", "pos": "n.", "meaning": "利益相关者", "pronunciation": "/ˈsteɪkhoʊldərz/"}, {"word": "approval", "pos": "n.", "meaning": "批准，同意", "pronunciation": "/əˈpruːvəl/"}],
-  "fixed_phrases": [{"phrase": "work on", "meaning": "从事，致力于"}, {"phrase": "once we receive", "meaning": "一旦我们收到"}],
+  "fixed_phrases": [{"phrase": "work on", "meaning": "从事，致力于"}],
   "core_grammar": [{"point": "定语从句嵌套", "explanation": "两个定语从句修饰同一主语，'that'引导限制性定语从句，'which'引导非限制性定语从句"}],
-  "colloquial_expression": [{"formal": "involves multiple stakeholders", "informal": "has a lot of people involved", "explanation": "'stakeholder'是商务术语指利益相关者，口语中直接说'people involved'更直白易懂"}, {"formal": "receive the final approval", "informal": "get the green light", "explanation": "'get the green light'来自交通信号灯，表示获得许可或批准，比'receive approval'更生动形象"}]
+  "colloquial_expression": [{"formal": "receive the final approval", "informal": "get the green light", "explanation": "'get the green light'表示获得许可，比'receive approval'更生动"}]
 }
 
-注意: 无相关内容时字段留空(空数组[]或空字符串"")，但不可省略字段。"""
+示例2 (简单句):
+输入: "She is very happy."
+输出:
+{
+  "translation": "她很开心。",
+  "sentence_structure": "主语(She) + 系动词(is) + 表语(very happy)",
+  "key_words": [],
+  "fixed_phrases": [],
+  "core_grammar": [],
+  "colloquial_expression": []
+}
+
+注意: 无相关内容时字段留空(空数组[]或空字符串"")，但不可省略字段。记住：仅输出JSON格式。"""
 
         user_prompt = f"请分析以下英语句子: \"{english_text}\""
         
@@ -481,7 +524,7 @@ class SubtitleParser:
     
     def translate_chapter_titles(self, chapter_titles: List[str]) -> List[str]:
         """
-        翻译章节标题列表（逐个处理）
+        翻译章节标题列表（并发处理）
         
         Args:
             chapter_titles: 英文章节标题列表
@@ -492,34 +535,64 @@ class SubtitleParser:
         if not chapter_titles:
             return []
         
-        print(f"🌏 正在翻译 {len(chapter_titles)} 个章节标题...")
-        translated_titles = []
+        print(f"🌏 正在并发翻译 {len(chapter_titles)} 个章节标题...")
         
-        for i, title in enumerate(chapter_titles):
-            try:
-                print(f"  翻译标题 ({i+1}/{len(chapter_titles)}): {title}")
-                
-                # 使用简化的翻译prompt
-                system_prompt = "你是专业的英中翻译专家。请将用户输入的英文章节标题翻译成中文，保持简洁优雅。只返回翻译结果，无需其他内容。"
-                user_prompt = f"请翻译以下章节标题: \"{title}\""
-                
-                response = self._call_analysis_api(system_prompt, user_prompt)
-                if response and response.strip():
-                    translated_titles.append(response.strip())
-                else:
-                    # 翻译失败，保留原标题
-                    translated_titles.append(title)
-                
-                # 添加延迟避免API限流
-                if i < len(chapter_titles) - 1:
-                    time.sleep(0.2)
+        # 使用线程池进行并发处理
+        max_workers = min(len(chapter_titles), self.config.max_concurrent_workers)
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            # 提交所有翻译任务
+            future_to_index = {
+                executor.submit(self._translate_single_title, title, i): i
+                for i, title in enumerate(chapter_titles)
+            }
+            
+            # 存储结果（按原始顺序）
+            translated_titles = [''] * len(chapter_titles)
+            completed_count = 0
+            
+            for future in as_completed(future_to_index):
+                index = future_to_index[future]
+                try:
+                    translated_title = future.result()
+                    translated_titles[index] = translated_title if translated_title else chapter_titles[index]
+                    completed_count += 1
+                    print(f"  ✅ 翻译完成标题 {index + 1}/{len(chapter_titles)}: {chapter_titles[index]} -> {translated_titles[index]}")
                     
-            except Exception as e:
-                print(f"  ❌ 翻译标题失败: {e}")
-                translated_titles.append(title)
+                except Exception as e:
+                    print(f"  ❌ 翻译标题 {index + 1} 失败: {e}")
+                    translated_titles[index] = chapter_titles[index]  # 保留原标题
         
         print(f"✅ 章节标题翻译完成")
         return translated_titles
+    
+    def _translate_single_title(self, title: str, index: int) -> Optional[str]:
+        """
+        翻译单个章节标题（线程安全）
+        
+        Args:
+            title: 英文章节标题
+            index: 标题索引（用于日志）
+            
+        Returns:
+            中文翻译或None（表示失败）
+        """
+        try:
+            print(f"  📝 翻译标题 {index + 1}: {title}")
+            
+            # 使用简化的翻译prompt
+            system_prompt = "你是专业的英中翻译专家。请将用户输入的英文章节标题翻译成中文，保持简洁优雅。只返回翻译结果，无需其他内容。"
+            user_prompt = f"请翻译以下章节标题: \"{title}\""
+            
+            response = self._call_analysis_api(system_prompt, user_prompt)
+            if response and response.strip():
+                return response.strip()
+            else:
+                print(f"  ⚠️ 标题 {index + 1} API返回空结果")
+                return None
+                
+        except Exception as e:
+            print(f"  ❌ 翻译标题 {index + 1} 异常: {e}")
+            return None
 
     def test_connection(self) -> bool:
         """测试API连接"""

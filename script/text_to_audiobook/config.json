@@ -42,11 +42,10 @@
   },
   "subtitle_parser": {
     "api_key": "sk-umedlfcxxcbzvyiobzxnigiyjrwgpeocgbffhhmwqmnlnein",
-    "enabled": true,
-    "batch_size": 5,
-    "model": "Qwen/Qwen3-8B",
-    "timeout": 120,
-    "max_retries": 5
+    "model": "moonshotai/Kimi-K2-Instruct-0905",
+    "timeout": 180,
+    "max_retries": 5,
+    "max_concurrent_workers": 10
   },
   "statistics": {
     "output_filename": "meta.json",

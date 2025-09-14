@@ -2,7 +2,11 @@
   "permissions": {
     "allow": [
       "Bash(find:*)",
-      "Bash(mv:*)"
+      "Bash(mv:*)",
+      "Bash(python:*)",
+      "Bash(wc:*)",
+      "Bash(echo)",
+      "Bash(diff:*)"
     ],
     "deny": []
   }

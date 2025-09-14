@@ -52,9 +52,6 @@ class VocabularyEnricherConfig:
     
     # 请求配置
     timeout: int = 30
-    max_retries: int = 3
-    batch_size: int = 10
-    max_workers: int = 2  # 并发线程数
     
     # 音频下载配置
     audio_download_dir: str = "audio"
