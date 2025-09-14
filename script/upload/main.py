@@ -107,6 +107,10 @@ def process_all_books(api_client: WeChatCloudAPI) -> bool:
             # 解析书籍数据
             book_data, chapters_data = parser.parse_book_data(book_dir, book_id)
             book_title = book_data.get('title', book_id)
+
+            if book_data["done"]:
+                print(f"书籍：{book_title} 已经为处理完成状态")
+                continue
             
             # 查询现有数据
             existing_book_list = api_client.query_database('books', {'_id': book_id}, limit=1)

@@ -211,9 +211,9 @@
 
 ```javascript
 {
-  _id: string,                    // 解析记录ID (book_id-article_id-subtitle_index)
+  _id: string,                    // 解析记录ID (book_id-chapter_id-subtitle_index)
   book_id: string,                // 书籍ID
-  article_id: string,             // 章节ID (关联chapters表)
+  chapter_id: string,             // 章节ID (关联chapters表)
   subtitle_index: number,         // 字幕索引 (1, 2, 3, ...)
   english_text: string,           // 英文原文
   translation: string,            // 中文翻译
@@ -256,10 +256,10 @@
 ```javascript
 [
   { _id: 1 }, // 主键索引
-  { book_id: 1, article_id: 1, subtitle_index: 1 }, // 主要业务查询（唯一）
+  { book_id: 1, chapter_id: 1, subtitle_index: 1 }, // 主要业务查询（唯一）
   { book_id: 1 }, // 书籍查询
-  { article_id: 1 }, // 章节查询
-  { book_id: 1, article_id: 1 }, // 书籍章节查询
+  { chapter_id: 1 }, // 章节查询
+  { book_id: 1, chapter_id: 1 }, // 书籍章节查询
   { subtitle_index: 1 }, // 字幕索引查询
   { created_at: -1 }, // 创建时间查询
 ];
@@ -271,7 +271,7 @@
 {
   _id: "peter-001_PETER_BREAKS_THROUGH-1",
   book_id: "peter",
-  article_id: "001_PETER_BREAKS_THROUGH",
+  chapter_id: "001_PETER_BREAKS_THROUGH",
   subtitle_index: 1,
   english_text: "All children, except one, grow up.",
   translation: "所有的孩子都会长大，除了一个。",
@@ -318,18 +318,18 @@
 // 获取某本书某篇文章的所有字幕解析
 db.subtitle_analysis.find({ 
   book_id: "peter", 
-  article_id: "001_PETER_BREAKS_THROUGH" 
+  chapter_id: "001_PETER_BREAKS_THROUGH" 
 }).sort({ subtitle_index: 1 })
 
 // 获取特定字幕的解析信息
 db.subtitle_analysis.findOne({ 
   book_id: "peter",
-  article_id: "001_PETER_BREAKS_THROUGH", 
+  chapter_id: "001_PETER_BREAKS_THROUGH", 
   subtitle_index: 1 
 })
 
 // 获取某本书的所有解析数据
-db.subtitle_analysis.find({ book_id: "peter" }).sort({ article_id: 1, subtitle_index: 1 })
+db.subtitle_analysis.find({ book_id: "peter" }).sort({ chapter_id: 1, subtitle_index: 1 })
 ```
 
 ### 2.7 学习进度表 (user_progress)

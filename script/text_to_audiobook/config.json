@@ -45,7 +45,7 @@
     "model": "Qwen/Qwen3-30B-A3B-Thinking-2507",
     "timeout": 180,
     "max_retries": 5,
-    "max_concurrent_workers": 10
+    "max_concurrent_workers": 20
   },
   "statistics": {
     "output_filename": "meta.json",

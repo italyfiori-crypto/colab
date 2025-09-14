@@ -20,7 +20,7 @@ class SubtitleAnalysisUploader:
         self.logger = logging.getLogger(__name__)
         self.program_root = program_root
         
-    def parse_analysis_file(self, analysis_file_path: str, book_id: str, article_id: str) -> List[Dict]:
+    def parse_analysis_file(self, analysis_file_path: str, book_id: str, chapter_id: str) -> List[Dict]:
         """解析字幕解析JSON文件"""
         try:
             with open(analysis_file_path, 'r', encoding='utf-8') as f:
@@ -38,12 +38,12 @@ class SubtitleAnalysisUploader:
                     
                     # 添加book_id字段和时间戳
                     analysis_data['book_id'] = book_id
-                    analysis_data['article_id'] = article_id
+                    analysis_data['chapter_id'] = chapter_id
                     analysis_data['created_at'] = int(time.time() * 1000)
                     analysis_data['updated_at'] = int(time.time() * 1000)
                     
-                    # 生成唯一ID：book_id-article_id-subtitle_index
-                    analysis_data['_id'] = f"{book_id}-{article_id}-{analysis_data['subtitle_index']}"
+                    # 生成唯一ID：book_id-chapter_id-subtitle_index
+                    analysis_data['_id'] = f"{book_id}-{chapter_id}-{analysis_data['subtitle_index']}"
                     
                     analysis_records.append(analysis_data)
                     
@@ -57,19 +57,19 @@ class SubtitleAnalysisUploader:
             self.logger.error(f"❌ 解析字幕分析文件失败 {analysis_file_path}: {e}")
             return []
     
-    def get_existing_analysis_records(self, book_id: str, article_id: str) -> Dict[int, Dict]:
+    def get_existing_analysis_records(self, book_id: str, chapter_id: str) -> Dict[int, Dict]:
         """获取现有的字幕解析记录"""
         try:
             existing_records = self.api.query_all_records('subtitle_analysis', {
                 'book_id': book_id,
-                'article_id': article_id
+                'chapter_id': chapter_id
             })
             return {record['subtitle_index']: record for record in existing_records}
         except Exception as e:
             self.logger.error(f"❌ 查询现有字幕解析记录失败: {e}")
             return {}
     
-    def upload_analysis_records(self, book_id: str, article_id: str, analysis_records: List[Dict]) -> Dict:
+    def upload_analysis_records(self, book_id: str, chapter_id: str, analysis_records: List[Dict]) -> Dict:
         """上传字幕解析记录"""
         stats = {
             'added': 0,
@@ -82,7 +82,7 @@ class SubtitleAnalysisUploader:
             return stats
             
         # 获取现有记录
-        existing_records = self.get_existing_analysis_records(book_id, article_id)
+        existing_records = self.get_existing_analysis_records(book_id, chapter_id)
         
         # 分批处理记录
         batch_size = 20
@@ -166,18 +166,18 @@ class SubtitleAnalysisUploader:
             if not filename.endswith('.json'):
                 continue
                 
-            # 从文件名提取article_id (去掉.json后缀)
-            article_id = filename[:-5]
+            # 从文件名提取chapter_id (去掉.json后缀)
+            chapter_id = filename[:-5]
             analysis_file_path = os.path.join(analysis_dir, filename)
             
             self.logger.info(f"📝 处理字幕解析文件: {filename}")
             
             # 解析文件
-            analysis_records = self.parse_analysis_file(analysis_file_path, book_id, article_id)
+            analysis_records = self.parse_analysis_file(analysis_file_path, book_id, chapter_id)
             
             if analysis_records:
                 # 上传记录
-                file_stats = self.upload_analysis_records(book_id, article_id, analysis_records)
+                file_stats = self.upload_analysis_records(book_id, chapter_id, analysis_records)
                 
                 # 更新总统计
                 total_stats['total_records'] += len(analysis_records)
@@ -203,7 +203,7 @@ class SubtitleAnalysisUploader:
             
             orphaned_records = []
             for record in existing_analysis:
-                if record['article_id'] not in existing_articles:
+                if record['chapter_id'] not in existing_articles:
                     orphaned_records.append(record['_id'])
             
             if not orphaned_records:

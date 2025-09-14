@@ -126,9 +126,286 @@ class SubtitleParser:
         
         return parsed_files
     
+    def translate_subtitle_files(self, subtitle_files: List[str], output_dir: str) -> List[str]:
+        """
+        批量翻译字幕文件，生成高质量的中英文字幕
+        使用上下文翻译提升翻译质量
+        
+        Args:
+            subtitle_files: 字幕文件路径列表
+            output_dir: 输出根目录
+            
+        Returns:
+            成功翻译的文件列表
+        """
+        translated_files = []
+        total_files = len(subtitle_files)
+        
+        print(f"🌏 开始翻译 {total_files} 个字幕文件...")
+        
+        total_stats = {
+            'files_processed': 0,
+            'files_failed': 0,
+            'files_repaired': 0
+        }
+        
+        for i, subtitle_file in enumerate(subtitle_files, 1):
+            try:
+                filename = os.path.basename(subtitle_file)
+                print(f"\n🔍 翻译字幕文件 ({i}/{total_files}): {filename}")
+                
+                # 1. 首先验证字幕文件格式
+                validation_result = self._validate_subtitle_format(subtitle_file)
+                
+                # 2. 如果格式有问题，尝试简单格式修复
+                if not validation_result['is_valid']:
+                    print(f"⚠️ 字幕格式有问题，类型: {validation_result['error_type']}")
+                    
+                    # 只对重复中文的问题进行修复
+                    if validation_result['error_type'] == 'duplicate_chinese':
+                        if self.repair_subtitle_format_only(subtitle_file):
+                            total_stats['files_repaired'] += 1
+                            print(f"✅ 字幕文件已修复: {filename}")
+                        else:
+                            print(f"⚠️ 无法修复字幕文件，将重新翻译: {filename}")
+                    else:
+                        print(f"⚠️ 字幕格式问题类型为 {validation_result['error_type']}，将重新翻译: {filename}")
+                
+                # 3. 继续正常的翻译流程
+                if self._translate_single_file(subtitle_file):
+                    translated_files.append(subtitle_file)
+                    total_stats['files_processed'] += 1
+                else:
+                    total_stats['files_failed'] += 1
+                    total_stats['files_processed'] += 1
+                
+                # 添加延迟避免API限流
+                if i < total_files:
+                    time.sleep(0.5)
+                    
+            except Exception as e:
+                print(f"❌ 翻译文件时出错 {os.path.basename(subtitle_file)}: {e}")
+                total_stats['files_failed'] += 1
+                total_stats['files_processed'] += 1
+                continue
+        
+        # 输出最终统计
+        print(f"\n📊 翻译完成统计:")
+        print(f"   📁 处理文件: {total_stats['files_processed']}")
+        print(f"   🔧 修复文件: {total_stats['files_repaired']}")
+        print(f"   ❌ 失败文件: {total_stats['files_failed']}")
+        
+        return translated_files
+    
+    def _translate_single_file(self, subtitle_file: str) -> bool:
+        """
+        翻译单个字幕文件，使用上下文提升翻译质量
+        
+        Args:
+            subtitle_file: 字幕文件路径
+            
+        Returns:
+            是否翻译成功
+        """
+        try:
+            # 解析SRT文件
+            subtitle_entries = self._parse_srt_file(subtitle_file)
+            if not subtitle_entries:
+                print(f"⚠️ 文件无有效字幕: {os.path.basename(subtitle_file)}")
+                return False
+            
+            # 检查是否需要翻译
+            needs_translation = any(
+                not entry['chinese_text'] or 
+                entry['chinese_text'].startswith('[解析失败]') or 
+                entry['chinese_text'].startswith('[翻译失败]')
+                for entry in subtitle_entries
+            )
+            
+            if not needs_translation:
+                print(f"✅ 字幕已完整翻译，跳过: {os.path.basename(subtitle_file)}")
+                return True
+            
+            print(f"🌏 开始上下文翻译，共 {len(subtitle_entries)} 条字幕")
+            
+            # 批量翻译字幕条目
+            translated_entries = self._translate_subtitle_entries_with_context(subtitle_entries)
+            if not translated_entries:
+                return False
+            
+            # 写回原文件
+            self._write_bilingual_srt(translated_entries, subtitle_file)
+            
+            return True
+            
+        except Exception as e:
+            print(f"❌ 翻译单个文件失败: {e}")
+            return False
+    
+    def _translate_subtitle_entries_with_context(self, subtitle_entries: List[Dict]) -> List[Dict]:
+        """
+        使用上下文批量翻译字幕条目
+        
+        Args:
+            subtitle_entries: 字幕条目列表
+            
+        Returns:
+            翻译后的字幕条目列表
+        """
+        translated_entries = subtitle_entries.copy()
+        total_entries = len(subtitle_entries)
+        
+        # 找出需要翻译的条目
+        entries_to_translate = []
+        for i, entry in enumerate(subtitle_entries):
+            if (not entry['chinese_text'] or 
+                entry['chinese_text'].startswith('[解析失败]') or 
+                entry['chinese_text'].startswith('[翻译失败]')):
+                entries_to_translate.append((i, entry))
+        
+        if not entries_to_translate:
+            print("✅ 所有字幕已有翻译")
+            return translated_entries
+        
+        print(f"🔄 需要翻译 {len(entries_to_translate)} 条字幕，共 {total_entries} 条")
+        
+        # 分批处理（按并发数分批）
+        batch_size = self.config.max_concurrent_workers
+        for i in range(0, len(entries_to_translate), batch_size):
+            batch = entries_to_translate[i:i + batch_size]
+            batch_num = i // batch_size + 1
+            total_batches = (len(entries_to_translate) + batch_size - 1) // batch_size
+            
+            print(f"  翻译批次 {batch_num}/{total_batches} ({len(batch)} 条字幕)")
+            
+            # 翻译当前批次
+            self._translate_batch_with_context(batch, subtitle_entries, translated_entries)
+            
+            # 添加延迟避免API限流
+            if i + batch_size < len(entries_to_translate):
+                time.sleep(0.5)
+        
+        return translated_entries
+    
+    def _translate_batch_with_context(self, batch: List[Tuple[int, Dict]], all_entries: List[Dict], result_entries: List[Dict]):
+        """
+        使用上下文翻译一批字幕条目（并发版本）
+        
+        Args:
+            batch: 需要翻译的条目批次 [(index, entry), ...]
+            all_entries: 所有字幕条目（用于获取上下文）
+            result_entries: 结果条目列表（会被修改）
+        """
+        print(f"    🚀 开始并发上下文翻译 {len(batch)} 条字幕...")
+        
+        # 使用线程池进行并发处理
+        max_workers = min(len(batch), self.config.max_concurrent_workers)
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            # 提交所有任务
+            future_to_info = {}
+            for entry_index, entry in batch:
+                # 获取上下文
+                context = self._get_context_for_translation(entry_index, all_entries)
+                future = executor.submit(self._translate_with_context, entry['english_text'], context, int(entry['index']))
+                future_to_info[future] = (entry_index, entry)
+            
+            completed_count = 0
+            for future in as_completed(future_to_info):
+                entry_index, entry = future_to_info[future]
+                try:
+                    translation = future.result()
+                    if translation:
+                        result_entries[entry_index]['chinese_text'] = translation
+                    else:
+                        result_entries[entry_index]['chinese_text'] = f"[翻译失败] {entry['english_text']}"
+                    
+                    completed_count += 1
+                    print(f"    ✅ 翻译完成字幕 {entry['index']} ({completed_count}/{len(batch)})")
+                    
+                except Exception as e:
+                    print(f"    ❌ 翻译字幕 {entry['index']} 失败: {e}")
+                    result_entries[entry_index]['chinese_text'] = f"[翻译失败] {entry['english_text']}"
+    
+    def _get_context_for_translation(self, entry_index: int, all_entries: List[Dict]) -> Dict[str, Optional[str]]:
+        """
+        获取翻译所需的上下文信息
+        
+        Args:
+            entry_index: 当前条目在列表中的索引
+            all_entries: 所有字幕条目列表
+            
+        Returns:
+            上下文字典，包含previous、current、next
+        """
+        context = {
+            'previous': None,
+            'current': all_entries[entry_index]['english_text'],
+            'next': None
+        }
+        
+        # 获取前一句
+        if entry_index > 0:
+            context['previous'] = all_entries[entry_index - 1]['english_text']
+        
+        # 获取后一句
+        if entry_index < len(all_entries) - 1:
+            context['next'] = all_entries[entry_index + 1]['english_text']
+        
+        return context
+    
+    def _translate_with_context(self, current_text: str, context: Dict[str, Optional[str]], subtitle_index: int) -> Optional[str]:
+        """
+        使用上下文翻译单个句子
+        
+        Args:
+            current_text: 当前需要翻译的句子
+            context: 上下文信息
+            subtitle_index: 字幕索引（用于日志）
+            
+        Returns:
+            翻译结果或None（表示失败）
+        """
+        try:
+            print(f"    📝 带上下文翻译字幕 {subtitle_index}: {current_text}")
+            
+            # 构建上下文翻译提示词
+            system_prompt = """你是专业的英中翻译专家，专门翻译英文字幕。
+
+要求：
+1. 根据提供的上下文理解句子的语境和情感
+2. 只翻译标记为"当前句子"的内容  
+3. 翻译要求信达雅：准确传达原意，语言自然流畅，表达优美
+4. 考虑上下文的连贯性，但只输出当前句的翻译
+5. 只返回翻译结果，无需其他内容"""
+            
+            # 构建用户提示词
+            context_parts = []
+            if context['previous']:
+                context_parts.append(f"前一句: {context['previous']}")
+            
+            context_parts.append(f"当前句子: {current_text}")
+            
+            if context['next']:
+                context_parts.append(f"后一句: {context['next']}")
+            
+            user_prompt = "\\n".join(context_parts)
+            user_prompt += "\\n\\n请翻译当前句子:"
+            
+            # 调用API
+            response = self._call_unified_api(system_prompt, user_prompt, max_tokens=500, temperature=0.3)
+            if response and response.strip():
+                return response.strip()
+            else:
+                print(f"    ⚠️ 字幕 {subtitle_index} API返回空结果")
+                return None
+                
+        except Exception as e:
+            print(f"    ❌ 翻译字幕 {subtitle_index} 异常: {e}")
+            return None
+    
     def _parse_single_file(self, subtitle_file: str, analysis_dir: str) -> bool:
         """
-        解析单个字幕文件，生成中英文字幕和JSON解析文件
+        解析单个字幕文件，专注于语言学分析（语法、词汇、短语等）
         支持增量解析：只重新处理失败的字幕行
         
         Args:
@@ -190,7 +467,6 @@ class SubtitleParser:
                     else:
                         # 如果没有分析结果，设置默认值
                         analysis_json.update({
-                            "translation": entry.get('chinese_text', f"[解析失败] {entry['english_text']}"),
                             "sentence_structure": "",
                             "key_words": [],
                             "fixed_phrases": [],
@@ -203,14 +479,8 @@ class SubtitleParser:
                 # 合并现有结果与新结果
                 merged_results = self._merge_analysis_results(existing_results, new_analysis_results)
                 
-                # 更新字幕条目的中文翻译
-                for entry in subtitle_entries:
-                    entry_index = int(entry['index'])
-                    # 查找对应的解析结果
-                    for result in merged_results:
-                        if result.get('subtitle_index') == entry_index:
-                            entry['chinese_text'] = result.get('translation', f"[解析失败] {entry['english_text']}")
-                            break
+                # 语言学解析不处理翻译，保持原有的中文文本
+                # 翻译需要使用单独的 translate_subtitle_files 方法
                 
                 # 使用合并后的结果
                 final_parsed_entries = subtitle_entries
@@ -458,20 +728,23 @@ class SubtitleParser:
                 try:
                     analysis_result = future.result()
                     if analysis_result:
-                        entry['chinese_text'] = analysis_result.get('translation', f"[翻译失败] {entry['english_text']}")
+                        # 语言学解析成功，但不包含翻译
                         entry['analysis'] = analysis_result
+                        # 翻译字段标记为需要单独处理
+                        if not entry.get('chinese_text'):
+                            entry['chinese_text'] = f"[需要翻译] {entry['english_text']}"
                     else:
-                        entry['chinese_text'] = f"[解析失败] {entry['english_text']}"
                         entry['analysis'] = {}
+                        entry['chinese_text'] = f"[解析失败] {entry['english_text']}"
                     
                     parsed_batch.append(entry)
                     completed_count += 1
-                    print(f"    ✅ 解析完成字幕 {entry['index']} ({completed_count}/{len(batch)})")
+                    print(f"    ✅ 语言学分析完成字幕 {entry['index']} ({completed_count}/{len(batch)})")
                     
                 except Exception as e:
                     print(f"    ❌ 解析字幕 {entry['index']} 失败: {e}")
-                    entry['chinese_text'] = f"[解析失败] {entry['english_text']}"
                     entry['analysis'] = {}
+                    entry['chinese_text'] = f"[解析失败] {entry['english_text']}"
                     parsed_batch.append(entry)
         
         # 按原始顺序排序
@@ -501,21 +774,21 @@ class SubtitleParser:
     
     def _analyze_single_sentence(self, english_text: str) -> Optional[Dict]:
         """
-        分析单个英文句子，返回详细的语言学解析结果
+        分析单个英文句子的语言学特征，专注于语法、词汇、短语分析
+        不包含翻译功能，翻译由单独的方法处理
         
         Args:
             english_text: 英文句子
             
         Returns:
-            包含翻译和语言学分析的字典，或None表示失败
+            包含语言学分析的字典，或None表示失败
         """
-        # 构建语言学分析提示词
+        # 构建纯语言学分析提示词
         system_prompt = """IMPORTANT: 只返回JSON格式，不要任何额外文字或解释。
 
-作为英语语言学家，请分析用户输入的英语句子，并严格按以下JSON格式输出。
+作为英语语言学家，请分析用户输入的英语句子，并严格按以下JSON格式输出语言学分析。
 
 字段要求:
-- translation: 中文翻译，要求信达雅（准确传达原意，语言自然流畅，表达优美）
 - sentence_structure: 句法成分分析（主语+谓语+宾语+状语等）
 - key_words: 句子中有意义的词汇，排除the、a、is、Mrs.等常见词
 - fixed_phrases: 有固定含义的短语搭配，排除过于简单的组合
@@ -524,7 +797,6 @@ class SubtitleParser:
 
 输出格式:
 {
-  "translation": "中文翻译",
   "sentence_structure": "句子结构分析",
   "key_words": [{"word": "单词", "pos": "词性", "meaning": "含义", "pronunciation": "音标"}],
   "fixed_phrases": [{"phrase": "短语", "meaning": "含义"}],
@@ -536,7 +808,6 @@ class SubtitleParser:
 输入: "The project that we've been working on for months, which involves multiple stakeholders, will be completed once we receive the final approval."
 输出:
 {
-  "translation": "我们已经工作了几个月的这个项目，涉及多个利益相关者，一旦我们收到最终批准就会完成。",
   "sentence_structure": "主语(The project) + 定语从句1(that we've been working on for months) + 定语从句2(which involves multiple stakeholders) + 谓语(will be completed) + 时间状语从句(once we receive the final approval)",
   "key_words": [{"word": "stakeholders", "pos": "n.", "meaning": "利益相关者", "pronunciation": "/ˈsteɪkhoʊldərz/"}, {"word": "approval", "pos": "n.", "meaning": "批准，同意", "pronunciation": "/əˈpruːvəl/"}],
   "fixed_phrases": [{"phrase": "work on", "meaning": "从事，致力于"}],
@@ -548,7 +819,6 @@ class SubtitleParser:
 输入: "She is very happy."
 输出:
 {
-  "translation": "她很开心。",
   "sentence_structure": "主语(She) + 系动词(is) + 表语(very happy)",
   "key_words": [],
   "fixed_phrases": [],
@@ -561,8 +831,8 @@ class SubtitleParser:
         user_prompt = f"请分析以下英语句子: \"{english_text}\""
         
         try:
-            # 调用API进行分析
-            response = self._call_analysis_api(system_prompt, user_prompt)
+            # 调用统一的API进行分析
+            response = self._call_unified_api(system_prompt, user_prompt, max_tokens=1500, temperature=0.2)
             if not response:
                 return None
             
@@ -573,8 +843,8 @@ class SubtitleParser:
             print(f"    ❌ 句子分析API调用失败: {e}")
             return None
     
-    def _call_analysis_api(self, system_prompt: str, user_prompt: str) -> Optional[str]:
-        """调用API进行语言学分析"""
+    def _call_unified_api(self, system_prompt: str, user_prompt: str, max_tokens: int = 1500, temperature: float = 0.2) -> Optional[str]:
+        """统一的API调用方法，支持不同类型的请求"""
         url = f"{self.config.base_url}/chat/completions"
         
         headers = {
@@ -596,138 +866,8 @@ class SubtitleParser:
                 }
             ],
             "stream": False,
-            "max_tokens": 1500,
-            "temperature": 0.2  # 较低温度确保结果稳定
-        }
-        
-        # 带重试的API调用
-        retry_delay = self.config.initial_retry_delay
-        
-        for attempt in range(self.config.max_retries + 1):
-            try:
-                response = requests.post(url, json=payload, headers=headers, timeout=self.config.timeout)
-                response.raise_for_status()
-                
-                result = response.json()
-                if 'choices' in result and len(result['choices']) > 0:
-                    content = result['choices'][0]['message']['content']
-                    return content.strip()
-                else:
-                    raise RuntimeError(f"API响应格式异常: {result}")
-                    
-            except Exception as e:
-                if attempt == self.config.max_retries:
-                    print(f"    ❌ 分析API调用失败，已达到最大重试次数({self.config.max_retries + 1}次): {e}")
-                    return None
-                
-                print(f"    ⚠️ 分析API调用失败(第{attempt + 1}次尝试): {e}")
-                time.sleep(retry_delay)
-                retry_delay = min(retry_delay * 2, self.config.max_retry_delay)
-        
-        return None
-    
-    def _parse_analysis_response(self, response: str) -> Optional[Dict]:
-        """解析API返回的语言学分析结果"""
-        try:
-            # 尝试直接解析JSON
-            analysis = json.loads(response)
-            
-            # 验证必要字段
-            required_fields = ['translation', 'sentence_structure', 'key_words', 'fixed_phrases', 'core_grammar', 'colloquial_expression']
-            for field in required_fields:
-                if field not in analysis:
-                    analysis[field] = [] if field != 'translation' and field != 'sentence_structure' else ""
-            
-            return analysis
-            
-        except json.JSONDecodeError as e:
-            print(f"    ❌ JSON解析失败: {e}")
-            # 尝试提取可能的JSON片段
-            try:
-                # 查找JSON开始和结束标记
-                start_idx = response.find('{')
-                end_idx = response.rfind('}')
-                if start_idx != -1 and end_idx != -1 and end_idx > start_idx:
-                    json_text = response[start_idx:end_idx+1]
-                    analysis = json.loads(json_text)
-                    
-                    # 验证字段
-                    required_fields = ['translation', 'sentence_structure', 'key_words', 'fixed_phrases', 'core_grammar', 'colloquial_expression']
-                    for field in required_fields:
-                        if field not in analysis:
-                            analysis[field] = [] if field != 'translation' and field != 'sentence_structure' else ""
-                    
-                    return analysis
-            except:
-                pass
-            
-            return None
-        except Exception as e:
-            print(f"    ❌ 解析响应失败: {e}")
-            return None
-    
-    def _write_analysis_json(self, parsed_entries: List[Dict], subtitle_file: str, analysis_dir: str):
-        """将解析结果写入JSON文件"""
-        try:
-            # 获取字幕文件名（不包含扩展名）
-            subtitle_name = os.path.splitext(os.path.basename(subtitle_file))[0]
-            json_file = os.path.join(analysis_dir, f"{subtitle_name}.json")
-            
-            with open(json_file, 'w', encoding='utf-8') as f:
-                for entry in parsed_entries:
-                    # 构建输出JSON对象
-                    output_json = {
-                        "subtitle_index": int(entry['index']),
-                        "english_text": entry['english_text']
-                    }
-                    
-                    # 添加分析结果
-                    if 'analysis' in entry and entry['analysis']:
-                        output_json.update(entry['analysis'])
-                    else:
-                        # 如果没有分析结果，设置默认值
-                        output_json.update({
-                            "translation": entry.get('chinese_text', ''),
-                            "sentence_structure": "",
-                            "key_words": [],
-                            "fixed_phrases": [],
-                            "core_grammar": [],
-                            "colloquial_expression": []
-                        })
-                    
-                    # 写入一行JSON
-                    f.write(json.dumps(output_json, ensure_ascii=False, separators=(',', ':')) + '\n')
-            
-            print(f"    ✅ 解析结果已保存到: {json_file}")
-            
-        except Exception as e:
-            print(f"    ❌ 保存解析结果失败: {e}")
-    
-    def _call_api(self, prompt: str) -> Optional[str]:
-        """调用 SiliconFlow API"""
-        url = f"{self.config.base_url}/chat/completions"
-        
-        headers = {
-            "accept": "application/json",
-            "content-type": "application/json",
-            "authorization": f"Bearer {self.config.api_key}"
-        }
-        
-        payload = {
-            "model": self.config.model,
-            "messages": [
-                {
-                    "role": "system", 
-                    "content": "你是一个专业的英中翻译专家，专门翻译英文字幕。你的翻译准确、自然、符合中文表达习惯。"
-                },
-                {
-                    "role": "user", 
-                    "content": prompt
-                }
-            ],
-            "stream": False,
-            "max_tokens": 2000,
-            "temperature": 0.3
+            "max_tokens": max_tokens,
+            "temperature": temperature
         }
         
         # 带指数退避的重试机制
@@ -761,6 +901,82 @@ class SubtitleParser:
                 retry_delay = min(retry_delay * 2, self.config.max_retry_delay)
         
         return None
+    
+    def _parse_analysis_response(self, response: str) -> Optional[Dict]:
+        """解析API返回的语言学分析结果（不包含翻译）"""
+        try:
+            # 尝试直接解析JSON
+            analysis = json.loads(response)
+            
+            # 验证必要字段（移除translation字段）
+            required_fields = ['sentence_structure', 'key_words', 'fixed_phrases', 'core_grammar', 'colloquial_expression']
+            for field in required_fields:
+                if field not in analysis:
+                    analysis[field] = [] if field != 'sentence_structure' else ""
+            
+            return analysis
+            
+        except json.JSONDecodeError as e:
+            print(f"    ❌ JSON解析失败: {e}")
+            # 尝试提取可能的JSON片段
+            try:
+                # 查找JSON开始和结束标记
+                start_idx = response.find('{')
+                end_idx = response.rfind('}')
+                if start_idx != -1 and end_idx != -1 and end_idx > start_idx:
+                    json_text = response[start_idx:end_idx+1]
+                    analysis = json.loads(json_text)
+                    
+                    # 验证字段（移除translation字段）
+                    required_fields = ['sentence_structure', 'key_words', 'fixed_phrases', 'core_grammar', 'colloquial_expression']
+                    for field in required_fields:
+                        if field not in analysis:
+                            analysis[field] = [] if field != 'sentence_structure' else ""
+                    
+                    return analysis
+            except:
+                pass
+            
+            return None
+        except Exception as e:
+            print(f"    ❌ 解析响应失败: {e}")
+            return None
+    
+    def _write_analysis_json(self, parsed_entries: List[Dict], subtitle_file: str, analysis_dir: str):
+        """将解析结果写入JSON文件"""
+        try:
+            # 获取字幕文件名（不包含扩展名）
+            subtitle_name = os.path.splitext(os.path.basename(subtitle_file))[0]
+            json_file = os.path.join(analysis_dir, f"{subtitle_name}.json")
+            
+            with open(json_file, 'w', encoding='utf-8') as f:
+                for entry in parsed_entries:
+                    # 构建输出JSON对象
+                    output_json = {
+                        "subtitle_index": int(entry['index']),
+                        "english_text": entry['english_text']
+                    }
+                    
+                    # 添加语言学分析结果（不包含翻译）
+                    if 'analysis' in entry and entry['analysis']:
+                        output_json.update(entry['analysis'])
+                    else:
+                        # 如果没有分析结果，设置默认值
+                        output_json.update({
+                            "sentence_structure": "",
+                            "key_words": [],
+                            "fixed_phrases": [],
+                            "core_grammar": [],
+                            "colloquial_expression": []
+                        })
+                    
+                    # 写入一行JSON
+                    f.write(json.dumps(output_json, ensure_ascii=False, separators=(',', ':')) + '\n')
+            
+            print(f"    ✅ 解析结果已保存到: {json_file}")
+            
+        except Exception as e:
+            print(f"    ❌ 保存解析结果失败: {e}")
     
     
     def _validate_subtitle_format(self, subtitle_file: str) -> Dict[str, any]:
@@ -1209,7 +1425,7 @@ class SubtitleParser:
             system_prompt = "你是专业的英中翻译专家。请将用户输入的英文章节标题翻译成中文，保持简洁优雅。只返回翻译结果，无需其他内容。"
             user_prompt = f"请翻译以下章节标题: \"{title}\""
             
-            response = self._call_analysis_api(system_prompt, user_prompt)
+            response = self._call_unified_api(system_prompt, user_prompt, max_tokens=500, temperature=0.3)
             if response and response.strip():
                 return response.strip()
             else:
@@ -1224,7 +1440,7 @@ class SubtitleParser:
         """测试API连接"""
         print("正在测试 SiliconFlow API 连接...")
         try:
-            response = self._call_analysis_api("你是一个AI助手", "请回答：你好")
+            response = self._call_unified_api("你是一个AI助手", "请回答：你好", max_tokens=50, temperature=0.3)
             if response:
                 print(f"✅ API连接成功，响应: {response[:50]}...")
                 return True

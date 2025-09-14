@@ -23,7 +23,9 @@
       "WebFetch(domain:dictionary.cambridge.org)",
       "WebFetch(domain:stackoverflow.com)",
       "Bash(curl:*)",
-      "Bash(wc:*)"
+      "Bash(wc:*)",
+      "Bash(find:*)",
+      "Bash(node:*)"
     ],
     "deny": []
   }
