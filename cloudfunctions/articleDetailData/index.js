@@ -11,11 +11,11 @@ function getNowTimestamp() {
 }
 
 exports.main = async (event, context) => {
-  const { type, chapterId, bookId, currentTime, completed, word, wordId, page, pageSize } = event
+  const { type, chapterId, bookId, currentTime, completed, word, wordId, page, pageSize, subtitleIndex } = event
   const { OPENID } = cloud.getWXContext()
   const user_id = OPENID
 
-  console.log('📖 [DEBUG] articleDetailData云函数开始执行:', { type, chapterId, bookId, user_id, currentTime, completed, word, wordId, page, pageSize })
+  console.log('📖 [DEBUG] articleDetailData云函数开始执行:', { type, chapterId, bookId, user_id, currentTime, completed, word, wordId, page, pageSize, subtitleIndex })
 
   try {
     switch (type) {
@@ -31,6 +31,8 @@ exports.main = async (event, context) => {
         return await addWordToCollection(word, user_id, bookId, chapterId)
       case 'removeWordFromCollection':
         return await removeWordFromCollection(wordId, user_id)
+      case 'getSubtitleAnalysis':
+        return await getSubtitleAnalysis(bookId, chapterId, subtitleIndex)
       default:
         console.log('❌ [DEBUG] 未知操作类型:', type)
         return {
@@ -560,4 +562,60 @@ async function batchQueryVocabularies(wordIds) {
   console.log('📥 [DEBUG] 分批查询完成:', { totalFound: vocabularies.length })
 
   return vocabularies
+}
+
+// 获取字幕解析信息
+async function getSubtitleAnalysis(bookId, chapterId, subtitleIndex) {
+  console.log('🔄 [DEBUG] 开始获取字幕解析信息:', { bookId, chapterId, subtitleIndex })
+
+  // 参数验证
+  if (!bookId || !chapterId || subtitleIndex === undefined || subtitleIndex === null) {
+    console.log('❌ [DEBUG] 参数验证失败:', { bookId, chapterId, subtitleIndex })
+    return {
+      code: -1,
+      message: '缺少必要参数：书籍ID、章节ID或字幕索引'
+    }
+  }
+
+  try {
+    // 构建查询条件
+    const query = {
+      book_id: bookId,
+      article_id: chapterId,
+      subtitle_index: parseInt(subtitleIndex)
+    }
+
+    console.log('📤 [DEBUG] 查询字幕解析信息:', query)
+
+    // 查询字幕解析数据
+    const analysisResult = await db.collection('subtitle_analysis')
+      .where(query)
+      .limit(1)
+      .get()
+
+    console.log('📥 [DEBUG] 查询结果:', analysisResult.data.length)
+
+    if (!analysisResult.data || analysisResult.data.length === 0) {
+      console.log('❌ [DEBUG] 未找到字幕解析信息:', query)
+      return {
+        code: -1,
+        message: '未找到该字幕的解析信息'
+      }
+    }
+
+    const analysisData = analysisResult.data[0]
+    console.log('✅ [DEBUG] 获取字幕解析信息成功')
+
+    return {
+      code: 0,
+      data: analysisData
+    }
+
+  } catch (error) {
+    console.error('❌ [DEBUG] 获取字幕解析信息失败:', error)
+    return {
+      code: -1,
+      message: '获取字幕解析信息失败: ' + error.message
+    }
+  }
 }

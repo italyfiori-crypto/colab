@@ -10,10 +10,10 @@
   - [2.2 书籍信息表 (books)](#22-书籍信息表-books)
   - [2.3 章节内容表 (chapters)](#23-章节内容表-chapters)
   - [2.4 单词词汇表 (vocabularies)](#24-单词词汇表-vocabularies)
-  - [2.5 章节单词关联表 (chapter_vocabularies)](#25-章节单词关联表-chapter_vocabularies)
-  - [2.6 学习进度表 (user_progress)](#26-学习进度表-user_progress)
-  - [2.7 单词学习记录表 (word_records)](#27-单词学习记录表-word_records)
-  - [2.8 每日学习统计表 (daily_stats)](#28-每日学习统计表-daily_stats)
+  - [2.6 字幕解析信息表 (subtitle_analysis)](#26-字幕解析信息表-subtitle_analysis)
+  - [2.7 学习进度表 (user_progress)](#27-学习进度表-user_progress)
+  - [2.8 单词学习记录表 (word_records)](#28-单词学习记录表-word_records)
+  - [2.9 每日学习统计表 (daily_stats)](#29-每日学习统计表-daily_stats)
 - [3. 数据关系图](#3-数据关系图)
 - [4. 设计优化说明](#4-设计优化说明)
   - [4.1 表结构简化](#41-表结构简化)
@@ -205,19 +205,49 @@
 ];
 ```
 
-### 2.5 章节单词关联表 (chapter_vocabularies)
+### 2.6 字幕解析信息表 (subtitle_analysis)
 
-**功能**: 记录每个章节包含的单词及其在章节中的重要性
+**功能**: 存储AI解析的字幕语言学习信息，为每行字幕提供详细的语法、单词、短语分析
 
 ```javascript
 {
-  _id: string,              // 关联ID (book_id_chapter_id_word)
-  book_id: string,          // 书籍ID
-  chapter_id: string,       // 章节ID
-  word_list: []string       // 单词列表
-  word_info_list: []string  // 单词信息列表 "{word},{tags},{frq},{collins},{oxford}"
-  created_at: number,           // 创建时间戳（毫秒）
-  updated_at: number            // 更新时间戳（毫秒）
+  _id: string,                    // 解析记录ID (book_id-article_id-subtitle_index)
+  book_id: string,                // 书籍ID
+  article_id: string,             // 章节ID (关联chapters表)
+  subtitle_index: number,         // 字幕索引 (1, 2, 3, ...)
+  english_text: string,           // 英文原文
+  translation: string,            // 中文翻译
+  sentence_structure: string,     // 句子结构分析
+
+  // 重点单词数组
+  key_words: [{
+    word: string,                 // 单词
+    pos: string,                  // 词性 (如: "n.", "v.", "adj.")
+    meaning: string,              // 中文含义
+    pronunciation: string         // 音标
+  }],
+
+  // 固定短语数组
+  fixed_phrases: [{
+    phrase: string,               // 固定短语
+    meaning: string               // 中文含义
+  }],
+
+  // 核心语法点数组
+  core_grammar: [{
+    point: string,                // 语法点名称
+    explanation: string           // 详细解释
+  }],
+
+  // 口语表达数组
+  colloquial_expression: [{
+    formal: string,               // 正式表达
+    informal: string,             // 非正式/口语表达
+    explanation: string           // 解释说明
+  }],
+
+  created_at: number,             // 创建时间戳（毫秒）
+  updated_at: number              // 更新时间戳（毫秒）
 }
 ```
 
@@ -226,13 +256,83 @@
 ```javascript
 [
   { _id: 1 }, // 主键索引
-  { chapter_id: 1 }, // 章节单词查询
-  { book_id: 1, chapter_id: 1 }, // 书籍章节查询
-  { word: 1 }, // 单词查询
+  { book_id: 1, article_id: 1, subtitle_index: 1 }, // 主要业务查询（唯一）
+  { book_id: 1 }, // 书籍查询
+  { article_id: 1 }, // 章节查询
+  { book_id: 1, article_id: 1 }, // 书籍章节查询
+  { subtitle_index: 1 }, // 字幕索引查询
+  { created_at: -1 }, // 创建时间查询
 ];
 ```
 
-### 2.6 学习进度表 (user_progress)
+**数据示例**:
+
+```javascript
+{
+  _id: "peter-001_PETER_BREAKS_THROUGH-1",
+  book_id: "peter",
+  article_id: "001_PETER_BREAKS_THROUGH",
+  subtitle_index: 1,
+  english_text: "All children, except one, grow up.",
+  translation: "所有的孩子都会长大，除了一个。",
+  sentence_structure: "主语(All children) + 插入语(except one) + 谓语(grow up)",
+  key_words: [
+    {
+      word: "children",
+      pos: "n.",
+      meaning: "孩子们",
+      pronunciation: "/ˈtʃɪldrən/"
+    },
+    {
+      word: "grow",
+      pos: "v.",
+      meaning: "成长，长大",
+      pronunciation: "/ɡroʊ/"
+    }
+  ],
+  fixed_phrases: [
+    {
+      phrase: "grow up",
+      meaning: "长大，成长"
+    }
+  ],
+  core_grammar: [
+    {
+      point: "一般现在时",
+      explanation: "表示普遍真理或客观事实，所有孩子都会长大是自然规律"
+    },
+    {
+      point: "插入语",
+      explanation: "'except one'作为插入语，起到补充说明的作用，暗示了故事的特殊性"
+    }
+  ],
+  colloquial_expression: [],
+  created_at: 1703232000000,
+  updated_at: 1703232000000
+}
+```
+
+**查询示例**:
+
+```javascript
+// 获取某本书某篇文章的所有字幕解析
+db.subtitle_analysis.find({ 
+  book_id: "peter", 
+  article_id: "001_PETER_BREAKS_THROUGH" 
+}).sort({ subtitle_index: 1 })
+
+// 获取特定字幕的解析信息
+db.subtitle_analysis.findOne({ 
+  book_id: "peter",
+  article_id: "001_PETER_BREAKS_THROUGH", 
+  subtitle_index: 1 
+})
+
+// 获取某本书的所有解析数据
+db.subtitle_analysis.find({ book_id: "peter" }).sort({ article_id: 1, subtitle_index: 1 })
+```
+
+### 2.7 学习进度表 (user_progress)
 
 **功能**: 记录用户对各书籍的学习进度
 
@@ -300,7 +400,7 @@
 ];
 ```
 
-### 2.8 每日学习统计表 (daily_stats)
+### 2.9 每日学习统计表 (daily_stats)
 
 **功能**: 记录用户每日学习统计数据，用于生成 GitHub 风格的学习日历
 
@@ -338,7 +438,7 @@ users (用户)
 
 books (书籍)
 ├── chapters (章节)
-└── chapter_vocabularies (章节单词) ──→ vocabularies (单词)
+└── subtitle_analysis (字幕解析) ──→ chapters (章节)
 ```
 
 ## 4. 设计优化说明

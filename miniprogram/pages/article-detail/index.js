@@ -47,7 +47,14 @@ Page({
         audioCache: {}, // 音频实例缓存
 
         // 用户设置
-        userSettings: {}
+        userSettings: {},
+
+        // AI解析弹窗相关
+        showAiAnalysis: false,
+        analysisLoading: false,
+        analysisError: '',
+        analysisData: {},
+        currentAnalysisIndex: -1
     },
 
     async onLoad(options) {
@@ -684,6 +691,96 @@ Page({
             showWordDetail: false,
             currentWord: {}
         });
+    },
+
+    // AI解析按钮点击事件
+    async onAnalysisClick(e) {
+        const index = parseInt(e.currentTarget.dataset.index);
+        console.log('点击AI解析按钮，字幕索引:', index);
+
+        this.setData({
+            showAiAnalysis: true,
+            analysisLoading: true,
+            analysisError: '',
+            analysisData: {},
+            currentAnalysisIndex: index
+        });
+
+        // 调用云函数获取解析数据
+        try {
+            const result = await wx.cloud.callFunction({
+                name: 'articleDetailData',
+                data: {
+                    type: 'getSubtitleAnalysis',
+                    bookId: this.data.bookId,
+                    chapterId: this.data.chapterId,
+                    subtitleIndex: index + 1 // 数据库中的索引从1开始
+                }
+            });
+
+            console.log('AI解析云函数响应:', result.result);
+
+            if (result.result.code === 0) {
+                this.setData({
+                    analysisLoading: false,
+                    analysisData: result.result.data
+                });
+            } else {
+                this.setData({
+                    analysisLoading: false,
+                    analysisError: result.result.message || '获取解析信息失败'
+                });
+            }
+        } catch (error) {
+            console.error('调用AI解析云函数失败:', error);
+            this.setData({
+                analysisLoading: false,
+                analysisError: '网络异常，请重试'
+            });
+        }
+    },
+
+    // 关闭AI解析弹窗
+    onCloseAiAnalysis() {
+        this.setData({
+            showAiAnalysis: false,
+            analysisLoading: false,
+            analysisError: '',
+            analysisData: {},
+            currentAnalysisIndex: -1
+        });
+    },
+
+    // 重新获取AI解析
+    onRetryAnalysis() {
+        if (this.data.currentAnalysisIndex >= 0) {
+            this.onAnalysisClick({
+                currentTarget: {
+                    dataset: {
+                        index: this.data.currentAnalysisIndex
+                    }
+                }
+            });
+        }
+    },
+
+    // AI解析弹窗拖拽相关事件
+    onAnalysisCardTouchStart(e) {
+        this.analysisStartY = e.touches[0].clientY;
+    },
+
+    onAnalysisCardTouchMove(e) {
+        // 可以添加拖拽效果逻辑
+    },
+
+    onAnalysisCardTouchEnd(e) {
+        if (this.analysisStartY && e.changedTouches[0]) {
+            const deltaY = e.changedTouches[0].clientY - this.analysisStartY;
+            if (deltaY > 100) { // 向下拖拽超过100px则关闭
+                this.onCloseAiAnalysis();
+            }
+        }
+        this.analysisStartY = null;
     },
 
     // 翻译标签为中文

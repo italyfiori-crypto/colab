@@ -1,0 +1,29 @@
+<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- 连接的单词块 -->
+  <rect x="2" y="8" width="5" height="3" rx="1.5" fill="#3B82F6" opacity="0.8"/>
+  <text x="4.5" y="10" text-anchor="middle" font-size="7" fill="white" font-weight="bold">look</text>
+  
+  <rect x="9" y="8" width="5" height="3" rx="1.5" fill="#3B82F6" opacity="0.8"/>
+  <text x="11.5" y="10" text-anchor="middle" font-size="7" fill="white" font-weight="bold">after</text>
+  
+  <!-- 连接线 -->
+  <path d="M7 9.5L9 9.5" stroke="#10B981" stroke-width="2"/>
+  <circle cx="8" cy="9.5" r="1" fill="#10B981"/>
+  
+  <!-- 等号 -->
+  <path d="M16 8L20 8" stroke="#374151" stroke-width="2"/>
+  <path d="M16 11L20 11" stroke="#374151" stroke-width="2"/>
+  
+  <!-- 结果 -->
+  <rect x="2" y="15" width="12" height="3" rx="1.5" fill="#10B981" opacity="0.2" stroke="#10B981" stroke-width="1.5"/>
+  <text x="8" y="17" text-anchor="middle" font-size="8" fill="#10B981">照顾</text>
+  
+  <!-- 装饰性引号 -->
+  <path d="M1 5C1 5 1.5 4 2 5C2.5 4 3 5 3 5" stroke="#F59E0B" stroke-width="1.5" fill="none"/>
+  <path d="M21 5C21 5 21.5 4 22 5C22.5 4 23 5 23 5" stroke="#F59E0B" stroke-width="1.5" fill="none"/>
+  
+  <!-- 链接图标 -->
+  <circle cx="5" cy="21" r="1.5" stroke="#374151" stroke-width="1.5" fill="none"/>
+  <circle cx="11" cy="21" r="1.5" stroke="#374151" stroke-width="1.5" fill="none"/>
+  <path d="M6.5 21L9.5 21" stroke="#374151" stroke-width="1.5"/>
+</svg>

@@ -20,7 +20,7 @@
           {{item.timeText}}
         </view>
         
-        <!-- 字幕内容区域（右侧） -->
+        <!-- 字幕内容区域（中间） -->
         <view class="subtitle-content">
           <view class="subtitle-english" wx:if="{{subtitleMode === 'en' || subtitleMode === 'both'}}">
             <text 
@@ -32,6 +32,11 @@
             >{{item.text}}</text>
           </view>
           <view class="subtitle-chinese" wx:if="{{subtitleMode === 'zh' || subtitleMode === 'both'}}">{{item.chinese}}</view>
+        </view>
+
+        <!-- AI解析按钮（右侧） -->
+        <view class="ai-analysis-btn" bindtap="onAnalysisClick" data-index="{{index}}">
+          <image class="ai-icon" src="/resource/icons/ai-analysis.svg" mode="aspectFit"></image>
         </view>
       </view>
     </view>
@@ -234,6 +239,126 @@
           {{currentWord.is_favorited ? '已收藏' : '加入单词本'}}
         </view>
       </view>
+    </view>
+  </view>
+
+  <!-- AI解析弹窗 -->
+  <view class="ai-analysis-overlay {{showAiAnalysis ? 'show' : ''}}" bindtap="onCloseAiAnalysis">
+    <view 
+      class="ai-analysis-modal {{showAiAnalysis ? 'slide-up' : ''}}" 
+      catchtap="stopPropagation"
+      bindtouchstart="onAnalysisCardTouchStart"
+      bindtouchmove="onAnalysisCardTouchMove"
+      bindtouchend="onAnalysisCardTouchEnd"
+    >
+      <!-- 拖拽把手 -->
+      <view class="drag-handle"></view>
+      
+      <!-- 弹窗头部 -->
+      <view class="ai-analysis-header">
+        <text class="ai-analysis-title">AI 语言解析</text>
+        <view class="close-btn" bindtap="onCloseAiAnalysis">
+          <image class="close-icon" src="/resource/icons/close.svg" mode="aspectFit"></image>
+        </view>
+      </view>
+      
+      <!-- 解析内容 -->
+      <scroll-view class="ai-analysis-content" scroll-y="{{true}}">
+        <view wx:if="{{analysisLoading}}" class="loading-container">
+          <view class="loading-spinner"></view>
+          <text class="loading-text">AI正在解析中...</text>
+        </view>
+        
+        <view wx:elif="{{analysisError}}" class="error-container">
+          <image class="error-icon" src="/resource/icons/error.svg" mode="aspectFit"></image>
+          <text class="error-text">{{analysisError}}</text>
+          <view class="retry-btn" bindtap="onRetryAnalysis">重新获取</view>
+        </view>
+        
+        <view wx:else class="analysis-sections">
+          <!-- 原文和翻译 -->
+          <view class="analysis-section">
+            <view class="section-header">
+              <image class="section-icon" src="/resource/icons/translate.svg" mode="aspectFit"></image>
+              <text class="section-title">原文翻译</text>
+            </view>
+            <view class="original-text">{{analysisData.english_text}}</view>
+            <view class="translation-text">{{analysisData.translation}}</view>
+          </view>
+          
+          <!-- 句子结构 -->
+          <view class="analysis-section" wx:if="{{analysisData.sentence_structure}}">
+            <view class="section-header">
+              <image class="section-icon" src="/resource/icons/structure.svg" mode="aspectFit"></image>
+              <text class="section-title">句子结构</text>
+            </view>
+            <view class="structure-text">{{analysisData.sentence_structure}}</view>
+          </view>
+          
+          <!-- 重点单词 -->
+          <view class="analysis-section" wx:if="{{analysisData.key_words && analysisData.key_words.length > 0}}">
+            <view class="section-header">
+              <image class="section-icon" src="/resource/icons/key-words.svg" mode="aspectFit"></image>
+              <text class="section-title">重点单词</text>
+            </view>
+            <view class="key-words-list">
+              <view wx:for="{{analysisData.key_words}}" wx:key="word" class="key-word-item">
+                <view class="word-info">
+                  <text class="word">{{item.word}}</text>
+                  <text class="pos">{{item.pos}}</text>
+                  <text class="pronunciation">{{item.pronunciation}}</text>
+                </view>
+                <view class="word-meaning">{{item.meaning}}</view>
+              </view>
+            </view>
+          </view>
+          
+          <!-- 固定短语 -->
+          <view class="analysis-section" wx:if="{{analysisData.fixed_phrases && analysisData.fixed_phrases.length > 0}}">
+            <view class="section-header">
+              <image class="section-icon" src="/resource/icons/phrase.svg" mode="aspectFit"></image>
+              <text class="section-title">固定短语</text>
+            </view>
+            <view class="phrases-list">
+              <view wx:for="{{analysisData.fixed_phrases}}" wx:key="phrase" class="phrase-item">
+                <text class="phrase">{{item.phrase}}</text>
+                <text class="phrase-meaning">{{item.meaning}}</text>
+              </view>
+            </view>
+          </view>
+          
+          <!-- 核心语法 -->
+          <view class="analysis-section" wx:if="{{analysisData.core_grammar && analysisData.core_grammar.length > 0}}">
+            <view class="section-header">
+              <image class="section-icon" src="/resource/icons/grammar.svg" mode="aspectFit"></image>
+              <text class="section-title">核心语法</text>
+            </view>
+            <view class="grammar-list">
+              <view wx:for="{{analysisData.core_grammar}}" wx:key="point" class="grammar-item">
+                <view class="grammar-point">{{item.point}}</view>
+                <view class="grammar-explanation">{{item.explanation}}</view>
+              </view>
+            </view>
+          </view>
+          
+          <!-- 口语表达 -->
+          <view class="analysis-section" wx:if="{{analysisData.colloquial_expression && analysisData.colloquial_expression.length > 0}}">
+            <view class="section-header">
+              <image class="section-icon" src="/resource/icons/colloquial.svg" mode="aspectFit"></image>
+              <text class="section-title">口语表达</text>
+            </view>
+            <view class="colloquial-list">
+              <view wx:for="{{analysisData.colloquial_expression}}" wx:key="formal" class="colloquial-item">
+                <view class="expression-pair">
+                  <view class="formal">正式：{{item.formal}}</view>
+                  <view class="informal">口语：{{item.informal}}</view>
+                </view>
+                <view class="expression-explanation">{{item.explanation}}</view>
+              </view>
+            </view>
+          </view>
+        </view>
+      </scroll-view>
     </view>
   </view>
 </view> 
