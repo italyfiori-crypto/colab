@@ -74,7 +74,6 @@ class SubtitleParser:
         total_stats = {
             'files_processed': 0,
             'files_failed': 0,
-            'files_repaired': 0,
             'files_skipped': 0
         }
         
@@ -83,24 +82,7 @@ class SubtitleParser:
                 filename = os.path.basename(subtitle_file)
                 print(f"\n🔍 解析字幕文件 ({i}/{total_files}): {filename}")
                 
-                # 1. 首先验证字幕文件格式
-                validation_result = self._validate_subtitle_format(subtitle_file)
-                
-                # 2. 如果格式有问题，尝试简单格式修复
-                if not validation_result['is_valid']:
-                    print(f"⚠️ 字幕格式有问题，类型: {validation_result['error_type']}")
-                    
-                    # 只对重复中文的问题进行修复
-                    if validation_result['error_type'] == 'duplicate_chinese':
-                        if self.repair_subtitle_format_only(subtitle_file):
-                            total_stats['files_repaired'] += 1
-                            print(f"✅ 字幕文件已修复: {filename}")
-                        else:
-                            print(f"⚠️ 无法修复字幕文件，将重新解析: {filename}")
-                    else:
-                        print(f"⚠️ 字幕格式问题类型为 {validation_result['error_type']}，将重新解析: {filename}")
-                
-                # 3. 继续正常的解析流程
+                # 直接进行解析流程
                 if self._parse_single_file(subtitle_file, analysis_dir):
                     parsed_files.append(subtitle_file)
                     total_stats['files_processed'] += 1
@@ -121,7 +103,6 @@ class SubtitleParser:
         # 输出最终统计
         print(f"\n📊 解析完成统计:")
         print(f"   📁 处理文件: {total_stats['files_processed']}")
-        print(f"   🔧 修复文件: {total_stats['files_repaired']}")
         print(f"   ❌ 失败文件: {total_stats['files_failed']}")
         
         return parsed_files
@@ -145,8 +126,7 @@ class SubtitleParser:
         
         total_stats = {
             'files_processed': 0,
-            'files_failed': 0,
-            'files_repaired': 0
+            'files_failed': 0
         }
         
         for i, subtitle_file in enumerate(subtitle_files, 1):
@@ -154,24 +134,7 @@ class SubtitleParser:
                 filename = os.path.basename(subtitle_file)
                 print(f"\n🔍 翻译字幕文件 ({i}/{total_files}): {filename}")
                 
-                # 1. 首先验证字幕文件格式
-                validation_result = self._validate_subtitle_format(subtitle_file)
-                
-                # 2. 如果格式有问题，尝试简单格式修复
-                if not validation_result['is_valid']:
-                    print(f"⚠️ 字幕格式有问题，类型: {validation_result['error_type']}")
-                    
-                    # 只对重复中文的问题进行修复
-                    if validation_result['error_type'] == 'duplicate_chinese':
-                        if self.repair_subtitle_format_only(subtitle_file):
-                            total_stats['files_repaired'] += 1
-                            print(f"✅ 字幕文件已修复: {filename}")
-                        else:
-                            print(f"⚠️ 无法修复字幕文件，将重新翻译: {filename}")
-                    else:
-                        print(f"⚠️ 字幕格式问题类型为 {validation_result['error_type']}，将重新翻译: {filename}")
-                
-                # 3. 继续正常的翻译流程
+                # 直接进行翻译流程
                 if self._translate_single_file(subtitle_file):
                     translated_files.append(subtitle_file)
                     total_stats['files_processed'] += 1
@@ -192,7 +155,6 @@ class SubtitleParser:
         # 输出最终统计
         print(f"\n📊 翻译完成统计:")
         print(f"   📁 处理文件: {total_stats['files_processed']}")
-        print(f"   🔧 修复文件: {total_stats['files_repaired']}")
         print(f"   ❌ 失败文件: {total_stats['files_failed']}")
         
         return translated_files
@@ -978,274 +940,6 @@ class SubtitleParser:
         except Exception as e:
             print(f"    ❌ 保存解析结果失败: {e}")
     
-    
-    def _validate_subtitle_format(self, subtitle_file: str) -> Dict[str, any]:
-        """
-        验证字幕文件格式是否符合规范（索引、时间戳、英文、中文翻译）
-        
-        Args:
-            subtitle_file: 字幕文件路径
-            
-        Returns:
-            验证结果字典，包含is_valid、error_type、error_details等
-        """
-        result = {
-            'is_valid': False,
-            'error_type': None,
-            'error_details': [],
-            'total_blocks': 0,
-            'corrupted_blocks': []
-        }
-        
-        try:
-            with open(subtitle_file, 'r', encoding='utf-8') as f:
-                content = f.read().strip()
-            
-            if not content:
-                result['error_type'] = 'empty_file'
-                result['error_details'].append("字幕文件为空")
-                print(f"⚠️ 字幕文件为空: {os.path.basename(subtitle_file)}")
-                return result
-            
-            # 按空行分割字幕条目
-            blocks = content.split('\n\n')
-            result['total_blocks'] = len(blocks)
-            expected_index = 1
-            has_format_errors = False
-            has_duplicate_chinese = False
-            
-            for i, block in enumerate(blocks):
-                lines = block.strip().split('\n')
-                
-                # 每个字幕条目应该有4行：索引、时间戳、英文、中文
-                if len(lines) != 4:
-                    has_format_errors = True
-                    corrupted_info = {
-                        'block_index': i + 1,
-                        'expected_lines': 4,
-                        'actual_lines': len(lines),
-                        'lines_content': lines
-                    }
-                    result['corrupted_blocks'].append(corrupted_info)
-                    
-                    # 检查是否是重复中文的情况
-                    if len(lines) == 5:
-                        # 检查第4和第5行是否相同（重复中文）
-                        if len(lines) >= 5 and lines[3].strip() == lines[4].strip():
-                            has_duplicate_chinese = True
-                            corrupted_info['duplicate_chinese'] = True
-                    
-                    print(f"⚠️ 字幕条目 {i+1} 格式错误：应该有4行，实际有{len(lines)}行")
-                    continue
-                
-                # 验证索引
-                try:
-                    index = int(lines[0].strip())
-                    if index != expected_index:
-                        has_format_errors = True
-                        result['corrupted_blocks'].append({
-                            'block_index': i + 1,
-                            'error': 'index_mismatch',
-                            'expected': expected_index,
-                            'actual': index
-                        })
-                        print(f"⚠️ 字幕索引不连续，期望{expected_index}，实际{index}")
-                    expected_index = index + 1
-                except ValueError:
-                    has_format_errors = True
-                    result['corrupted_blocks'].append({
-                        'block_index': i + 1,
-                        'error': 'invalid_index',
-                        'content': lines[0]
-                    })
-                    print(f"⚠️ 字幕索引格式错误: {lines[0]}")
-                    expected_index += 1
-                
-                # 验证时间戳格式（仅在有4行时验证）
-                if len(lines) >= 4:
-                    timestamp = lines[1].strip()
-                    if ' --> ' not in timestamp:
-                        has_format_errors = True
-                        result['corrupted_blocks'].append({
-                            'block_index': i + 1,
-                            'error': 'invalid_timestamp',
-                            'content': timestamp
-                        })
-                        print(f"⚠️ 时间戳格式错误: {timestamp}")
-                    
-                    # 验证英文和中文不为空
-                    english_text = lines[2].strip()
-                    chinese_text = lines[3].strip()
-                    
-                    if not english_text:
-                        has_format_errors = True
-                        result['corrupted_blocks'].append({
-                            'block_index': i + 1,
-                            'error': 'empty_english'
-                        })
-                        print(f"⚠️ 字幕条目 {expected_index-1} 英文为空")
-                    
-                    if not chinese_text:
-                        has_format_errors = True
-                        result['corrupted_blocks'].append({
-                            'block_index': i + 1,
-                            'error': 'empty_chinese'
-                        })
-                        print(f"⚠️ 字幕条目 {expected_index-1} 中文翻译为空")
-                    
-                    # 检查中文翻译是否包含失败标识
-                    if chinese_text.startswith('[解析失败]') or chinese_text.startswith('[翻译失败]'):
-                        has_format_errors = True
-                        result['corrupted_blocks'].append({
-                            'block_index': i + 1,
-                            'error': 'translation_failed',
-                            'content': chinese_text[:30]
-                        })
-                        print(f"⚠️ 字幕条目 {expected_index-1} 包含翻译失败标识: {chinese_text[:20]}...")
-            
-            # 设置错误类型
-            if has_duplicate_chinese:
-                result['error_type'] = 'duplicate_chinese'
-            elif has_format_errors:
-                result['error_type'] = 'format_error'
-            else:
-                result['is_valid'] = True
-                print(f"✅ 字幕文件格式验证通过: {os.path.basename(subtitle_file)}")
-            
-            return result
-            
-        except Exception as e:
-            result['error_type'] = 'read_error'
-            result['error_details'].append(str(e))
-            print(f"❌ 字幕文件格式验证失败 {os.path.basename(subtitle_file)}: {e}")
-            return result
-    
-    def repair_subtitle_format_only(self, subtitle_file: str) -> bool:
-        """
-        仅修复SRT字幕文件的格式问题（行数超过4行的情况）
-        不依赖JSON文件，只处理明显的格式错误
-        
-        Args:
-            subtitle_file: 需要修复的字幕文件路径
-            
-        Returns:
-            是否修复成功
-        """
-        try:
-            print(f"🔧 开始修复字幕格式: {os.path.basename(subtitle_file)}")
-            
-            # 读取原文件
-            with open(subtitle_file, 'r', encoding='utf-8') as f:
-                content = f.read().strip()
-            
-            if not content:
-                print(f"⚠️ 字幕文件为空，无需修复")
-                return True
-            
-            # 备份原文件
-            backup_file = f"{subtitle_file}.backup"
-            try:
-                import shutil
-                shutil.copy2(subtitle_file, backup_file)
-                print(f"📋 已备份原文件到: {backup_file}")
-            except Exception as e:
-                print(f"⚠️ 备份文件失败: {e}")
-            
-            # 按空行分割字幕条目
-            blocks = content.split('\n\n')
-            fixed_blocks = []
-            repaired_count = 0
-            skipped_count = 0
-            
-            for i, block in enumerate(blocks):
-                lines = block.strip().split('\n')
-                
-                # 格式正确的条目直接保留
-                if len(lines) == 4:
-                    fixed_blocks.append(block)
-                    continue
-                
-                # 行数超过4的条目进行修复
-                elif len(lines) > 4:
-                    # 检查前4行是否完整：索引、时间戳、英文、中文
-                    if len(lines) >= 4:
-                        try:
-                            # 验证索引是否为数字
-                            int(lines[0].strip())
-                            
-                            # 验证时间戳格式
-                            timestamp = lines[1].strip()
-                            if ' --> ' not in timestamp:
-                                skipped_count += 1
-                                continue
-                            
-                            # 检查英文和中文是否都有内容
-                            english_text = lines[2].strip()
-                            chinese_text = lines[3].strip()
-                            
-                            if not english_text:
-                                skipped_count += 1
-                                continue
-                            
-                            # 如果中文为空或是解析失败标记，跳过此条目
-                            if not chinese_text or chinese_text.startswith('[解析失败]') or chinese_text.startswith('[翻译失败]'):
-                                skipped_count += 1
-                                continue
-                            
-                            # 只保留前4行，修复格式
-                            fixed_block = '\n'.join(lines[:4])
-                            fixed_blocks.append(fixed_block)
-                            repaired_count += 1
-                            
-                        except ValueError:
-                            # 索引不是数字，跳过
-                            skipped_count += 1
-                            continue
-                    else:
-                        # 行数不够4行，跳过
-                        skipped_count += 1
-                        continue
-                
-                # 行数少于4的条目跳过
-                else:
-                    skipped_count += 1
-                    continue
-            
-            # 如果没有修复任何条目，删除备份文件并返回成功
-            if repaired_count == 0:
-                try:
-                    os.remove(backup_file)
-                except:
-                    pass
-                print(f"✅ 没有发现需要修复的格式问题")
-                return True
-            
-            # 重写文件
-            with open(subtitle_file, 'w', encoding='utf-8') as f:
-                for i, block in enumerate(fixed_blocks):
-                    f.write(block)
-                    if i < len(fixed_blocks) - 1:  # 最后一个条目后不加空行
-                        f.write('\n\n')
-            
-            # 简化验证：只检查每个条目是否有4行，不检查索引连续性
-            print(f"✅ 字幕格式修复完成: 修复了{repaired_count}个条目，跳过了{skipped_count}个条目")
-            
-            # 删除备份文件
-            try:
-                os.remove(backup_file)
-            except:
-                pass
-            return True
-                
-        except Exception as e:
-            print(f"❌ 字幕格式修复失败: {e}")
-            # 尝试恢复备份文件
-            try:
-                import shutil
-                shutil.move(f"{subtitle_file}.backup", subtitle_file)
-            except:
-                pass
-            return False
     
     def _extract_original_srt_structure(self, subtitle_file: str) -> List[Dict]:
         """

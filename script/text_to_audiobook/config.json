@@ -34,11 +34,12 @@
   },
   "sentence": {
     "output_subdir": "sentences",
-    "segmenter": "pysbd",
-    "language": "en",
-    "clean": false,
-    "enable_clause_splitting": true,
-    "max_sentence_length": 100
+    "ai_split_threshold": 80,
+    "api_key": "sk-umedlfcxxcbzvyiobzxnigiyjrwgpeocgbffhhmwqmnlnein",
+    "model": "deepseek-ai/DeepSeek-V2.5",
+    "base_url": "https://api.siliconflow.cn/v1",
+    "timeout": 30,
+    "context_window_size": 2
   },
   "subtitle_parser": {
     "api_key": "sk-umedlfcxxcbzvyiobzxnigiyjrwgpeocgbffhhmwqmnlnein",
