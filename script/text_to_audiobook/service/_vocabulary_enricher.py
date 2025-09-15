@@ -19,7 +19,7 @@ from urllib.parse import urljoin
 from bs4 import BeautifulSoup
 from typing import Dict
 
-from .ecdict_helper import ECDictHelper
+from ._ecdict_helper import ECDictHelper
 
 
 def load_master_vocabulary(master_vocab_path: str) -> Dict[str, Dict]:
@@ -102,10 +102,9 @@ class CambridgeDictionaryAPI:
                     'phonetics': phonetics,
                     'audio_urls': audio_urls
                 }
-            else:
-                print(f"    ❌ {word}: 未找到音标或音频信息")
-                return {'phonetics': {}, 'audio_urls': {}}
-                
+            
+            return None
+            
         except Exception as e:
             print(f"    ❌ {word}: 剑桥词典查询异常 - {e}")
             return None
@@ -119,34 +118,20 @@ class CambridgeDictionaryAPI:
             final_url: 最终的URL
             
         Returns:
-            True如果被重定向到不同单词，False否则
+            是否被重定向到不同单词
         """
         try:
-            # 从URL中提取最终的单词
-            # URL格式: https://dictionary.cambridge.org/dictionary/english/alice-band?q=alice
-            # 或: https://dictionary.cambridge.org/dictionary/english/alice-band
-            import re
-            from urllib.parse import urlparse, parse_qs
-            
-            parsed_url = urlparse(final_url)
-            path_parts = parsed_url.path.strip('/').split('/')
-            
-            # 获取路径中的单词（最后一个部分）
-            if len(path_parts) >= 3 and path_parts[-3] == 'dictionary' and path_parts[-2] == 'english':
-                final_word = path_parts[-1].lower()
-                original_word_lower = original_word.lower()
+            # 从URL中提取单词
+            url_parts = final_url.split('/')
+            if len(url_parts) >= 2:
+                url_word = url_parts[-1].lower().strip()
+                # 移除URL参数
+                if '?' in url_word:
+                    url_word = url_word.split('?')[0]
                 
-                # 检查是否是同一个单词
-                if final_word != original_word_lower:
-                    # 进一步检查是否是复合词情况（如alice -> alice-band）
-                    # 如果最终单词包含原单词作为前缀且后面跟连字符，则认为是重定向
-                    if final_word.startswith(original_word_lower + '-'):
-                        print(f"    🔄 {original_word}: 重定向到复合词 '{final_word}'")
-                        return True
-                    # 如果完全不同，也认为是重定向
-                    elif final_word != original_word_lower:
-                        print(f"    🔄 {original_word}: 重定向到不同单词 '{final_word}'")
-                        return True
+                # 比较原始单词和URL中的单词
+                if url_word != original_word.lower().strip():
+                    return True
             
             return False
             
@@ -249,7 +234,7 @@ class CambridgeDictionaryAPI:
             audio_dir: 音频目录
             
         Returns:
-            本地音频文件路径，失败返回None
+            本地文件路径，失败返回None
         """
         try:
             os.makedirs(audio_dir, exist_ok=True)
@@ -258,25 +243,22 @@ class CambridgeDictionaryAPI:
             filename = f"{word}_{variant}.mp3"
             local_path = os.path.join(audio_dir, filename)
             
-            # 如果文件已存在，直接返回
+            # 如果文件已存在，跳过下载
             if os.path.exists(local_path):
-                print(f"    🔊 {word}({variant}): 音频已存在")
                 return local_path
             
-            # 下载音频文件
-            print(f"    🔊 {word}({variant}): 音频不存在，开始下载")
+            # 下载文件
             response = self.session.get(url, timeout=self.config.timeout)
             if response.status_code == 200:
                 with open(local_path, 'wb') as f:
                     f.write(response.content)
-                print(f"    🔊 {word}({variant}): 音频下载成功")
                 return local_path
             else:
-                print(f"    ❌ {word}({variant}): 音频下载失败 ({response.status_code})")
+                print(f"    ❌ {word} ({variant}): 音频下载失败 ({response.status_code})")
                 return None
                 
         except Exception as e:
-            print(f"    ❌ {word}({variant}): 音频下载异常 - {e}")
+            print(f"    ❌ {word} ({variant}): 音频下载异常 - {e}")
             return None
 
 
@@ -305,7 +287,7 @@ class VocabularyEnricher:
         
         print("🔧 词汇富化器初始化完成")
     
-    
+
     def enrich_vocabulary_with_ecdict(self, new_words: List[str], master_vocab_path: str) -> bool:
         """
         使用ECDICT为新词汇补充基础信息, 如果词汇存在, 则读取ecdict覆盖原有信息
@@ -395,20 +377,20 @@ class VocabularyEnricher:
             if not cambridge_info:
                 print(f"    ✅ {word}: 剑桥词典信息不存在，重新获取")
                 cambridge_info = self.cambridge_api.get_word_info(word)
-                self.cambridge_api.save_cambridge_info(word, cambridge_info, cambridge_info_dir)
-            else:
-                print(f"    ✅ {word}: 剑桥词典信息已存在")
-
+                if cambridge_info:
+                    self.cambridge_api.save_cambridge_info(word, cambridge_info, cambridge_info_dir)
+            
             if cambridge_info:
-                # 更新音标信息
+                # 更新词汇信息
                 phonetics = cambridge_info.get('phonetics', {})
-                if phonetics.get('uk'):
-                    master_vocab[word]["phonetic_uk"] = phonetics['uk']
-                if phonetics.get('us'):
-                    master_vocab[word]["phonetic_us"] = phonetics['us']
-
-                # 下载音频
                 audio_urls = cambridge_info.get('audio_urls', {})
+                
+                master_vocab[word]["phonetic_uk"] = phonetics.get('uk', '')
+                master_vocab[word]["phonetic_us"] = phonetics.get('us', '')
+                master_vocab[word]["audio_url_uk"] = audio_urls.get('uk', '')
+                master_vocab[word]["audio_url_us"] = audio_urls.get('us', '')
+                
+                # 下载音频文件
                 if audio_urls.get('uk'):
                     self.cambridge_api.download_audio(audio_urls['uk'], word, 'uk', audio_dir)
                 if audio_urls.get('us'):
@@ -508,67 +490,75 @@ class VocabularyEnricher:
                 tags = word_info.get("tags", [])
                 for tag in tags:
                     level_stats[tag] = level_stats.get(tag, 0) + 1
-                if not tags:
-                    level_stats["unknown"] = level_stats.get("unknown", 0) + 1
                 
-                json_line = json.dumps(word_info, ensure_ascii=False, separators=(',', ':'))
-                f.write(json_line + '\n')
+                f.write(json.dumps(word_info, ensure_ascii=False) + '\n')
         
-        print(f"💾 总词汇表已保存: {master_vocab_path}")
-        # print(f"📊 词汇统计: 总计{total_words}词")
-        
-        # # 按标签显示统计信息
-        # if level_stats:
-        #     print("  标签分布:")
-        #     for tag, count in sorted(level_stats.items()):
-        #         print(f"    {tag}: {count}词")
-
+        print(f"📚 总词汇表保存完成: {total_words} 个单词")
+        if level_stats:
+            print(f"📊 标签分布: {dict(sorted(level_stats.items()))}")
+    
     def _parse_translation(self, translation_str: str) -> List[Dict]:
-        """解析翻译字符串为对象数组"""
+        """
+        解析翻译字符串为对象数组
+        
+        格式: "n. 翻译1\\na. 翻译2\\nv. 翻译3"
+        
+        Returns:
+            [{"pos": "n.", "trans": "翻译1"}, ...]
+        """
         if not translation_str:
             return []
-            
-        translations = []
-        parts = translation_str.split('\n')
         
-        for part in parts:
-            part = part.strip()
-            if not part:
+        translations = []
+        lines = translation_str.split('\\n')
+        
+        for line in lines:
+            line = line.strip()
+            if not line:
                 continue
-                
-            import re
-            match = re.match(r'^([a-z]+\.)\s*(.+)$', part)
-            if match:
-                pos_type = match.group(1)
-                meaning = match.group(2)
-                translations.append({
-                    'type': pos_type,
-                    'meaning': meaning,
-                    'example': ''
-                })
+            
+            # 查找词性标记（如 n., v., a. 等）
+            parts = line.split('.', 1)
+            if len(parts) == 2:
+                pos = parts[0].strip() + '.'
+                trans = parts[1].strip()
+                if trans:
+                    translations.append({
+                        "pos": pos,
+                        "trans": trans
+                    })
             else:
+                # 没有词性标记的情况
                 translations.append({
-                    'type': '',
-                    'meaning': part,
-                    'example': ''
+                    "pos": "",
+                    "trans": line
                 })
-                
+        
         return translations
-
+    
     def _parse_exchange(self, exchange_str: str) -> List[Dict]:
-        """解析词形变化字符串为对象数组"""
+        """
+        解析词形变化字符串为对象数组
+        
+        格式: "p:worked/d:worked/i:working/3:works/s:works"
+        
+        Returns:
+            [{"pos": "p", "words": ["worked"]}, ...]
+        """
         if not exchange_str:
             return []
-            
+        
         exchanges = []
-        if ':' in exchange_str:
-            parts = exchange_str.split('/')
-            for part in parts:
-                if ':' in part:
-                    type_code, form = part.split(':', 1)
+        items = exchange_str.split('/')
+        
+        for item in items:
+            if ':' in item:
+                pos, words_str = item.split(':', 1)
+                words = [w.strip() for w in words_str.split(',') if w.strip()]
+                if words:
                     exchanges.append({
-                        'type': type_code.strip(),
-                        'form': form.strip()
+                        "pos": pos.strip(),
+                        "words": words
                     })
         
         return exchanges

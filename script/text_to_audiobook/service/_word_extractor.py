@@ -12,7 +12,7 @@ from pathlib import Path
 from typing import List, Dict, Set, Optional, Tuple
 from dataclasses import dataclass
 from collections import defaultdict
-from .vocabulary_enricher import load_master_vocabulary
+from ._vocabulary_enricher import load_master_vocabulary
 
 # 需要安装: pip install spacy
 # 下载模型: python -m spacy download en_core_web_sm

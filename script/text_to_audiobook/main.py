@@ -10,28 +10,9 @@ import sys
 import os
 import time
 
-from modules.config import AudiobookConfig
-from modules.workflow_executor import (
-    execute_chapter_splitting,
-    execute_sub_chapter_splitting, 
-    execute_sentence_splitting,
-    execute_audio_generation,
-    execute_subtitle_parsing,
-    execute_audio_compression,
-    execute_vocabulary_processing,
-    execute_vocabulary_audio_compression,
-    execute_statistics_collection
-)
-
-from modules.path_utils import (
-    get_audio_files,
-    get_subtitle_files,
-    get_sentence_files,
-    get_chapter_files,
-    get_compressed_audio_files,
-    get_vocabulary_files,
-    get_sub_chapter_files
-)
+from infra.config_loader import ConfigLoader
+from service.workflow_executor import WorkflowExecutor
+from util import OUTPUT_DIRECTORIES
 
 
 
@@ -108,71 +89,68 @@ def main():
             print(f"错误: 配置文件不存在: {config_path}")
             return 1
         
-        config = AudiobookConfig.from_json_file(config_path)
+        config_loader = ConfigLoader()
+        config = config_loader.load_config(config_path)
         if args.verbose:
             print(f"已加载配置文件: {config_path}")
+        
+        # 初始化工作流执行器
+        workflow = WorkflowExecutor(config)
         
         # 执行各个处理流程
         chapter_files, sub_chapter_files, sentence_files = [], [], []
         chapter_time, sub_chapter_time, sentence_time = 0, 0, 0
         if args.split:
-            chapter_files, chapter_time = execute_chapter_splitting(args.input_file, output_dir, config, args.verbose)
-            sub_chapter_files, sub_chapter_time = execute_sub_chapter_splitting(chapter_files, output_dir, config, args.verbose)
-            sentence_files, sentence_time = execute_sentence_splitting(sub_chapter_files, output_dir, config, args.verbose)
+            # 使用统一的文本处理流程
+            chapter_files, sub_chapter_files, sentence_files, text_processing_time = workflow.execute_text_processing(args.input_file, output_dir, args.verbose)
+            chapter_time = sub_chapter_time = sentence_time = text_processing_time / 3  # 平均分配时间
         else:
-            chapter_files = get_chapter_files(output_dir)
-            sub_chapter_files = get_sub_chapter_files(output_dir)
-            sentence_files = get_sentence_files(output_dir)
+            # 获取已存在的文件
+            from util.file_utils import get_existing_files
+            chapter_files = get_existing_files(output_dir, OUTPUT_DIRECTORIES['chapters'], ".txt")
+            sub_chapter_files = get_existing_files(output_dir, OUTPUT_DIRECTORIES['sub_chapters'], ".txt") 
+            sentence_files = get_existing_files(output_dir, OUTPUT_DIRECTORIES['sentences'], ".txt")
         
         # 音频生成
         audio_files, subtitle_files, audio_time = [], [], 0
         if args.audio:
-            audio_files, subtitle_files, audio_time = execute_audio_generation(sentence_files, output_dir, args.voice, args.speed, args.verbose)
+            audio_files, subtitle_files, audio_time = workflow.execute_audio_processing(sentence_files, output_dir, args.voice, args.speed, True, args.verbose)
         else:
-            audio_files = get_audio_files(output_dir)
-            subtitle_files = get_subtitle_files(output_dir)
+            from util.file_utils import get_existing_files
+            audio_files = get_existing_files(output_dir, OUTPUT_DIRECTORIES['audio'], ".wav")
+            subtitle_files = get_existing_files(output_dir, OUTPUT_DIRECTORIES['subtitles'], ".srt")
 
-        # 字幕解析
+        # 字幕解析和翻译
         parsed_files, parse_time = [], 0
         if args.parse:
-            parsed_files, parse_time = execute_subtitle_parsing(subtitle_files, output_dir, config, args.verbose)
+            parsed_files, parse_time = workflow.execute_translation_and_analysis(subtitle_files, sub_chapter_files, audio_files, output_dir, args.verbose)
 
         # 词汇处理
         chapter_vocab_files, vocabulary_time = [], 0
         if args.vocabulary:
             book_name = os.path.splitext(os.path.basename(args.input_file))[0]
-            chapter_vocab_files, vocabulary_time = execute_vocabulary_processing(sentence_files, output_dir, book_name, master_vocab_file, config, args.verbose)
-        
-        # 音频压缩
-        compression_time, vocab_compression_time = 0, 0
-        if args.compress:
-            compression_time = execute_audio_compression(audio_files, output_dir, config, args.verbose)
-            # vocab_compression_time = execute_vocabulary_audio_compression(vocab_audio_dir, vocab_compress_audio_dir, config, args.verbose)
+            chapter_vocab_files, vocabulary_time = workflow.execute_vocabulary_processing(sentence_files, output_dir, book_name, master_vocab_file, args.verbose)
         
         # 统计信息收集
         statistics_time = 0
         if args.stats:
-            _, statistics_time = execute_statistics_collection(sub_chapter_files, audio_files, output_dir, config, args.verbose)
+            # 独立收集统计信息
+            statistics, statistics_time = workflow.execute_statistics_collection(sub_chapter_files, audio_files, output_dir, args.verbose)
         
         # 计算总耗时
-        total_time = chapter_time + sub_chapter_time + sentence_time + audio_time + parse_time + vocabulary_time + compression_time + vocab_compression_time + statistics_time
+        total_time = chapter_time + sub_chapter_time + sentence_time + audio_time + parse_time + vocabulary_time + statistics_time
         program_total_time = time.time() - program_start_time
         
         # 打印耗时汇总
         print(f"\n📊 执行耗时汇总:")
-        print(f"  章节拆分: {chapter_time:.2f}秒 ({chapter_time/total_time*100:.1f}%)")
-        print(f"  子章节拆分: {sub_chapter_time:.2f}秒 ({sub_chapter_time/total_time*100:.1f}%)")
-        print(f"  句子拆分: {sentence_time:.2f}秒 ({sentence_time/total_time*100:.1f}%)")
+        if args.split:
+            print(f"  文本处理: {chapter_time + sub_chapter_time + sentence_time:.2f}秒 ({(chapter_time + sub_chapter_time + sentence_time)/total_time*100:.1f}%)")
         if args.audio:
             print(f"  音频生成: {audio_time:.2f}秒 ({audio_time/total_time*100:.1f}%)")
         if args.parse:
-            print(f"  字幕解析: {parse_time:.2f}秒 ({parse_time/total_time*100:.1f}%)")
+            print(f"  翻译和分析: {parse_time:.2f}秒 ({parse_time/total_time*100:.1f}%)")
         if args.vocabulary:
             print(f"  词汇处理: {vocabulary_time:.2f}秒 ({vocabulary_time/total_time*100:.1f}%)")
-        if args.compress and compression_time > 0:
-            print(f"  音频压缩: {compression_time:.2f}秒 ({compression_time/total_time*100:.1f}%)")
-        if args.compress and args.vocabulary and vocab_compression_time > 0:
-            print(f"  单词音频压缩: {vocab_compression_time:.2f}秒 ({vocab_compression_time/total_time*100:.1f}%)")
         if args.stats and statistics_time > 0:
             print(f"  统计收集: {statistics_time:.2f}秒 ({statistics_time/total_time*100:.1f}%)")
         print(f"  核心处理总耗时: {total_time:.2f}秒")

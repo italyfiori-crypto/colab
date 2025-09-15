@@ -8,26 +8,33 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## 核心架构
 
-### 主要模块 (`modules/`)
+项目采用三层架构设计：
 
-- **workflow_executor.py** - 核心流程执行器，协调所有处理步骤
-- **chapter_splitter.py** - 章节拆分，基于正则表达式模式识别章节
-- **sub_chapter_splitter.py** - 子章节拆分，按阅读时长自动分段
-- **sentence_splitter.py** - 句子拆分，支持pySBD和NLTK两种分割器
-- **audio_generator.py** - 音频生成，使用Kokoro TTS引擎
-- **subtitle_parser.py** - 字幕解析，使用DeepSeek API进行语言学分析
-- **vocabulary_manager.py** - 词汇管理，提取和富化单词信息
-- **audio_compressor.py** - 音频压缩，转换为MP3格式
-- **statistics_collector.py** - 统计信息收集
-- **config.py** - 统一配置管理
+### 基础设施层 (`infra/`)
+- **ai_client.py** - 统一的AI API客户端，处理所有AI服务调用
+- **file_manager.py** - 文件操作管理器，提供统一的文件读写接口
+- **config_loader.py** - 配置加载器，支持多种配置格式
+
+### 业务逻辑层 (`service/`)
+- **text_processor.py** - 文本处理服务，整合章节、子章节、句子拆分
+- **audio_processor.py** - 音频处理服务，整合音频生成和压缩
+- **translation_service.py** - 翻译服务，处理字幕翻译和章节标题翻译
+- **analysis_service.py** - 分析服务，进行语言学分析和统计收集
+- **vocabulary_service.py** - 词汇服务，处理词汇提取和分级
+- **workflow_executor.py** - 工作流执行器，协调所有处理步骤
+
+### 工具函数层 (`util/`)
+- **file_utils.py** - 文件操作工具函数
+- **time_utils.py** - 时间格式化工具函数
+- **directory_constants.py** - 硬编码的目录结构和常量
 
 ### 流程设计
 
-该工具采用模块化流程设计，每个步骤相对独立：
+该工具采用模块化流程设计，主要处理步骤：
 
-1. 章节拆分 → 2. 子章节拆分 → 3. 句子拆分 → 4. 音频生成 → 5. 字幕解析 → 6. 音频压缩 → 7. 词汇处理 → 8. 统计收集
+1. 文本处理（章节拆分 → 子章节拆分 → 句子拆分）→ 2. 音频生成 → 3. 翻译和分析 → 4. 词汇处理
 
-每个步骤都有相应的配置选项和独立的输出目录。
+所有输出目录结构固定，无需配置。
 
 ## 开发命令
 
@@ -62,18 +69,16 @@ python3 main.py data/book.txt --split --audio --parse --compress --stats --verbo
 关键配置项：
 - `chapter_patterns` - 章节识别正则表达式模式
 - `sub_chapter.max_reading_minutes` - 子章节最大阅读时长
-- `sentence.segmenter` - 句子分割器选择 (pysbd/nltk)
-- `subtitle_parser.api_key` - 解析API密钥
-- `audio_compression.format` - 音频压缩格式设置
+- `api.api_key` - API密钥
+- `text_processing.ai_split_threshold` - AI拆分阈值
+
+所有目录结构、base_url等已硬编码，无需配置。
 
 ## 关键技术依赖
 
-- **Kokoro TTS** - 语音合成引擎，需要torch和相关模型文件
-- **pySBD** - 推荐的句子边界检测库，对引号对话处理更好
-- **NLTK** - 备用句子分割器
-- **spaCy** - 用于短句拆分功能
-- **DeepSeek API** - 字幕语言学解析服务
-- **FFmpeg** - 音频压缩 (通过soundfile调用)
+- **DeepSeek API** - AI服务，用于句子拆分、翻译、语言学分析
+- **Python requests** - HTTP客户端，用于API调用
+- **JSON** - 配置和数据交换格式
 
 ## 输出目录结构
 
@@ -82,13 +87,15 @@ output/<book_name>/
 ├── chapters/         # 章节文件
 ├── sub_chapters/     # 子章节文件  
 ├── sentences/        # 句子文件
-├── audio/           # 音频文件
+├── audio/           # 音频文件（暂未实现）
 ├── subtitles/       # 中英文字幕文件
 ├── parsed_analysis/ # 字幕语言学解析JSON文件
-├── compressed_audio/ # 压缩音频
-├── vocabulary/      # 词汇文件
+├── compressed_audio/ # 压缩音频（暂未实现）
+├── vocabulary/      # 词汇文件（暂未实现）
 └── meta.json        # 统计信息
 ```
+
+注：目录结构已硬编码在代码中，无需配置。
 
 ## 错误处理和调试
 

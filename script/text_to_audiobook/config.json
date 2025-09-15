@@ -23,42 +23,28 @@
       "multiline_regex": "^(\n\n\n)([^\n]+)(\n\n)",
       "title_line_index": 3,
       "content_start_offset": 3
+    },
+    {
+      "name": "ys",
+      "multiline_regex": "^(\n\n)([^\n]+)(\n\n)",
+      "title_line_index": 3,
+      "content_start_offset": 3
     }
   ],
   "ignore_case": true,
   "sub_chapter": {
     "max_reading_minutes": 5,
     "words_per_minute": 200,
-    "enable_splitting": true,
     "min_paragraphs_per_sub": 2
   },
-  "sentence": {
-    "output_subdir": "sentences",
-    "ai_split_threshold": 80,
+  "api": {
     "api_key": "sk-umedlfcxxcbzvyiobzxnigiyjrwgpeocgbffhhmwqmnlnein",
     "model": "deepseek-ai/DeepSeek-V2.5",
-    "base_url": "https://api.siliconflow.cn/v1",
-    "timeout": 30,
-    "context_window_size": 2
-  },
-  "subtitle_parser": {
-    "api_key": "sk-umedlfcxxcbzvyiobzxnigiyjrwgpeocgbffhhmwqmnlnein",
-    "model": "deepseek-ai/DeepSeek-V2.5",
-    "timeout": 180,
+    "timeout": 120,
     "max_retries": 5,
     "max_concurrent_workers": 20
   },
-  "statistics": {
-    "output_filename": "meta.json",
-    "enabled": true
-  },
-  "audio_compression": {
-    "output_subdir": "compressed_audio",
-    "format": {
-      "format": "mp3",
-      "bitrate": "64k",
-      "codec": "mp3",
-      "extension": ".mp3"
-    }
+  "text_processing": {
+    "ai_split_threshold": 80
   }
 }
