@@ -25,7 +25,9 @@
       "Bash(curl:*)",
       "Bash(wc:*)",
       "Bash(find:*)",
-      "Bash(node:*)"
+      "Bash(node:*)",
+      "WebFetch(domain:stanfordnlp.github.io)",
+      "WebFetch(domain:pypi.org)"
     ],
     "deny": []
   }

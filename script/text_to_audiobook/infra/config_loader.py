@@ -24,8 +24,6 @@ class TextProcessingConfig:
     """文本处理配置"""
     sub_chapter_max_minutes: int = 5
     words_per_minute: int = 200
-    ai_split_threshold: int = 80
-    context_window: int = 2
 
 
 @dataclass
@@ -61,12 +59,6 @@ class AppConfig:
             text_config_data.update({
                 'sub_chapter_max_minutes': old_config.get('max_reading_minutes', 5),
                 'words_per_minute': old_config.get('words_per_minute', 200)
-            })
-        if 'sentence' in data:
-            old_config = data['sentence']
-            text_config_data.update({
-                'ai_split_threshold': old_config.get('ai_split_threshold', 80),
-                'context_window': old_config.get('context_window_size', 2)
             })
         text_processing = TextProcessingConfig(**text_config_data)
         
@@ -155,5 +147,3 @@ class ConfigLoader:
         if config.text_processing.sub_chapter_max_minutes <= 0:
             raise RuntimeError("配置验证失败: 子章节最大分钟数必须大于0")
         
-        if config.text_processing.ai_split_threshold <= 0:
-            raise RuntimeError("配置验证失败: AI拆分阈值必须大于0")

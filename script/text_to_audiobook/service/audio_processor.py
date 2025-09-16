@@ -59,7 +59,7 @@ class AudioProcessor:
             self.tts_pipeline = None
             print("⚠️ 音频依赖不可用，音频功能将被跳过")
     
-    def generate_audio_files(self, sentence_files: List[str], output_dir: str, voice: str = "af_bella", speed: float = 1.0) -> Tuple[List[str], List[str]]:
+    def generate_audio_files(self, sentence_files: List[str], output_dir: str, voice: str = "af_bella", speed: float = 0.8) -> Tuple[List[str], List[str]]:
         """
         生成音频文件
         

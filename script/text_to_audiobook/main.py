@@ -24,10 +24,10 @@ def main():
         epilog="""
 示例用法:
   %(prog)s data/greens.txt
-  %(prog)s data/book.txt --output-dir ./my_output
-  %(prog)s data/book.txt --audio --parse --vocabulary
-  %(prog)s data/book.txt --vocabulary --master-vocab ./my_vocab.json
-  %(prog)s data/book.txt --config my_config.json --verbose
+  %(prog)s data/book.txt --chapter --sentence
+  %(prog)s data/book.txt --chapter --sentence --audio --parse --vocabulary
+  %(prog)s data/book.txt --sentence --audio  # 只运行句子拆分和音频生成
+  %(prog)s data/book.txt --chapter  # 只运行章节拆分
   
 默认配置文件: text_to_audiobook/config.json
 默认输出目录: ./output
@@ -40,8 +40,9 @@ def main():
     parser.add_argument('input_file',help='输入文本文件路径')
     parser.add_argument('--verbose','-v',action='store_true',help='显示详细信息')
     
-    # 章节拆分
-    parser.add_argument('--split', action='store_true', help='启用章节拆分')
+    # 文本拆分参数
+    parser.add_argument('--chapter', action='store_true', help='启用章节和子章节拆分')
+    parser.add_argument('--sentence', action='store_true', help='启用句子拆分')
 
     # 音频生成参数
     parser.add_argument('--audio', action='store_true', help='启用音频生成')
@@ -99,16 +100,26 @@ def main():
         
         # 执行各个处理流程
         chapter_files, sub_chapter_files, sentence_files = [], [], []
-        chapter_time, sub_chapter_time, sentence_time = 0, 0, 0
-        if args.split:
-            # 使用统一的文本处理流程
-            chapter_files, sub_chapter_files, sentence_files, text_processing_time = workflow.execute_text_processing(args.input_file, output_dir, args.verbose)
-            chapter_time = sub_chapter_time = sentence_time = text_processing_time / 3  # 平均分配时间
+        chapter_time, sentence_time = 0, 0
+        
+        # 章节和子章节拆分
+        if args.chapter:
+            chapter_files, sub_chapter_files, chapter_time = workflow.execute_chapter_processing(args.input_file, output_dir, args.verbose)
         else:
-            # 获取已存在的文件
+            # 获取已存在的章节和子章节文件
             from util.file_utils import get_existing_files
             chapter_files = get_existing_files(output_dir, OUTPUT_DIRECTORIES['chapters'], ".txt")
-            sub_chapter_files = get_existing_files(output_dir, OUTPUT_DIRECTORIES['sub_chapters'], ".txt") 
+            sub_chapter_files = get_existing_files(output_dir, OUTPUT_DIRECTORIES['sub_chapters'], ".txt")
+        
+        # 句子拆分
+        if args.sentence:
+            if not sub_chapter_files:
+                print("⚠️  警告: 未找到子章节文件，请先运行 --chapter 进行章节拆分")
+                return 1
+            sentence_files, sentence_time = workflow.execute_sentence_processing(sub_chapter_files, output_dir, args.verbose)
+        else:
+            # 获取已存在的句子文件
+            from util.file_utils import get_existing_files
             sentence_files = get_existing_files(output_dir, OUTPUT_DIRECTORIES['sentences'], ".txt")
         
         # 音频生成
@@ -138,13 +149,15 @@ def main():
             statistics, statistics_time = workflow.execute_statistics_collection(sub_chapter_files, audio_files, output_dir, args.verbose)
         
         # 计算总耗时
-        total_time = chapter_time + sub_chapter_time + sentence_time + audio_time + parse_time + vocabulary_time + statistics_time
+        total_time = chapter_time + sentence_time + audio_time + parse_time + vocabulary_time + statistics_time
         program_total_time = time.time() - program_start_time
         
         # 打印耗时汇总
         print(f"\n📊 执行耗时汇总:")
-        if args.split:
-            print(f"  文本处理: {chapter_time + sub_chapter_time + sentence_time:.2f}秒 ({(chapter_time + sub_chapter_time + sentence_time)/total_time*100:.1f}%)")
+        if args.chapter:
+            print(f"  章节拆分: {chapter_time:.2f}秒 ({chapter_time/total_time*100:.1f}%)")
+        if args.sentence:
+            print(f"  句子拆分: {sentence_time:.2f}秒 ({sentence_time/total_time*100:.1f}%)")
         if args.audio:
             print(f"  音频生成: {audio_time:.2f}秒 ({audio_time/total_time*100:.1f}%)")
         if args.parse:
