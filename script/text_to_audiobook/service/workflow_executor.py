@@ -105,15 +105,14 @@ class WorkflowExecutor:
         start_time = time.time()
         
         try:
-            audio_files, subtitle_files = self.audio_processor.process_files(
-                sentence_files, output_dir, voice, speed, include_subtitles
+            audio_files, subtitle_files = self.audio_processor.generate_audio_files(
+                sentence_files, output_dir, voice, speed
             )
             elapsed_time = time.time() - start_time
             
             print(f"\n✅ 音频生成完成! 生成:")
             print(f"  🎵 音频文件: {len(audio_files)} 个")
-            if include_subtitles:
-                print(f"  📄 字幕文件: {len(subtitle_files)} 个")
+            print(f"  📄 字幕文件: {len(subtitle_files)} 个")
             print(f"  ⏱️ 耗时: {elapsed_time:.2f}秒")
             
             return audio_files, subtitle_files, elapsed_time
@@ -121,6 +120,48 @@ class WorkflowExecutor:
         except Exception as e:
             elapsed_time = time.time() - start_time
             print(f"\n❌ 音频生成失败: {e} (耗时: {elapsed_time:.2f}秒)")
+            if verbose:
+                import traceback
+                traceback.print_exc()
+            raise
+    
+    def execute_audio_compression(self, audio_files: List[str], output_dir: str, verbose: bool = False) -> Tuple[List[str], float]:
+        """
+        执行音频压缩流程
+        
+        Args:
+            audio_files: 音频文件列表
+            output_dir: 输出目录
+            verbose: 是否详细输出
+            
+        Returns:
+            (压缩文件列表, 耗时)
+        """
+        print(f"\n🔄 开始音频压缩流程...")
+        start_time = time.time()
+        
+        try:
+            success = self.audio_processor.compress_audio_files(audio_files, output_dir)
+            elapsed_time = time.time() - start_time
+            
+            if success:
+                # 获取压缩后的文件列表
+                from util.file_utils import get_existing_files
+                from util import OUTPUT_DIRECTORIES
+                compressed_files = get_existing_files(output_dir, OUTPUT_DIRECTORIES['compressed_audio'], ".mp3")
+                
+                print(f"\n✅ 音频压缩完成! 生成:")
+                print(f"  🗜️ 压缩文件: {len(compressed_files)} 个")
+                print(f"  ⏱️ 耗时: {elapsed_time:.2f}秒")
+                
+                return compressed_files, elapsed_time
+            else:
+                print(f"\n❌ 音频压缩失败 (耗时: {elapsed_time:.2f}秒)")
+                return [], elapsed_time
+            
+        except Exception as e:
+            elapsed_time = time.time() - start_time
+            print(f"\n❌ 音频压缩失败: {e} (耗时: {elapsed_time:.2f}秒)")
             if verbose:
                 import traceback
                 traceback.print_exc()
@@ -145,10 +186,10 @@ class WorkflowExecutor:
         
         try:
             # 处理翻译
-            translated_files = self.translation_service.process_files(subtitle_files, sub_chapter_files, output_dir)
+            translated_files = self.translation_service.translate_subtitle_files(subtitle_files)
             
             # 处理分析
-            parsed_files = self.analysis_service.process_files(translated_files, audio_files, output_dir)
+            parsed_files = self.analysis_service.analyze_subtitle_files(translated_files, output_dir)
             
             elapsed_time = time.time() - start_time
             

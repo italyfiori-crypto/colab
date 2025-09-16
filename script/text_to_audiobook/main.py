@@ -99,16 +99,15 @@ def main():
         workflow = WorkflowExecutor(config)
         
         # 执行各个处理流程
-        chapter_files, sub_chapter_files, sentence_files = [], [], []
+        sub_chapter_files, sentence_files = [], []
         chapter_time, sentence_time = 0, 0
         
         # 章节和子章节拆分
         if args.chapter:
-            chapter_files, sub_chapter_files, chapter_time = workflow.execute_chapter_processing(args.input_file, output_dir, args.verbose)
+            _, sub_chapter_files, chapter_time = workflow.execute_chapter_processing(args.input_file, output_dir, args.verbose)
         else:
-            # 获取已存在的章节和子章节文件
+            # 获取已存在的子章节文件
             from util.file_utils import get_existing_files
-            chapter_files = get_existing_files(output_dir, OUTPUT_DIRECTORIES['chapters'], ".txt")
             sub_chapter_files = get_existing_files(output_dir, OUTPUT_DIRECTORIES['sub_chapters'], ".txt")
         
         # 句子拆分
@@ -136,6 +135,14 @@ def main():
         if args.parse:
             parsed_files, parse_time = workflow.execute_translation_and_analysis(subtitle_files, sub_chapter_files, audio_files, output_dir, args.verbose)
 
+        # 音频压缩
+        compressed_files, compression_time = [], 0
+        if args.compress:
+            if not audio_files:
+                print("⚠️  警告: 未找到音频文件，请先运行 --audio 进行音频生成")
+            else:
+                compressed_files, compression_time = workflow.execute_audio_compression(audio_files, output_dir, args.verbose)
+
         # 词汇处理
         chapter_vocab_files, vocabulary_time = [], 0
         if args.vocabulary:
@@ -146,10 +153,10 @@ def main():
         statistics_time = 0
         if args.stats:
             # 独立收集统计信息
-            statistics, statistics_time = workflow.execute_statistics_collection(sub_chapter_files, audio_files, output_dir, args.verbose)
+            _, statistics_time = workflow.execute_statistics_collection(sub_chapter_files, audio_files, output_dir, args.verbose)
         
         # 计算总耗时
-        total_time = chapter_time + sentence_time + audio_time + parse_time + vocabulary_time + statistics_time
+        total_time = chapter_time + sentence_time + audio_time + parse_time + compression_time + vocabulary_time + statistics_time
         program_total_time = time.time() - program_start_time
         
         # 打印耗时汇总
@@ -162,6 +169,8 @@ def main():
             print(f"  音频生成: {audio_time:.2f}秒 ({audio_time/total_time*100:.1f}%)")
         if args.parse:
             print(f"  翻译和分析: {parse_time:.2f}秒 ({parse_time/total_time*100:.1f}%)")
+        if args.compress:
+            print(f"  音频压缩: {compression_time:.2f}秒 ({compression_time/total_time*100:.1f}%)")
         if args.vocabulary:
             print(f"  词汇处理: {vocabulary_time:.2f}秒 ({vocabulary_time/total_time*100:.1f}%)")
         if args.stats and statistics_time > 0:
@@ -177,6 +186,9 @@ def main():
             if args.audio and audio_files:
                 print(f"生成的音频文件: {len(audio_files)} 个")
                 print(f"生成的字幕文件: {len(subtitle_files)} 个")
+            
+            if args.compress and compressed_files:
+                print(f"压缩的音频文件: {len(compressed_files)} 个")
             
             if args.parse and parsed_files:
                 print(f"解析的字幕文件: {len(parsed_files)} 个")

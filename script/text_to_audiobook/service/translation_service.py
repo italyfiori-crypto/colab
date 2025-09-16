@@ -161,7 +161,7 @@ class TranslationService:
         print(f"🚀 开始批次间并发翻译，共 {len(batches)} 个批次")
         
         # 批次间并发处理
-        max_workers = min(len(batches), 5)  # 限制批次并发数
+        max_workers = min(len(batches), self.config.api.max_concurrent_workers)  # 限制批次并发数
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
             # 提交所有批次任务
             future_to_batch = {}
