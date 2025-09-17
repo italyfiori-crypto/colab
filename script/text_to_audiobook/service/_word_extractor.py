@@ -212,81 +212,9 @@ class WordExtractor:
                 filtered_words.append(original)
                 continue
             
-            # 应用各种过滤规则
-            # filter_reason = self._get_filter_reason(token, original)
-            # if filter_reason:
-            #     filtered_words.append(original)
-            #     continue
-            
-            # 只对复数和第三人称单数进行归一化
-            normalized_word = self._normalize_word_selective(token, original)
-            valid_words.append(normalized_word)
+            valid_words.append(original)
         
         return valid_words, filtered_words
-    
-    def _get_filter_reason(self, token, word: str) -> Optional[str]:
-        """
-        检查单词是否应该被过滤
-        
-        Returns:
-            过滤原因，如果不需要过滤返回None
-        """
-        # 停用词过滤 - 自定义学习相关停用词白名单
-        learning_stopwords_whitelist = {
-            'through', 'during', 'between', 'among', 'within', 'without', 
-            'around', 'across', 'above', 'below', 'under', 'over',
-            'before', 'after', 'until', 'since', 'while'
-        }
-        # if (self.config.filter_stop_words and 
-        #     word in self.stop_words and 
-        #     word not in learning_stopwords_whitelist):
-        #     return "stop_word"
-        
-        # 专有名词过滤
-        # if self.config.filter_proper_nouns and token.pos_ == "PROPN":
-        #     return "proper_noun"
-        
-        # 人名过滤 - 使用spaCy NER识别人名
-        # if self.config.filter_names and token.ent_type_ == "PERSON":
-        #     return "person_name"
-        
-        # 数字过滤
-        if self.config.filter_numbers and token.like_num:
-            return "number"
-        
-        return None
-    
-    def _normalize_word_selective(self, token, word: str) -> str:
-        """
-        选择性词形归一化：只归一化复数和第三人称单数形式
-        
-        Args:
-            token: SpaCy token对象
-            word: 原始单词
-            
-        Returns:
-            归一化后的单词
-        """
-        lemma = token.lemma_.lower().strip()
-        
-        # 如果原词和词根相同，无需归一化
-        if word == lemma:
-            return word
-        
-        # 检查词性和变化类型
-        pos = token.pos_
-        tag = token.tag_
-        
-        # # 名词复数归一化 (NNS -> NN)
-        # if pos == "NOUN" and tag == "NNS":
-        #     return lemma
-        
-        # # 动词第三人称单数归一化 (VBZ -> VB)
-        # if pos == "VERB" and tag == "VBZ":
-        #     return lemma
-        
-        # 其他情况保持原形（包括动词时态VBD/VBG/VBN和形容词比较级JJR/JJS）
-        return word
     
     def _format_words_with_info(self, words: List[str], vocab_dict: Dict[str, Dict]) -> List[str]:
         """

@@ -148,7 +148,11 @@ class AudioProcessor:
         base_name = self.file_manager.get_basename_without_extension(sentence_file)
         audio_file = os.path.join(audio_dir, f"{base_name}.{self.audio_config.audio_format}")
         subtitle_file = os.path.join(subtitle_dir, f"{base_name}.{self.audio_config.subtitle_format}")
-        
+
+        if os.path.exists(audio_file) and os.path.exists(subtitle_file):
+            print(f"🔊 音频文件和字幕文件已经存在, 跳过处理")
+            return audio_file, subtitle_file
+
         # 为每个句子单独生成音频并获取真实时长
         temp_audio_files, durations = self._generate_individual_audios(sentences, base_name, audio_dir)
         

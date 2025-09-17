@@ -226,7 +226,7 @@ class WorkflowExecutor:
         start_time = time.time()
         
         try:
-            chapter_vocab_files = self.vocabulary_service.process_files(
+            chapter_vocab_files = self.vocabulary_service.process_vocabulary(
                 sentence_files, output_dir, book_name, master_vocab_file
             )
             elapsed_time = time.time() - start_time
