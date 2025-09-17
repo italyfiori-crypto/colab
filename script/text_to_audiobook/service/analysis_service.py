@@ -200,7 +200,7 @@ class AnalysisService:
 
 字段要求:
 - sentence_structure: 句法成分分析（主语+谓语+宾语+状语等）
-- key_words: 句子中有意义的词汇，排除the、a、is、Mrs.等常见词
+- key_words: 句子中有意义的核心词汇，排除the、a、is、Mrs.等常见词
 - fixed_phrases: 有固定含义的短语搭配，排除过于简单的组合
 - core_grammar: 重要语法现象（时态、语态、句式等）
 - colloquial_expression: 正式与口语表达对比
@@ -214,7 +214,7 @@ class AnalysisService:
   "colloquial_expression": [{"formal": "正式表达", "informal": "口语表达", "explanation": "用法说明"}]
 }
 
-示例1 (复合句):
+示例1:
 输入: "The project that we've been working on for months, which involves multiple stakeholders, will be completed once we receive the final approval."
 输出:
 {
@@ -225,51 +225,7 @@ class AnalysisService:
   "colloquial_expression": [{"formal": "receive the final approval", "informal": "get the green light", "explanation": "'get the green light'表示获得许可，比'receive approval'更生动"}]
 }
 
-示例2 (简单陈述句):
-输入: "She is very happy."
-输出:
-{
-  "sentence_structure": "主语(She) + 系动词(is) + 表语(very happy)",
-  "key_words": [],
-  "fixed_phrases": [],
-  "core_grammar": [],
-  "colloquial_expression": []
-}
-
-示例3 (一般疑问句):
-输入: "Are you coming to the party tonight?"
-输出:
-{
-  "sentence_structure": "助动词(Are) + 主语(you) + 现在分词(coming) + 介词短语(to the party) + 时间状语(tonight)",
-  "key_words": [{"word": "party", "pos": "n.", "meaning": "派对，聚会", "pronunciation": "/ˈpɑːrti/"}],
-  "fixed_phrases": [{"phrase": "come to", "meaning": "来参加"}],
-  "core_grammar": [{"point": "现在进行时表将来", "explanation": "are coming表示计划好的将来动作，比will come语气更确定"}],
-  "colloquial_expression": [{"formal": "Will you attend the party this evening?", "informal": "Are you coming to the party tonight?", "explanation": "口语中常用come to代替attend，tonight比this evening更随意"}]
-}
-
-示例4 (祈使句):
-输入: "Please help me with this task."
-输出:
-{
-  "sentence_structure": "礼貌词(Please) + 动词(help) + 宾语(me) + 介词短语(with this task)",
-  "key_words": [{"word": "task", "pos": "n.", "meaning": "任务，工作", "pronunciation": "/tæsk/"}],
-  "fixed_phrases": [{"phrase": "help with", "meaning": "帮助做某事"}],
-  "core_grammar": [{"point": "祈使句", "explanation": "以动词原形开头的祈使句，表示请求或命令，please增加礼貌语气"}],
-  "colloquial_expression": [{"formal": "Would you assist me with this task?", "informal": "Can you help me out with this?", "explanation": "口语中help out更随意，Can you比Please更常用于日常请求"}]
-}
-
-示例5 (感叹句):
-输入: "What a beautiful day!"
-输出:
-{
-  "sentence_structure": "感叹词(What) + 不定冠词(a) + 形容词(beautiful) + 名词(day)",
-  "key_words": [{"word": "beautiful", "pos": "adj.", "meaning": "美丽的，漂亮的", "pronunciation": "/ˈbjuːtɪfəl/"}],
-  "fixed_phrases": [],
-  "core_grammar": [{"point": "What引导的感叹句", "explanation": "What + a/an + 形容词 + 名词，表示强烈的情感或惊叹"}],
-  "colloquial_expression": [{"formal": "It is a very beautiful day.", "informal": "What a gorgeous day! / Nice day!", "explanation": "口语中可用gorgeous代替beautiful，或简化为Nice day！"}]
-}
-
-示例6 (普通过去时陈述句):
+示例2:
 输入: "I visited the museum yesterday."
 输出:
 {

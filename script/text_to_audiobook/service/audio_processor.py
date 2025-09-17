@@ -26,8 +26,8 @@ except ImportError as e:
 @dataclass
 class AudioProcessingConfig:
     """音频处理配置"""
-    voice: str = "af_bella"
-    speed: float = 1.0
+    voice: str = ""
+    speed: float = 0
     sample_rate: int = 24000
     audio_format: str = "wav"
     subtitle_format: str = "srt"

@@ -53,3 +53,42 @@ def get_basename_without_extension(file_path: str) -> str:
         文件名（不含扩展名）
     """
     return os.path.splitext(os.path.basename(file_path))[0]
+
+
+def find_txt_files(input_path: str) -> List[str]:
+    """
+    查找 .txt 文件
+    
+    Args:
+        input_path: 输入路径（文件或目录）
+        
+    Returns:
+        .txt 文件路径列表
+        
+    Raises:
+        ValueError: 如果路径不存在或无效
+    """
+    if not os.path.exists(input_path):
+        raise ValueError(f"路径不存在: {input_path}")
+    
+    # 如果是文件
+    if os.path.isfile(input_path):
+        if input_path.lower().endswith('.txt'):
+            return [input_path]
+        else:
+            raise ValueError(f"输入文件必须是 .txt 格式: {input_path}")
+    
+    # 如果是目录
+    elif os.path.isdir(input_path):
+        txt_files = []
+        for file in os.listdir(input_path):
+            if file.lower().endswith('.txt'):
+                txt_files.append(os.path.join(input_path, file))
+        
+        if not txt_files:
+            raise ValueError(f"目录中未找到 .txt 文件: {input_path}")
+        
+        return sorted(txt_files)
+    
+    else:
+        raise ValueError(f"无效路径类型: {input_path}")
