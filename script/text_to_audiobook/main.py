@@ -14,6 +14,7 @@ from infra.config_loader import ConfigLoader
 from service.workflow_executor import WorkflowExecutor
 from util import OUTPUT_DIRECTORIES
 from util.file_utils import find_txt_files
+from util.file_utils import get_existing_files
 
 
 def process_single_file(input_file: str, args, config: dict, workflow: 'WorkflowExecutor') -> dict:
@@ -51,7 +52,6 @@ def process_single_file(input_file: str, args, config: dict, workflow: 'Workflow
         _, sub_chapter_files, chapter_time = workflow.execute_chapter_processing(input_file, output_dir, args.verbose)
     else:
         # 获取已存在的子章节文件
-        from util.file_utils import get_existing_files
         sub_chapter_files = get_existing_files(output_dir, OUTPUT_DIRECTORIES['sub_chapters'], ".txt")
     
     # 句子拆分
@@ -61,7 +61,6 @@ def process_single_file(input_file: str, args, config: dict, workflow: 'Workflow
         sentence_files, sentence_time = workflow.execute_sentence_processing(sub_chapter_files, output_dir, args.verbose)
     else:
         # 获取已存在的句子文件
-        from util.file_utils import get_existing_files
         sentence_files = get_existing_files(output_dir, OUTPUT_DIRECTORIES['sentences'], ".txt")
     
     # 音频生成
@@ -69,7 +68,6 @@ def process_single_file(input_file: str, args, config: dict, workflow: 'Workflow
     if args.audio:
         audio_files, subtitle_files, audio_time = workflow.execute_audio_processing(sentence_files, output_dir, args.voice, args.speed, args.verbose)
     else:
-        from util.file_utils import get_existing_files
         audio_files = get_existing_files(output_dir, OUTPUT_DIRECTORIES['audio'], ".wav")
         subtitle_files = get_existing_files(output_dir, OUTPUT_DIRECTORIES['subtitles'], ".srt")
 

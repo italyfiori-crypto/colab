@@ -357,8 +357,7 @@ class VocabularyEnricher:
         for word, info in master_vocab.items():
             if info.get("status") == "completed": 
                 continue
-            # 检查是否已有剑桥词典信息(todo后续删除这个判断)
-            elif not info.get("phonetic_uk") or not info.get("phonetic_us"):
+            else:
                 words_need_cambridge.append(word)
         
         if not words_need_cambridge:
@@ -498,67 +497,52 @@ class VocabularyEnricher:
             print(f"📊 标签分布: {dict(sorted(level_stats.items()))}")
     
     def _parse_translation(self, translation_str: str) -> List[Dict]:
-        """
-        解析翻译字符串为对象数组
-        
-        格式: "n. 翻译1\\na. 翻译2\\nv. 翻译3"
-        
-        Returns:
-            [{"pos": "n.", "trans": "翻译1"}, ...]
-        """
+        """解析翻译字符串为对象数组"""
         if not translation_str:
             return []
-        
-        translations = []
-        lines = translation_str.split('\\n')
-        
-        for line in lines:
-            line = line.strip()
-            if not line:
-                continue
             
-            # 查找词性标记（如 n., v., a. 等）
-            parts = line.split('.', 1)
-            if len(parts) == 2:
-                pos = parts[0].strip() + '.'
-                trans = parts[1].strip()
-                if trans:
-                    translations.append({
-                        "pos": pos,
-                        "trans": trans
-                    })
-            else:
-                # 没有词性标记的情况
-                translations.append({
-                    "pos": "",
-                    "trans": line
-                })
+        translations = []
+        parts = translation_str.split('\n')
         
+        for part in parts:
+            part = part.strip()
+            if not part:
+                continue
+                
+            import re
+            match = re.match(r'^([a-z]+\.)\s*(.+)$', part)
+            if match:
+                pos_type = match.group(1)
+                meaning = match.group(2)
+                translations.append({
+                    'type': pos_type,
+                    'meaning': meaning,
+                    'example': ''
+                })
+            else:
+
+                translations.append({
+                    'type': '',
+                    'meaning': part,
+                    'example': ''
+                })
+                
         return translations
     
     def _parse_exchange(self, exchange_str: str) -> List[Dict]:
-        """
-        解析词形变化字符串为对象数组
-        
-        格式: "p:worked/d:worked/i:working/3:works/s:works"
-        
-        Returns:
-            [{"pos": "p", "words": ["worked"]}, ...]
-        """
+        """解析词形变化字符串为对象数组"""
         if not exchange_str:
             return []
-        
+            
         exchanges = []
-        items = exchange_str.split('/')
-        
-        for item in items:
-            if ':' in item:
-                pos, words_str = item.split(':', 1)
-                words = [w.strip() for w in words_str.split(',') if w.strip()]
-                if words:
+        if ':' in exchange_str:
+            parts = exchange_str.split('/')
+            for part in parts:
+                if ':' in part:
+                    type_code, form = part.split(':', 1)
                     exchanges.append({
-                        "pos": pos.strip(),
-                        "words": words
+                        'type': type_code.strip(),
+                        'form': form.strip()
                     })
         
         return exchanges
