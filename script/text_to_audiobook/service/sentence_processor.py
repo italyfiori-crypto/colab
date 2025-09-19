@@ -154,11 +154,11 @@ class SentenceProcessor:
             f.write(final_content)        
         
         # pySBD原始结果
-        base_name = os.path.splitext(output_file)[0]
-        pysbd_file = f"{base_name}_pysbd.txt"
-        pysbd_final_content = f"{title}\n\n{pysbd_content}"
-        with open(pysbd_file, 'w', encoding='utf-8') as f:
-            f.write(pysbd_final_content)
+        # base_name = os.path.splitext(output_file)[0]
+        # pysbd_file = f"{base_name}_pysbd.txt"
+        # pysbd_final_content = f"{title}\n\n{pysbd_content}"
+        # with open(pysbd_file, 'w', encoding='utf-8') as f:
+        #     f.write(pysbd_final_content)
     
     def _extract_title_and_body(self, content: str) -> tuple[str, str]:
         """
