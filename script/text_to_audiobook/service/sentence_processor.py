@@ -11,6 +11,7 @@ import re
 import nltk
 import pysbd
 from typing import List
+from infra.config_loader import AppConfig
 
 # 调试开关
 DEBUG_SENTENCE_PROCESSING = False
@@ -81,7 +82,7 @@ MAX_MERGE_LENGTH = 100      # 最大合并长度
 class SentenceProcessor:
     """句子拆分器"""
     
-    def __init__(self):
+    def __init__(self, config: AppConfig):
         """
         初始化句子拆分器
         """
@@ -342,6 +343,106 @@ class SentenceProcessor:
                 return open_paren, close_paren
         return None
     
+    def _split_by_quotes_and_parens(self, text: str) -> List[tuple[str, int]]:
+        """
+        第1步：按引号和括号拆分文本，为每个片段分配序号
+        
+        Args:
+            text: 输入文本
+            
+        Returns:
+            List of (文本片段, 源序号) 元组
+        """
+        segments = []
+        buf = []
+        current_segment_index = 0
+        
+        # 统一的符号状态跟踪
+        quote_stack = []  # 引号栈，记录当前打开的引号类型
+        paren_count = 0   # 括号嵌套层级
+        
+        def add_segment_if_not_empty():
+            """添加当前缓冲区内容为新片段"""
+            nonlocal current_segment_index
+            if buf:
+                clause = ''.join(buf).strip()
+                if clause:
+                    segments.append((clause, current_segment_index))
+                    current_segment_index += 1
+                buf.clear()
+        
+        i = 0
+        while i < len(text):
+            ch = text[i]
+            
+            # 检查是否为引号字符
+            quote_info = self._get_quote_type(ch)
+            if quote_info:
+                open_quote, close_quote = quote_info
+                
+                # 检查是否为缩写词中的撇号，如果是则不作为引号处理
+                if ch in ["'", "'"] and self._is_contraction_apostrophe(i, text):
+                    buf.append(ch)
+                else:
+                    # 只在没有括号嵌套时处理引号
+                    if paren_count == 0:
+                        if ch == open_quote:
+                            # 检查是否为开始引号
+                            if not quote_stack or quote_stack[-1] != (open_quote, close_quote):
+                                # 开始新的引号区域 - 先保存当前缓冲区
+                                add_segment_if_not_empty()
+                                buf.append(ch)
+                                quote_stack.append((open_quote, close_quote))
+                            else:
+                                buf.append(ch)
+                        elif ch == close_quote:
+                            # 检查是否为结束引号
+                            if quote_stack and quote_stack[-1] == (open_quote, close_quote):
+                                buf.append(ch)
+                                # 结束当前引号区域
+                                quote_stack.pop()
+                                add_segment_if_not_empty()
+                            else:
+                                buf.append(ch)
+                        else:
+                            buf.append(ch)
+                    else:
+                        buf.append(ch)
+            
+            # 检查是否为括号字符
+            elif self._get_paren_type(ch):
+                open_paren, close_paren = self._get_paren_type(ch)
+                
+                # 只在没有引号嵌套时计算括号层级
+                if not quote_stack:
+                    if ch == open_paren:
+                        # 开始新的括号区域 - 先保存当前缓冲区
+                        add_segment_if_not_empty()
+                        buf.append(ch)
+                        paren_count += 1
+                    elif ch == close_paren and paren_count > 0:
+                        buf.append(ch)
+                        paren_count -= 1
+                        # 如果括号完全闭合，结束当前片段
+                        if paren_count == 0:
+                            add_segment_if_not_empty()
+                    else:
+                        buf.append(ch)
+                else:
+                    buf.append(ch)
+            
+            # 普通字符
+            else:
+                buf.append(ch)
+            
+            i += 1
+        
+        # 收尾处理
+        add_segment_if_not_empty()
+        
+        debug_print("第1步-引号括号拆分", [(seg[0], seg[1]) for seg in segments])
+        return segments
+
     def _is_contraction_apostrophe(self, position: int, text: str) -> bool:
         """检测指定位置的单引号是否为英语缩写词中的撇号"""
         if position == 0 or position >= len(text) - 1:
@@ -364,6 +465,154 @@ class SentenceProcessor:
                             return True
         
         return False
+    
+    def _split_by_punctuation(self, segments: List[tuple[str, int]]) -> List[tuple[str, int]]:
+        """
+        第2步：按分隔符拆分长度超过阈值的片段
+        
+        Args:
+            segments: 第1步的输出 - (文本, 源序号) 元组列表
+            
+        Returns:
+            进一步拆分的 (文本, 源序号) 元组列表
+        """
+        result = []
+        
+        for text, source_idx in segments:
+            if len(text) <= MAX_SENTENCE_LENGTH:
+                # 短片段直接保留
+                result.append((text, source_idx))
+            else:
+                # 长片段按分隔符拆分
+                sub_parts = self._split_text_by_punct(text)
+                # 保持相同的源序号
+                result.extend([(part, source_idx) for part in sub_parts])
+        
+        debug_print("第2步-分隔符拆分", [(seg[0], seg[1]) for seg in result])
+        return result
+    
+    def _split_text_by_punct(self, text: str) -> List[str]:
+        """
+        按分隔符拆分文本（不处理引号括号逻辑）
+        
+        Args:
+            text: 输入文本
+            
+        Returns:
+            拆分后的文本片段列表
+        """
+        clauses = []
+        buf = []
+        
+        i = 0
+        while i < len(text):
+            ch = text[i]
+            buf.append(ch)
+            
+            # 处理分隔符
+            if ch in SPLIT_PUNCT:
+                # 特殊处理句号：检查是否为缩写词
+                if ch == '.' and self._is_abbreviation(i, text):
+                    pass  # 不拆分缩写词
+                else:
+                    clause = ''.join(buf).strip()
+                    if clause and len(clause) > 1:  # 避免单个分隔符成为独立子句
+                        clauses.append(clause)
+                        buf = []
+            
+            i += 1
+        
+        # 收尾处理
+        if buf:
+            clause = ''.join(buf).strip()
+            if clause:
+                clauses.append(clause)
+        
+        # 清理并过滤空子句
+        clauses = [clause.strip() for clause in clauses if clause.strip()]
+        return clauses
+    
+    def _has_adjacent_same_source(self, segments: List[tuple[str, int]], current_index: int, source_idx: int) -> bool:
+        """
+        检查当前位置是否有相邻的相同源序号片段
+        
+        Args:
+            segments: 完整的片段列表
+            current_index: 当前片段在列表中的位置
+            source_idx: 要检查的源序号
+            
+        Returns:
+            是否存在相邻的相同源序号片段
+        """
+        # 检查下一个片段是否为相同序号
+        if (current_index + 1 < len(segments) and 
+            segments[current_index + 1][1] == source_idx):
+            debug_print("邻近检查", f"序号{source_idx}在位置{current_index}有后续相同序号片段")
+            return True
+        
+        # 检查前一个片段是否为相同序号
+        # 注意：这里不需要检查前一个，因为如果前一个是相同序号，在处理前一个片段时就会合并
+        # 这里主要关心是否有后续的相同序号片段需要等待
+        
+        return False
+    
+    def _merge_short_segments(self, segments: List[tuple[str, int]]) -> List[str]:
+        """
+        第3步：智能合并短片段，优先与相同源序号的片段合并
+        
+        Args:
+            segments: 第2步的输出 - (文本, 源序号) 元组列表
+            
+        Returns:
+            最终的子句列表
+        """
+        merged = []
+        merged_indices = []  # 追踪已合并文本的源序号
+        
+        for i, (text, source_idx) in enumerate(segments):
+            # 优先级1：与相同源序号的前一片段合并
+            if (merged and merged_indices and merged_indices[-1] == source_idx and 
+                self._can_merge_segments(merged[-1], text)):
+                merged[-1] += " " + text
+                debug_print("相同序号合并", f"序号{source_idx}: {merged[-1]}")
+            
+            # 优先级2：与不同序号的前一片段合并
+            # 新增条件：只有当前片段没有相邻的相同序号片段时才允许
+            elif (merged and self._can_merge_segments(merged[-1], text) and
+                  not self._has_adjacent_same_source(segments, i, source_idx)):
+                merged[-1] += " " + text
+                merged_indices[-1] = source_idx  # 更新序号为新片段的序号
+                debug_print("跨序号合并", f"序号{merged_indices[-1]}: {merged[-1]}")
+            
+            else:
+                # 无法合并，添加为新片段
+                merged.append(text)
+                merged_indices.append(source_idx)
+                debug_print("独立片段", f"序号{source_idx}: {text}")
+        
+        debug_print("第3步-智能合并", merged)
+        return merged
+    
+    def _can_merge_segments(self, prev_text: str, current_text: str) -> bool:
+        """
+        检查两个片段是否可以合并
+        
+        Args:
+            prev_text: 前一个片段文本
+            current_text: 当前片段文本
+            
+        Returns:
+            是否可以合并
+        """
+        # 合并条件：
+        # 1. 前一个片段或当前片段过短
+        # 2. 合并后不超过最大长度
+        # 3. 前一个片段不以句末分隔符结尾
+        return (
+            (len(prev_text) < MIN_MERGE_LENGTH or len(current_text) < MIN_MERGE_LENGTH) and 
+            len(prev_text) + len(current_text) < MAX_MERGE_LENGTH and
+            not self._ends_with_sentence_terminator(prev_text)
+        )
     
     def _parse_text_into_clauses(self, text: str):
         """
@@ -456,71 +705,27 @@ class SentenceProcessor:
 
     def split_into_clauses(self, text: str):
         """
-        将文本拆分成子句:
-        1. 括号类符号内的文本作为独立子句
-        2. 引号类符号内的文本作为独立子句
-        3. 分隔符触发拆分分隔符保留在子句末尾
-        4. 短子句自动与前一个子句合并
-        5. 对长度超过阈值的括号或引号子句再次拆分
+        三步优化的子句拆分:
+        1. 按括号和引号拆分，记录序号
+        2. 按分隔符拆分长片段，保持序号
+        3. 智能合并，优先相同序号片段
         """
         debug_print("split_into_clauses输入", text)
         
-        # 第一次调用内部逻辑进行基础拆分
-        clauses = self._parse_text_into_clauses(text)
-        debug_print("基础拆分结果", clauses)
-
-        # 第二次调用内部逻辑对长度超过阈值的括号或引号包围的子句进行再拆分
-        final_result = []
-        for clause in clauses:
-            if len(clause) > MAX_SENTENCE_LENGTH and self._is_quoted_or_parenthesized(clause):
-                # 去掉外层括号或引号拆分内部内容然后重新包围
-                inner_content, wrapper = self._extract_inner_content_and_wrapper(clause)
-                if inner_content:
-                    inner_clauses = self._parse_text_into_clauses(inner_content)
-                    # 重新添加包围符号
-                    for i, inner_clause in enumerate(inner_clauses):
-                        if i == 0 and i == len(inner_clauses) - 1:
-                            # 只有一个子句，完整包围
-                            final_result.append(f"{wrapper[0]}{inner_clause}{wrapper[1]}")
-                        elif i == 0:
-                            # 第一个子句，只加开始符号
-                            final_result.append(f"{wrapper[0]}{inner_clause}")
-                        elif i == len(inner_clauses) - 1:
-                            # 最后一个子句，只加结束符号
-                            final_result.append(f"{inner_clause}{wrapper[1]}")
-                        else:
-                            # 中间子句，不加符号
-                            final_result.append(inner_clause)
-                else:
-                    final_result.append(clause)
-            else:
-                final_result.append(clause)
-
-        # 合并过短的子句
-        merged = []
-        for c in final_result:
-            # 检查是否应该合并：
-            # 1. 存在前一个子句
-            # 2. 前一个子句或当前子句过短
-            # 3. 合并后不超过最大长度
-            # 4. 前一个子句不以句末分隔符结尾（新增条件）
-            should_merge = (
-                merged and 
-                (len(merged[-1]) < MIN_MERGE_LENGTH or len(c) < MIN_MERGE_LENGTH) and 
-                len(merged[-1]) + len(c) < MAX_MERGE_LENGTH and
-                not self._ends_with_sentence_terminator(merged[-1])
-            )
-            
-            if should_merge:
-                merged[-1] += " " + c
-            else:
-                merged.append(c)
-
+        # 第1步：按引号和括号拆分，分配序号
+        segments = self._split_by_quotes_and_parens(text)
+        
+        # 第2步：按分隔符拆分长片段  
+        segments = self._split_by_punctuation(segments)
+        
+        # 第3步：智能合并
+        result = self._merge_short_segments(segments)
+        
         # 后置处理: 合并被分离的标点符号
-        merged = self._merge_split_punctuation(merged)
-
-        debug_print("split_into_clauses最终输出", merged)
-        return merged
+        result = self._merge_split_punctuation(result)
+        debug_print("split_into_clauses最终输出", result)
+        
+        return result
 
     def _ends_with_sentence_terminator(self, text: str) -> bool:
         """
