@@ -29,7 +29,8 @@
       "WebFetch(domain:stanfordnlp.github.io)",
       "WebFetch(domain:pypi.org)",
       "Bash(chmod:*)",
-      "WebFetch(domain:docs.anthropic.com)"
+      "WebFetch(domain:docs.anthropic.com)",
+      "Bash(awk:*)"
     ],
     "deny": []
   }

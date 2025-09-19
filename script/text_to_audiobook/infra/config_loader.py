@@ -22,7 +22,7 @@ class ChapterPattern:
 @dataclass
 class TextProcessingConfig:
     """文本处理配置"""
-    sub_chapter_max_minutes: int = 5
+    sub_chapter_max_minutes: int = 3
     words_per_minute: int = 200
 
 

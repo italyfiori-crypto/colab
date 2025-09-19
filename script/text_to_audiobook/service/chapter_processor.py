@@ -258,7 +258,7 @@ class ChapterProcessor:
                 # 不需要拆分，直接复制到子章节目录
                 sub_chapter_content = f"{title}\n\n{body}"
                 chapter_basename = os.path.basename(chapter_file)
-                sub_filename = generate_sub_filename(chapter_basename, 1)
+                sub_filename = generate_sub_filename(chapter_basename, 0)
                 sub_file = os.path.join(sub_chapters_dir, sub_filename)
                 self.file_manager.write_text_file(sub_file, sub_chapter_content)
                 sub_chapter_files.append(sub_file)

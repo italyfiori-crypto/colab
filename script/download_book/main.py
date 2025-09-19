@@ -47,7 +47,7 @@ books = [
 
 
 for title_en, title_cn, url, year in books:
-    filename = f"{year}_{title_cn}_{title_en}.txt"
+    filename = f"{year}_{title_cn}.txt"
     filepath = os.path.join(output_dir, filename)
     
     try:

@@ -203,33 +203,8 @@ class SentenceProcessor:
             '\n\n'.join(final_paragraphs),
             '\n\n'.join(spacy_paragraphs),
         )
-        """
-        将文本拆分为句子使用引号优先的迭代分割方法
-        
-        Args:
-            text: 输入文本
-            
-        Returns:
-            句子列表
-        """
-        # 清理文本（移除多余空白）
-        text = re.sub(r'\s+', ' ', text.strip())
-        
-        if not text:
-            return []
-        
-        # 第一阶段：使用专业工具进行基础句子分割
-        sentences = self._split_with_spacy(text)
-        
-        # 第二阶段：新的长句拆分逻辑
-        sentences = self._split_long_sentences_new(sentences)
-        
-        # 清理句子（去除首尾空白）
-        sentences = [s.strip() for s in sentences if s.strip()]
-        
-        return sentences
 
-    def _split_sentences(self, text: str) -> tuple[List[str], List[str], List[str]]:
+    def _split_sentences(self, text: str) -> tuple[List[str], List[str]]:
         """
         将文本拆分为句子返回
         
@@ -243,14 +218,17 @@ class SentenceProcessor:
         text = re.sub(r'\s+', ' ', text.strip())
         
         if not text:
-            return [], [], []
+            return [], []
         
         # 第一阶段：使用spaCy进行基础句子分割
+        if len(text) <= MAX_SENTENCE_LENGTH:
+            return [text], [text] 
+
         spacy_sentences = self._split_with_spacy(text)
         spacy_sentences = [s.strip() for s in spacy_sentences if s.strip()]
         
         # 第二阶段：长句拆分逻辑
-        final_sentences = self._split_long_sentences_new(spacy_sentences)
+        final_sentences = self._split_long_sentences(spacy_sentences)
         final_sentences = [s.strip() for s in final_sentences if s.strip()]
         
         return final_sentences, spacy_sentences
@@ -269,7 +247,7 @@ class SentenceProcessor:
         return [sent.text.strip() for sent in doc.sents if sent.text.strip()]
     
     
-    def _split_long_sentences_new(self, sentences: List[str]) -> List[str]:
+    def _split_long_sentences(self, sentences: List[str]) -> List[str]:
         """
         新的长句拆分策略: 成对符号保护 + 分隔符拆分 + 智能合并
         

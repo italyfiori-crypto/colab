@@ -33,7 +33,7 @@
   ],
   "ignore_case": true,
   "sub_chapter": {
-    "max_reading_minutes": 5,
+    "max_reading_minutes": 3,
     "words_per_minute": 200,
     "min_paragraphs_per_sub": 2
   },

@@ -45,7 +45,7 @@ def generate_sub_filename(base_chapter_filename: str, sub_index: int, extension:
         子文件名（格式：001_Down_the_Rabbit-Hole(1).txt）
     """
     base_name = get_basename_without_extension(base_chapter_filename)
-    return f"{base_name}({sub_index}){extension}"
+    return  f"{base_name}{extension}" if sub_index == 0 else f"{base_name}({sub_index}){extension}"
 
 
 def get_basename_without_extension(filename: str) -> str:
