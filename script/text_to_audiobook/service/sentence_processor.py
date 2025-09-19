@@ -72,46 +72,62 @@ NEXT_SYMBOL_ENDINGS = ["”", "’", ")", "]", "}", "）", "】", "》"]
 PREV_SYMBOL_ENDINGS = ["”", "’", ")", "]", "}", "）", "】", "》"]
 NEXT_MERGEABLE_SEPARATORS = [".", "!", "?", ";",  ",", "，"]
 
-# 语义连接词配置（用于语义感知分隔）
-SEMANTIC_CONNECTORS = {
-    # 并列连词 (权重最高) - FANBOYS，语法重要性最高
-    'coordinating': ['and', 'but', 'or', 'yet', 'so', 'nor', 'for'],
+# 语义连接词配置（按优先级排序的2维数组）
+SEMANTIC_CONNECTORS = [
+    # 第1优先级：转折对比词 (最高优先级)
+    ['but', 'however', 'nevertheless', 'nonetheless', 'yet', 'still'],
     
-    # 从属连词 (权重高) - 引导从句，语法重要性高
-    'subordinating': [
-        # 时间类
-        'when', 'while', 'where', 'whenever', 'before', 'after', 'since', 'until', 'till',
-        'once', 'as soon as', 'as long as', 'now that',
-        # 原因类  
-        'because', 'since', 'as', 'that',
-        # 条件类
-        'if', 'unless', 'whether', 'provided', 'even if', 'in case',
-        # 让步类
-        'although', 'though', 'even though', 'whereas',
-        # 关系代词（定语从句）
-        'who', 'whom', 'whose', 'which', 'that',
-        # 比较类
-        'than', 'rather than'
-    ],
+    # 第2优先级：因果关系词  
+    ['because', 'since', 'therefore', 'thus', 'consequently', 'as a result'],
     
-    # 副词连接词 (权重中) - 逻辑关系词，按功能分类
-    'adverbial': [
-        # 添加/递进
-        'also', 'additionally', 'besides', 'furthermore', 'moreover', 'likewise', 'similarly',
-        # 对比/转折
-        'however', 'nevertheless', 'nonetheless', 'conversely', 'on the other hand', 'on the contrary', 'still',
-        # 因果关系
-        'therefore', 'thus', 'hence', 'accordingly', 'as a result', 'consequently',
-        # 时间顺序
-        'meanwhile', 'afterward', 'finally', 'first', 'next', 'subsequently', 'then',
-        # 举例/强调
-        'for example', 'for instance', 'in fact', 'indeed', 'specifically', 'certainly',
-        # 总结/结论
-        'in conclusion', 'in summary', 'overall', 'ultimately',
-        # 条件/选择
-        'otherwise', 'instead', 'rather'
-    ]
-}
+    # 第3优先级：时间转换词
+    ['when', 'while', 'before', 'after', 'until', 'once'],
+    
+    # 第4优先级：条件关系词
+    ['if', 'unless', 'whether', 'provided', 'in case', 'even if'],
+    
+    # 第5优先级：让步关系词
+    ['although', 'though', 'even though', 'whereas', 'despite', 'regardless'],
+    
+    # 第6优先级：选择关系词
+    ['or', 'nor', 'either', 'neither'],
+    
+    # 第7优先级：目的关系词
+    ['so', 'so that', 'in order to', 'so as to'],
+    
+    # 第8优先级：时间细节词
+    ['whenever', 'as soon as', 'as long as', 'now that', 'till'],
+    
+    # 第9优先级：递进强化词
+    ['furthermore', 'moreover', 'additionally', 'besides', 'likewise', 'similarly', 'also', 'too', 'as well'],
+    
+    # 第10优先级：举例说明词
+    ['for example', 'for instance', 'namely', 'specifically', 'particularly', 'especially', 'in particular', 'such as'],
+    
+    # 第11优先级：对比转折副词
+    ['conversely', 'on the other hand', 'on the contrary', 'in contrast', 'meanwhile', 'alternatively'],
+    
+    # 第12优先级：总结结论词
+    ['in conclusion', 'in summary', 'overall', 'ultimately', 'finally', 'in the end', 'to summarize'],
+    
+    # 第13优先级：替换选择词
+    ['instead', 'rather', 'otherwise'],
+    
+    # 第14优先级：强调确认词
+    ['indeed', 'in fact', 'certainly', 'definitely', 'absolutely'],
+    
+    # 第15优先级：关系代词 (定语从句)
+    ['who', 'whom', 'whose', 'which', 'that', 'where'],
+    
+    # 第16优先级：空间时间介词
+    ['from', 'to', 'in', 'on', 'at', 'with', 'without', 'through', 'during', 'across', 'over', 'under', 'within', 'beyond', 'throughout'],
+    
+    # 第17优先级：方式介词
+    ['by', 'via', 'including', 'excluding'],
+    
+    # 第18优先级：常见连接词 (谨慎分隔)
+    ['and', 'for', 'as']
+]
 
 
 # 长度控制常量 - 针对语音合成优化
@@ -609,8 +625,7 @@ class SentenceProcessor:
         """
         在文本中寻找最佳的语义分隔点
         
-        优先级：并列连词 > 从属连词 > 副词连接词
-        位置：优先选择中间部位的连接词
+        按优先级顺序查找连接词，优先使用高优先级的连接词分隔
         
         Args:
             text: 输入文本
@@ -621,9 +636,13 @@ class SentenceProcessor:
         words = text.split()
         text_length = len(text)
         
-        # 按优先级顺序检查连接词
-        for connectors in SEMANTIC_CONNECTORS.values():
-            split_positions = self._find_connector_positions(words, connectors, text)
+        # 只有超过阈值的文本才进行语义分隔
+        if text_length < MAX_SENTENCE_LENGTH:
+            return [text]
+        
+        # 按优先级顺序查找连接词
+        for priority_group in SEMANTIC_CONNECTORS:
+            split_positions = self._find_connector_positions(words, priority_group, text)
             if split_positions:
                 # 选择最接近中间位置的分隔点
                 best_split = self._select_middle_split(split_positions, text_length, text)
@@ -672,6 +691,7 @@ class SentenceProcessor:
         Args:
             positions: 候选分隔位置列表
             text_length: 文本总长度
+            text: 原始文本
             
         Returns:
             分隔后的文本片段列表，如果没有合适位置则返回空列表
@@ -683,15 +703,15 @@ class SentenceProcessor:
         best_position = min(positions, key=lambda pos: abs(pos - middle_pos))
         
         # 确保分隔后两部分都有合理长度（30%-70%之间）
-        if (best_position > text_length * 0.3 and 
-            best_position < text_length * 0.7):
-            
-            # 在连接词前分隔，保持连接词在第二部分开头
-            part1 = text[:best_position].strip()
-            part2 = text[best_position:].strip()
-            
-            if part1 and part2:  # 确保两部分都非空
-                return [part1, part2]
+        if not (text_length * 0.3 < best_position < text_length * 0.7):
+            return []
+        
+        # 在连接词前分隔，保持连接词在第二部分开头
+        part1 = text[:best_position].strip()
+        part2 = text[best_position:].strip()
+        
+        if part1 and part2:  # 确保两部分都非空
+            return [part1, part2]
         
         return []
     
