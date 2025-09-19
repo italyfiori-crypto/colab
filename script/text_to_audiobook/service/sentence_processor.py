@@ -27,7 +27,7 @@ def debug_print(stage, content):
             print(f"[DEBUG] {stage}: {repr(content)}")
         print()  # 空行分隔
 
-# 配置：括号类符号（整体保留）
+# 配置：括号类符号
 PAIR_SYMBOLS_PARENS = [
     ("(", ")"),
     ("[", "]"),
@@ -37,7 +37,7 @@ PAIR_SYMBOLS_PARENS = [
     ("《", "》"),
 ]
 
-# 配置：引号类符号（允许内部继续拆分）
+# 配置：引号类符号
 PAIR_SYMBOLS_QUOTES = [
     ("‘", "’"),
     ("“", "”"),
@@ -72,11 +72,52 @@ NEXT_SYMBOL_ENDINGS = ["”", "’", ")", "]", "}", "）", "】", "》"]
 PREV_SYMBOL_ENDINGS = ["”", "’", ")", "]", "}", "）", "】", "》"]
 NEXT_MERGEABLE_SEPARATORS = [".", "!", "?", ";",  ",", "，"]
 
+# 语义连接词配置（用于语义感知分隔）
+SEMANTIC_CONNECTORS = {
+    # 并列连词 (权重最高) - FANBOYS，语法重要性最高
+    'coordinating': ['and', 'but', 'or', 'yet', 'so', 'nor', 'for'],
+    
+    # 从属连词 (权重高) - 引导从句，语法重要性高
+    'subordinating': [
+        # 时间类
+        'when', 'while', 'where', 'whenever', 'before', 'after', 'since', 'until', 'till',
+        'once', 'as soon as', 'as long as', 'now that',
+        # 原因类  
+        'because', 'since', 'as', 'that',
+        # 条件类
+        'if', 'unless', 'whether', 'provided', 'even if', 'in case',
+        # 让步类
+        'although', 'though', 'even though', 'whereas',
+        # 关系代词（定语从句）
+        'who', 'whom', 'whose', 'which', 'that',
+        # 比较类
+        'than', 'rather than'
+    ],
+    
+    # 副词连接词 (权重中) - 逻辑关系词，按功能分类
+    'adverbial': [
+        # 添加/递进
+        'also', 'additionally', 'besides', 'furthermore', 'moreover', 'likewise', 'similarly',
+        # 对比/转折
+        'however', 'nevertheless', 'nonetheless', 'conversely', 'on the other hand', 'on the contrary', 'still',
+        # 因果关系
+        'therefore', 'thus', 'hence', 'accordingly', 'as a result', 'consequently',
+        # 时间顺序
+        'meanwhile', 'afterward', 'finally', 'first', 'next', 'subsequently', 'then',
+        # 举例/强调
+        'for example', 'for instance', 'in fact', 'indeed', 'specifically', 'certainly',
+        # 总结/结论
+        'in conclusion', 'in summary', 'overall', 'ultimately',
+        # 条件/选择
+        'otherwise', 'instead', 'rather'
+    ]
+}
+
 
 # 长度控制常量 - 针对语音合成优化
 MAX_SENTENCE_LENGTH = 80      # 目标最大长度（适合语音合成）
 MIN_MERGE_LENGTH = 30      # 最小合并长度
-MAX_MERGE_LENGTH = 100      # 最大合并长度
+MAX_MERGE_LENGTH = 80      # 最大合并长度
 
 
 class SentenceProcessor:
@@ -156,8 +197,8 @@ class SentenceProcessor:
         # 提取标题和正文
         title, body = self._extract_title_and_body(content)
         
-        # 处理段落句子拆分，同时保存中间结果
-        processed_content, pysbd_content = self._split_paragraphs_to_sentences(body)
+        # 处理段落句子拆分
+        processed_content, _ = self._split_paragraphs_to_sentences(body)
         
         # 构建最终内容
         final_content = f"{title}\n\n{processed_content}"
@@ -532,6 +573,128 @@ class SentenceProcessor:
         clauses = [clause.strip() for clause in clauses if clause.strip()]
         return clauses
     
+    def _split_by_semantic_words(self, segments: List[tuple[str, int]]) -> List[tuple[str, int]]:
+        """
+        第3步：按语义连接词分隔长片段，保持序号
+        
+        在句子中间部位寻找合适的连接词进行语义分隔
+        
+        Args:
+            segments: 第2步的输出 - (文本, 源序号) 元组列表
+            
+        Returns:
+            按语义词分隔后的 (文本, 源序号) 元组列表
+        """
+        result = []
+        
+        for text, source_idx in segments:
+            if len(text) <= MAX_SENTENCE_LENGTH:
+                # 短片段直接保留
+                result.append((text, source_idx))
+            else:
+                # 长片段尝试按语义连接词分隔
+                split_parts = self._find_semantic_split_points(text)
+                if len(split_parts) > 1:
+                    # 找到分隔点，保持相同的源序号
+                    result.extend([(part, source_idx) for part in split_parts])
+                    debug_print("语义分隔", f"序号{source_idx}: {text} -> {split_parts}")
+                else:
+                    # 没有找到合适分隔点，保持原样
+                    result.append((text, source_idx))
+        
+        debug_print("第3步-语义分隔", [(seg[0], seg[1]) for seg in result])
+        return result
+    
+    def _find_semantic_split_points(self, text: str) -> List[str]:
+        """
+        在文本中寻找最佳的语义分隔点
+        
+        优先级：并列连词 > 从属连词 > 副词连接词
+        位置：优先选择中间部位的连接词
+        
+        Args:
+            text: 输入文本
+            
+        Returns:
+            分隔后的文本片段列表，如果没有找到合适分隔点则返回[text]
+        """
+        words = text.split()
+        text_length = len(text)
+        
+        # 按优先级顺序检查连接词
+        for connectors in SEMANTIC_CONNECTORS.values():
+            split_positions = self._find_connector_positions(words, connectors, text)
+            if split_positions:
+                # 选择最接近中间位置的分隔点
+                best_split = self._select_middle_split(split_positions, text_length, text)
+                if best_split:
+                    return best_split
+        
+        # 没有找到合适分隔点，返回原文本
+        return [text]
+    
+    def _find_connector_positions(self, words: List[str], connectors: List[str], text: str) -> List[int]:
+        """
+        在单词列表中查找连接词的字符位置
+        
+        Args:
+            words: 单词列表
+            connectors: 连接词列表
+            text: 原始文本
+            
+        Returns:
+            连接词在文本中的字符位置列表
+        """
+        positions = []
+        current_pos = 0
+        
+        for word in words:
+            # 清理单词（去除标点符号）
+            clean_word = word.strip('.,!?;:"').lower()
+            
+            if clean_word in connectors:
+                # 找到连接词，记录其在原文本中的位置
+                word_start = text.find(word, current_pos)
+                if word_start != -1:
+                    positions.append(word_start)
+            
+            # 更新当前位置（包括空格）
+            current_pos = text.find(word, current_pos)
+            if current_pos != -1:
+                current_pos += len(word)
+        
+        return positions
+    
+    def _select_middle_split(self, positions: List[int], text_length: int, text: str) -> List[str]:
+        """
+        选择最接近文本中间位置的分隔点
+        
+        Args:
+            positions: 候选分隔位置列表
+            text_length: 文本总长度
+            
+        Returns:
+            分隔后的文本片段列表，如果没有合适位置则返回空列表
+        """
+        if not positions:
+            return []
+        
+        middle_pos = text_length // 2
+        best_position = min(positions, key=lambda pos: abs(pos - middle_pos))
+        
+        # 确保分隔后两部分都有合理长度（30%-70%之间）
+        if (best_position > text_length * 0.3 and 
+            best_position < text_length * 0.7):
+            
+            # 在连接词前分隔，保持连接词在第二部分开头
+            part1 = text[:best_position].strip()
+            part2 = text[best_position:].strip()
+            
+            if part1 and part2:  # 确保两部分都非空
+                return [part1, part2]
+        
+        return []
+    
     def _has_adjacent_same_source(self, segments: List[tuple[str, int]], current_index: int, source_idx: int) -> bool:
         """
         检查当前位置是否有相邻的相同源序号片段
@@ -614,101 +777,13 @@ class SentenceProcessor:
             not self._ends_with_sentence_terminator(prev_text)
         )
     
-    def _parse_text_into_clauses(self, text: str):
-        """
-        将文本拆分成子句的核心逻辑:
-        使用统一的符号处理和状态跟踪
-        """
-        clauses = []
-        buf = []
-        
-        # 统一的符号状态跟踪
-        quote_stack = []  # 引号栈，记录当前打开的引号类型
-        paren_count = 0   # 括号嵌套层级
-        
-        i = 0
-        while i < len(text):
-            ch = text[i]
-            
-            # 检查是否为引号字符
-            quote_info = self._get_quote_type(ch)
-            if quote_info:
-                open_quote, close_quote = quote_info
-                buf.append(ch)
-                
-                # 只在没有括号嵌套时处理引号
-                if paren_count == 0:
-                    if ch == open_quote:
-                        # 检查是否为开始引号
-                        if not quote_stack or quote_stack[-1] != (open_quote, close_quote):
-                            # 开始新的引号区域
-                            if buf[:-1]:  # 如果缓冲区有内容（除了刚加入的引号）
-                                clause = ''.join(buf[:-1]).strip()
-                                if clause:
-                                    clauses.append(clause)
-                                buf = [ch]  # 重新开始，只保留引号
-                            quote_stack.append((open_quote, close_quote))
-                    elif ch == close_quote:
-                        # 检查是否为结束引号
-                        if quote_stack and quote_stack[-1] == (open_quote, close_quote):
-                            # 结束当前引号区域
-                            quote_stack.pop()
-                            clause = ''.join(buf).strip()
-                            if clause:
-                                clauses.append(clause)
-                            buf = []
-            
-            # 检查是否为括号字符
-            elif self._get_paren_type(ch):
-                open_paren, close_paren = self._get_paren_type(ch)
-                buf.append(ch)
-                
-                # 只在没有引号嵌套时计算括号层级
-                if not quote_stack:
-                    if ch == open_paren:
-                        paren_count += 1
-                    elif ch == close_paren and paren_count > 0:
-                        paren_count -= 1
-            
-            # 处理分隔符
-            elif ch in SPLIT_PUNCT:
-                buf.append(ch)
-                
-                # 只在没有引号或括号嵌套时进行拆分
-                if not quote_stack and paren_count == 0:
-                    # 特殊处理句号：检查是否为缩写词
-                    if ch == '.' and self._is_abbreviation(i, text):
-                        pass  # 不拆分缩写词
-                    else:
-                        clause = ''.join(buf).strip()
-                        if clause and len(clause) > 1:  # 避免单个分隔符成为独立子句
-                            clauses.append(clause)
-                            buf = []
-            
-            # 普通字符
-            else:
-                buf.append(ch)
-            
-            i += 1
-        
-        # 收尾处理
-        if buf:
-            clause = ''.join(buf).strip()
-            if clause:
-                clauses.append(clause)
-        
-        # 清理并过滤空子句
-        clauses = [clause.strip() for clause in clauses if clause.strip()]
-        debug_print("_parse_text_into_clauses输出", clauses)
-        
-        return clauses
-
     def split_into_clauses(self, text: str):
         """
-        三步优化的子句拆分:
+        四步优化的子句拆分:
         1. 按括号和引号拆分，记录序号
         2. 按分隔符拆分长片段，保持序号
-        3. 智能合并，优先相同序号片段
+        3. 按语义连接词拆分长片段，保持序号
+        4. 智能合并，优先相同序号片段
         """
         debug_print("split_into_clauses输入", text)
         
@@ -718,7 +793,10 @@ class SentenceProcessor:
         # 第2步：按分隔符拆分长片段  
         segments = self._split_by_punctuation(segments)
         
-        # 第3步：智能合并
+        # 第3步：按语义连接词拆分长片段
+        segments = self._split_by_semantic_words(segments)
+        
+        # 第4步：智能合并
         result = self._merge_short_segments(segments)
         
         # 后置处理: 合并被分离的标点符号
@@ -816,46 +894,4 @@ class SentenceProcessor:
         
         return case1 or case2
 
-    def _is_quoted_or_parenthesized(self, text: str) -> bool:
-        """
-        检查文本是否被括号或引号包围
-        """
-        if len(text) < 2:
-            return False
-        
-        # 检查是否被括号包围
-        for open_sym, close_sym in PAIR_SYMBOLS_PARENS:
-            if text.startswith(open_sym) and text.endswith(close_sym):
-                return True
-        
-        # 检查是否被引号包围
-        for open_sym, close_sym in PAIR_SYMBOLS_QUOTES:
-            if text.startswith(open_sym) and text.endswith(close_sym):
-                return True
-        
-        return False
-
-    def _extract_inner_content_and_wrapper(self, text: str) -> tuple[str, tuple[str, str]]:
-        """
-        从被包围的文本中提取内部内容和包围符号
-        
-        Returns:
-            (内部内容, (开始符号, 结束符号))
-        """
-        if len(text) < 2:
-            return text, ("", "")
-        
-        # 检查括号
-        for open_sym, close_sym in PAIR_SYMBOLS_PARENS:
-            if text.startswith(open_sym) and text.endswith(close_sym):
-                inner = text[len(open_sym):-len(close_sym)]
-                return inner, (open_sym, close_sym)
-        
-        # 检查引号
-        for open_sym, close_sym in PAIR_SYMBOLS_QUOTES:
-            if text.startswith(open_sym) and text.endswith(close_sym):
-                inner = text[len(open_sym):-len(close_sym)]
-                return inner, (open_sym, close_sym)
-        
-        return text, ("", "")
 
