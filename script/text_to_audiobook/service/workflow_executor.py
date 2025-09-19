@@ -30,7 +30,7 @@ class WorkflowExecutor:
         """
         self.config = config
         self.chapter_processor = ChapterProcessor(config)
-        self.sentence_processor = SentenceProcessor(config)
+        self.sentence_processor = SentenceProcessor()
         self.audio_processor = AudioProcessor(config)
         self.translation_service = TranslationService(config)
         self.analysis_service = AnalysisService(config)
@@ -61,7 +61,7 @@ class WorkflowExecutor:
             print(f"❌ 章节拆分失败: {e}")
             raise
     
-    def execute_sentence_processing(self, sub_chapter_files: List[str], output_dir: str, verbose: bool = False, force_regenerate: bool = False) -> Tuple[List[str], float]:
+    def execute_sentence_processing(self, sub_chapter_files: List[str], output_dir: str, verbose: bool = False) -> Tuple[List[str], float]:
         """
         执行句子处理流程：句子拆分
         
@@ -77,7 +77,7 @@ class WorkflowExecutor:
         start_time = time.time()
         
         try:
-            sentence_files = self.sentence_processor.split_sub_chapters_to_sentences(sub_chapter_files, output_dir, force_regenerate)
+            sentence_files = self.sentence_processor.split_sub_chapters_to_sentences(sub_chapter_files, output_dir)
             elapsed_time = time.time() - start_time
             
             return sentence_files, elapsed_time
