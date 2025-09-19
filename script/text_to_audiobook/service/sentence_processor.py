@@ -2,13 +2,14 @@
 # -*- coding: utf-8 -*-
 """
 句子拆分模块
-将子章节的段落拆分为句子，每个句子占一行，保留段落间隔
+将子章节的段落拆分为句子每个句子占一行保留段落间隔
 使用引号优先的语义感知分割方法
 """
 
 import os
 import re
 import nltk
+import spacy
 from typing import List
 
 # 配置：括号类符号（整体保留）
@@ -30,46 +31,22 @@ PAIR_SYMBOLS_QUOTES = [
 # 配置：句中分隔符（可以再扩展）
 SPLIT_PUNCT = [",", "，", ":", "：", ";", "；", "!", "?"]
 
-# 分隔符优先级列表（按语义强度排序）
-SEPARATORS = [
-    ". ",        # 句号+空格（最高优先级）
-    "! ",        # 感叹号+空格
-    "? ",        # 问号+空格
-    "; ",        # 分号+空格
-    ": ",        # 冒号+空格
-    ", and ",    # 逗号+and连词
-    ", but ",    # 逗号+but连词
-    ", or ",     # 逗号+or连词
-    ", when ",   # 逗号+when连词
-    ", that ",   # 逗号+that连词
-    ", ",        # 逗号+空格（最低优先级）
-]
+# 句末分隔符（不应在此处合并子句）
+SENTENCE_TERMINATORS = [".", "!", "?", ";"]
 
-# 保护模式（引号、括号等，绝对不拆分）
-PROTECTED_PATTERNS = [
-    r'"[^"]*"',      # 双引号内容
-    r"'[^']*'",      # 单引号内容
-    r'\([^)]*\)',    # 圆括号内容
-    r'\[[^\]]*\]',   # 方括号内容
-]
+# 可合并的分隔符 + 成对符号的结束部分
+PREV_MERGEABLE_SEPARATORS = [".", "!", "?", ";"]
+NEXT_SYMBOL_ENDINGS = ["”", "’", ")", "]", "}", "）", "】", "》"]
+
+PREV_SYMBOL_ENDINGS = ["”", "’", ")", "]", "}", "）", "】", "》"]
+NEXT_MERGEABLE_SEPARATORS = [".", "!", "?", ";",  ",", "，"]
+
 
 # 长度控制常量 - 针对语音合成优化
 MAX_SENTENCE_LENGTH = 80      # 目标最大长度（适合语音合成）
-MIN_MERGE_LENGTH = 40      # 最小合并长度
+MIN_MERGE_LENGTH = 30      # 最小合并长度
 MAX_MERGE_LENGTH = 100      # 最大合并长度
 
-# 成对符号定义（支持所有类型引号和括号）
-QUOTE_PAIRS = [
-    ('"', '"'),     # 标准双引号
-    ('"', '"'),     # 弯曲双引号
-    ('„', '"'),     # 德式双引号
-    ("'", "'"),     # 标准单引号
-    ("'", "'"),     # 弯曲单引号
-    ("‚", "'"),     # 德式单引号
-    ('(', ')'),     # 圆括号
-    ('[', ']'),     # 方括号
-    ('{', '}'),     # 花括号
-]
 
 class SentenceProcessor:
     """句子拆分器"""
@@ -79,6 +56,7 @@ class SentenceProcessor:
         初始化句子拆分器
         """
         self._ensure_nltk_data()
+        self._load_spacy_model()
     
     def _ensure_nltk_data(self):
         """
@@ -89,6 +67,17 @@ class SentenceProcessor:
         except LookupError:
             print("下载NLTK punkt数据包...")
             nltk.download('punkt')
+    
+    def _load_spacy_model(self):
+        """
+        加载spaCy模型
+        """
+        try:
+            self.nlp = spacy.load("en_core_web_sm")
+            print("✅ spaCy模型加载成功: en_core_web_sm")
+        except OSError:
+            print("❌ spaCy模型未找到，请安装: python -m spacy download en_core_web_sm")
+            raise
     
     def split_sub_chapters_to_sentences(self, input_files: List[str], output_dir: str) -> List[str]:
         """
@@ -140,15 +129,22 @@ class SentenceProcessor:
         # 提取标题和正文
         title, body = self._extract_title_and_body(content)
         
-        # 处理段落句子拆分
-        processed_content = self._split_paragraphs_to_sentences(body)
+        # 处理段落句子拆分，同时保存中间结果
+        processed_content, spacy_content = self._split_paragraphs_to_sentences(body)
         
         # 构建最终内容
         final_content = f"{title}\n\n{processed_content}"
         
         # 写入输出文件
         with open(output_file, 'w', encoding='utf-8') as f:
-            f.write(final_content)
+            f.write(final_content)        
+        
+        # spaCy原始结果
+        # base_name = os.path.splitext(output_file)[0]
+        # spacy_file = f"{base_name}_spacy.txt"
+        # spacy_final_content = f"{title}\n\n{spacy_content}"
+        # with open(spacy_file, 'w', encoding='utf-8') as f:
+        #     f.write(spacy_final_content)
     
     def _extract_title_and_body(self, content: str) -> tuple[str, str]:
         """
@@ -172,16 +168,16 @@ class SentenceProcessor:
         
         body = '\n'.join(body_lines)
         return title, body
-    
-    def _split_paragraphs_to_sentences(self, content: str) -> str:
+
+    def _split_paragraphs_to_sentences(self, content: str) -> tuple[str, str, str]:
         """
-        将内容按段落拆分，再将每个段落拆分为句子
+        将内容按段落拆分再将每个段落拆分为句子同时返回中间处理结果
         
         Args:
             content: 正文内容
             
         Returns:
-            处理后的内容
+            (最终处理内容, spaCy原始内容, 长句拆分内容)
         """
         # 按段落分割（双换行分割）
         paragraphs = re.split(r'\n\n', content)
@@ -189,23 +185,26 @@ class SentenceProcessor:
         # 过滤空段落
         paragraphs = [p.strip() for p in paragraphs if p.strip()]
         
-        processed_paragraphs = []
+        final_paragraphs = []
+        spacy_paragraphs = []
         
         for paragraph in paragraphs:
             # 对段落进行句子拆分
-            sentences = self._split_sentences(paragraph)
+            final_sentences, spacy_sentences = self._split_sentences(paragraph)
             
             # 将句子列表转换为字符串（每句一行）
-            if sentences:
-                paragraph_content = '\n'.join(sentences)
-                processed_paragraphs.append(paragraph_content)
+            if final_sentences:
+                final_paragraphs.append('\n'.join(final_sentences))
+            if spacy_sentences:
+                spacy_paragraphs.append('\n'.join(spacy_sentences))
         
         # 段落间用空行分隔
-        return '\n\n'.join(processed_paragraphs)
-    
-    def _split_sentences(self, text: str) -> List[str]:
+        return (
+            '\n\n'.join(final_paragraphs),
+            '\n\n'.join(spacy_paragraphs),
+        )
         """
-        将文本拆分为句子，使用引号优先的迭代分割方法
+        将文本拆分为句子使用引号优先的迭代分割方法
         
         Args:
             text: 输入文本
@@ -220,7 +219,7 @@ class SentenceProcessor:
             return []
         
         # 第一阶段：使用专业工具进行基础句子分割
-        sentences = self._split_with_nltk(text)
+        sentences = self._split_with_spacy(text)
         
         # 第二阶段：新的长句拆分逻辑
         sentences = self._split_long_sentences_new(sentences)
@@ -229,10 +228,36 @@ class SentenceProcessor:
         sentences = [s.strip() for s in sentences if s.strip()]
         
         return sentences
-    
-    def _split_with_nltk(self, text: str) -> List[str]:
+
+    def _split_sentences(self, text: str) -> tuple[List[str], List[str], List[str]]:
         """
-        使用NLTK进行句子分割
+        将文本拆分为句子返回
+        
+        Args:
+            text: 输入文本
+            
+        Returns:
+            (最终句子列表, spaCy原始句子列表, 长句拆分句子列表)
+        """
+        # 清理文本（移除多余空白）
+        text = re.sub(r'\s+', ' ', text.strip())
+        
+        if not text:
+            return [], [], []
+        
+        # 第一阶段：使用spaCy进行基础句子分割
+        spacy_sentences = self._split_with_spacy(text)
+        spacy_sentences = [s.strip() for s in spacy_sentences if s.strip()]
+        
+        # 第二阶段：长句拆分逻辑
+        final_sentences = self._split_long_sentences_new(spacy_sentences)
+        final_sentences = [s.strip() for s in final_sentences if s.strip()]
+        
+        return final_sentences, spacy_sentences
+    
+    def _split_with_spacy(self, text: str) -> List[str]:
+        """
+        使用spaCy进行句子分割
         
         Args:
             text: 输入文本
@@ -240,12 +265,13 @@ class SentenceProcessor:
         Returns:
             句子列表
         """
-        return nltk.sent_tokenize(text)
+        doc = self.nlp(text)
+        return [sent.text.strip() for sent in doc.sents if sent.text.strip()]
     
     
     def _split_long_sentences_new(self, sentences: List[str]) -> List[str]:
         """
-        新的长句拆分策略：成对符号保护 + 分隔符拆分 + 智能合并
+        新的长句拆分策略: 成对符号保护 + 分隔符拆分 + 智能合并
         
         Args:
             sentences: 原始句子列表
@@ -271,9 +297,9 @@ class SentenceProcessor:
                                 quote_symbols=PAIR_SYMBOLS_QUOTES,
                                 split_punct=SPLIT_PUNCT):
         """
-        将文本拆分成子句的核心逻辑：
+        将文本拆分成子句的核心逻辑:
         1. 使用统一的配对符号处理逻辑
-        2. 分隔符包含在子句末尾，触发拆分
+        2. 分隔符包含在子句末尾触发拆分
         3. 确保语义边界的正确性
         """
         # 统一所有配对符号
@@ -387,24 +413,23 @@ class SentenceProcessor:
     def split_into_clauses(self, text: str,
                         paren_symbols=PAIR_SYMBOLS_PARENS,
                         quote_symbols=PAIR_SYMBOLS_QUOTES,
-                        split_punct=SPLIT_PUNCT,
-                        min_len: int = 15):
+                        split_punct=SPLIT_PUNCT):
         """
-        将文本拆分成子句：
-        1. 括号类符号内的文本作为独立子句。
-        2. 引号类符号内的文本作为独立子句。
-        3. 分隔符触发拆分，分隔符保留在子句末尾。
-        4. 短子句自动与前一个子句合并。
-        5. 对长度超过阈值的括号或引号子句再次拆分。
+        将文本拆分成子句:
+        1. 括号类符号内的文本作为独立子句
+        2. 引号类符号内的文本作为独立子句
+        3. 分隔符触发拆分分隔符保留在子句末尾
+        4. 短子句自动与前一个子句合并
+        5. 对长度超过阈值的括号或引号子句再次拆分
         """
         # 第一次调用内部逻辑进行基础拆分
         clauses = self._parse_text_into_clauses(text, paren_symbols, quote_symbols, split_punct)
 
-        # 第二次调用内部逻辑，对长度超过阈值的括号或引号包围的子句进行再拆分
+        # 第二次调用内部逻辑对长度超过阈值的括号或引号包围的子句进行再拆分
         final_result = []
         for clause in clauses:
             if len(clause) > MAX_SENTENCE_LENGTH and self._is_quoted_or_parenthesized(clause):
-                # 去掉外层括号或引号，拆分内部内容，然后重新包围
+                # 去掉外层括号或引号拆分内部内容然后重新包围
                 inner_content, wrapper = self._extract_inner_content_and_wrapper(clause)
                 if inner_content:
                     inner_clauses = self._parse_text_into_clauses(inner_content, paren_symbols, quote_symbols, split_punct)
@@ -430,12 +455,116 @@ class SentenceProcessor:
         # 合并过短的子句
         merged = []
         for c in final_result:
-            if merged and len(merged[-1]) < MIN_MERGE_LENGTH and len(merged[-1]) + len(c) < MAX_MERGE_LENGTH:
+            # 检查是否应该合并：
+            # 1. 存在前一个子句
+            # 2. 前一个子句或当前子句过短
+            # 3. 合并后不超过最大长度
+            # 4. 前一个子句不以句末分隔符结尾（新增条件）
+            should_merge = (
+                merged and 
+                (len(merged[-1]) < MIN_MERGE_LENGTH or len(c) < MIN_MERGE_LENGTH) and 
+                len(merged[-1]) + len(c) < MAX_MERGE_LENGTH and
+                not self._ends_with_sentence_terminator(merged[-1])
+            )
+            
+            if should_merge:
                 merged[-1] += " " + c
             else:
                 merged.append(c)
 
+        # 后置处理: 合并被分离的标点符号
+        merged = self._merge_split_punctuation(merged)
+
         return merged
+
+    def _ends_with_sentence_terminator(self, text: str) -> bool:
+        """
+        检查文本是否以句末分隔符结尾(去除空格后)
+        
+        Args:
+            text: 输入文本
+            
+        Returns:
+            True if 文本以句末分隔符结尾
+        """
+        if not text:
+            return False
+            
+        # 去除尾部空格后检查最后一个字符
+        trimmed = text.rstrip()
+        if not trimmed:
+            return False
+            
+        return trimmed[-1] in SENTENCE_TERMINATORS
+
+    def _merge_split_punctuation(self, clauses: List[str]) -> List[str]:
+        """
+        后置处理: 合并被分离的分隔符和成对符号
+        两种情况:
+        1. 分隔符(非冒号) + 成对符号结束部分
+        2. 成对符号结束部分 + 分隔符(非冒号)
+        
+        Args:
+            clauses: 原始子句列表
+            
+        Returns:
+            合并后的子句列表
+        """
+        if not clauses:
+            return clauses
+            
+        merged = []
+        
+        for clause in clauses:
+            if merged and self._should_merge_with_previous(merged[-1], clause):
+                # 合并符号
+                clause = clause.lstrip()
+                merged[-1] += clause[0]
+                if len(clause) > 1:
+                    merged.append(clause[1:].lstrip())
+            else:
+                merged.append(clause)
+        
+        return merged
+    
+    def _should_merge_with_previous(self, prev_clause: str, current_clause: str) -> bool:
+        """
+        检查当前子句是否应该与前一个子句合并
+        两种情况:
+        1. 分隔符(非冒号) + 成对符号结束部分
+        2. 成对符号结束部分 + 分隔符(非冒号)
+        
+        Args:
+            prev_clause: 前一个子句
+            current_clause: 当前子句
+            
+        Returns:
+            True if 应该合并
+        """
+        if not prev_clause or not current_clause:
+            return False
+            
+        # 检查前一句的结尾字符
+        prev_trimmed = prev_clause.rstrip()
+        if not prev_trimmed:
+            return False
+        prev_end_char = prev_trimmed[-1]
+        
+        # 检查当前句的开头字符
+        current_trimmed = current_clause.lstrip()
+        if not current_trimmed:
+            return False
+        current_start_char = current_trimmed[0]
+        
+        # 情况1: 分隔符(非冒号) + 成对符号结束部分
+        case1 = (prev_end_char in PREV_MERGEABLE_SEPARATORS and 
+                current_start_char in NEXT_SYMBOL_ENDINGS)
+        
+        # 情况2: 成对符号结束部分 + 分隔符(非冒号)
+        case2 = (prev_end_char in PREV_SYMBOL_ENDINGS and 
+                current_start_char in NEXT_MERGEABLE_SEPARATORS)
+        
+        return case1 or case2
 
     def _is_quoted_or_parenthesized(self, text: str) -> bool:
         """
