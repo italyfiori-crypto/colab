@@ -49,6 +49,18 @@ SPLIT_PUNCT = [",", "，", ":", "：", ";", "；", "!", "?", "."]
 # 配置：英语常见缩写词（不应在句号处拆分）
 ENGLISH_ABBREVIATIONS = ["Dr", "Mrs", "Ms", "Mr", "Prof", "St", "Ave", "etc", "vs", "Jr", "Sr", "Co", "Inc", "Ltd", "Corp"]
 
+# 配置：英语缩写词模式（单引号在这些情况下不应作为引号分隔符）
+CONTRACTION_PATTERNS = [
+    "'t",   # don't, can't, won't, isn't, aren't, haven't, hasn't
+    "'m",    # I'm, we'm  
+    "'am",
+    "'re",   # you're, we're, they're
+    "'ve",   # I've, you've, we've, they've
+    "'d",    # I'd, you'd, he'd, she'd, we'd, they'd
+    "'ll",   # I'll, you'll, he'll, she'll, we'll, they'll
+    "'s",    # possessive: John's, Mary's, 或 is/has: he's, she's
+]
+
 # 句末分隔符（不应在此处合并子句）
 SENTENCE_TERMINATORS = [".", "?", ";"]
 
@@ -329,6 +341,29 @@ class SentenceProcessor:
             if ch == open_paren or ch == close_paren:
                 return open_paren, close_paren
         return None
+    
+    def _is_contraction_apostrophe(self, position: int, text: str) -> bool:
+        """检测指定位置的单引号是否为英语缩写词中的撇号"""
+        if position == 0 or position >= len(text) - 1:
+            return False
+        
+        # 检查是否符合缩写词模式
+        for pattern in CONTRACTION_PATTERNS:
+            pattern_start = position
+            pattern_end = position + len(pattern)
+            
+            if pattern_end <= len(text):
+                if text[pattern_start:pattern_end] == pattern:
+                    # 检查前面是否有字母（确保是单词的一部分）
+                    if position > 0 and text[position-1].isalpha():
+                        # 检查后面是否是单词边界（空格、标点、文本结尾）
+                        if (pattern_end >= len(text) or 
+                            text[pattern_end].isspace() or 
+                            text[pattern_end] in SPLIT_PUNCT or
+                            text[pattern_end] in '"",，"'):
+                            return True
+        
+        return False
     
     def _parse_text_into_clauses(self, text: str):
         """

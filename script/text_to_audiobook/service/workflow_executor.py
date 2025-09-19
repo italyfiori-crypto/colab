@@ -30,7 +30,7 @@ class WorkflowExecutor:
         """
         self.config = config
         self.chapter_processor = ChapterProcessor(config)
-        self.sentence_processor = SentenceProcessor()
+        self.sentence_processor = SentenceProcessor(config)
         self.audio_processor = AudioProcessor(config)
         self.translation_service = TranslationService(config)
         self.analysis_service = AnalysisService(config)

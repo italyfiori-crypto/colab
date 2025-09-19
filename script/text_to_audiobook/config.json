@@ -13,6 +13,12 @@
       "content_start_offset": 2
     },
     {
+      "name": "金银岛",
+      "multiline_regex": "^\n\n([IVX]+)\n([^\n]+)\n\n",
+      "title_line_index": 3,
+      "content_start_offset": 2
+    },
+    {
       "name": "prince",
       "multiline_regex": "^([0-9]+)\n\n([^\n]+)\n\n",
       "title_line_index": 2,

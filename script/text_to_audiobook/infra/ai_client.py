@@ -8,6 +8,7 @@ import requests
 import time
 from typing import List, Optional
 from dataclasses import dataclass
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 
 @dataclass
@@ -56,25 +57,49 @@ class AIClient:
         
         return self._call_api(messages, temperature, max_tokens)
     
-    def batch_completion(self, prompts: List[str], system_prompt: str = "", temperature: float = 0.1, max_tokens: int = 1000) -> List[str]:
+    def batch_completion(self, prompts: List[str], system_prompt: str = "") -> List[str]:
         """
-        批量对话完成
+        批量对话完成（支持并发处理）
         
         Args:
             prompts: 用户提示词列表
             system_prompt: 系统提示词
-            temperature: 温度参数
-            max_tokens: 最大token数
             
         Returns:
             AI响应内容列表
         """
-        results = []
-        for prompt in prompts:
-            result = self.chat_completion(prompt, system_prompt, temperature, max_tokens)
-            results.append(result)
-            # 添加小延迟避免API限流
-            time.sleep(0.1)
+        if not prompts:
+            return []
+        
+        results = [None] * len(prompts)  # 预分配结果列表，保持顺序
+        
+        def process_single_prompt(index_prompt_pair):
+            index, prompt = index_prompt_pair
+            try:
+                result = self.chat_completion(prompt, system_prompt)
+                return index, result
+            except Exception as e:
+                print(f"⚠️ 处理第{index+1}个请求时出错: {e}")
+                return index, ""
+        
+        # 使用线程池进行并发处理
+        with ThreadPoolExecutor(max_workers=self.config.max_concurrent_workers) as executor:
+            # 提交所有任务
+            future_to_index = {
+                executor.submit(process_single_prompt, (i, prompt)): i 
+                for i, prompt in enumerate(prompts)
+            }
+            
+            # 收集结果
+            for future in as_completed(future_to_index):
+                try:
+                    index, result = future.result()
+                    results[index] = result
+                except Exception as e:
+                    index = future_to_index[future]
+                    print(f"⚠️ 任务{index+1}执行失败: {e}")
+                    results[index] = ""
+        
         return results
     
     def _call_api(self, messages: List[dict], temperature: float, max_tokens: int) -> str:
