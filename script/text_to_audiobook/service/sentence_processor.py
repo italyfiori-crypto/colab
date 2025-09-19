@@ -9,8 +9,22 @@
 import os
 import re
 import nltk
-import spacy
+import pysbd
 from typing import List
+
+# 调试开关
+DEBUG_SENTENCE_PROCESSING = False
+
+def debug_print(stage, content):
+    """调试输出函数"""
+    if DEBUG_SENTENCE_PROCESSING:
+        if isinstance(content, list):
+            print(f"[DEBUG] {stage}: {len(content)} items")
+            for i, item in enumerate(content):
+                print(f"  [{i}]: {repr(item)}")
+        else:
+            print(f"[DEBUG] {stage}: {repr(content)}")
+        print()  # 空行分隔
 
 # 配置：括号类符号（整体保留）
 PAIR_SYMBOLS_PARENS = [
@@ -24,8 +38,8 @@ PAIR_SYMBOLS_PARENS = [
 
 # 配置：引号类符号（允许内部继续拆分）
 PAIR_SYMBOLS_QUOTES = [
-    ("“", "”"),
-    ('"', '"'),
+    (""", """),
+    ('"', '"'),  # 恢复标准双引号用于调试
 ]
 
 # 配置：句中分隔符（可以再扩展）
@@ -56,7 +70,7 @@ class SentenceProcessor:
         初始化句子拆分器
         """
         self._ensure_nltk_data()
-        self._load_spacy_model()
+        self._init_pysbd()
     
     def _ensure_nltk_data(self):
         """
@@ -68,16 +82,12 @@ class SentenceProcessor:
             print("下载NLTK punkt数据包...")
             nltk.download('punkt')
     
-    def _load_spacy_model(self):
+    def _init_pysbd(self):
         """
-        加载spaCy模型
+        初始化pySBD分段器
         """
-        try:
-            self.nlp = spacy.load("en_core_web_sm")
-            print("✅ spaCy模型加载成功: en_core_web_sm")
-        except OSError:
-            print("❌ spaCy模型未找到，请安装: python -m spacy download en_core_web_sm")
-            raise
+        self.segmenter = pysbd.Segmenter(language="en", clean=False)
+        print("✅ pySBD分段器初始化完成")
     
     def split_sub_chapters_to_sentences(self, input_files: List[str], output_dir: str) -> List[str]:
         """
@@ -130,7 +140,7 @@ class SentenceProcessor:
         title, body = self._extract_title_and_body(content)
         
         # 处理段落句子拆分，同时保存中间结果
-        processed_content, spacy_content = self._split_paragraphs_to_sentences(body)
+        processed_content, pysbd_content = self._split_paragraphs_to_sentences(body)
         
         # 构建最终内容
         final_content = f"{title}\n\n{processed_content}"
@@ -139,12 +149,12 @@ class SentenceProcessor:
         with open(output_file, 'w', encoding='utf-8') as f:
             f.write(final_content)        
         
-        # spaCy原始结果
-        # base_name = os.path.splitext(output_file)[0]
-        # spacy_file = f"{base_name}_spacy.txt"
-        # spacy_final_content = f"{title}\n\n{spacy_content}"
-        # with open(spacy_file, 'w', encoding='utf-8') as f:
-        #     f.write(spacy_final_content)
+        # pySBD原始结果
+        base_name = os.path.splitext(output_file)[0]
+        pysbd_file = f"{base_name}_pysbd.txt"
+        pysbd_final_content = f"{title}\n\n{pysbd_content}"
+        with open(pysbd_file, 'w', encoding='utf-8') as f:
+            f.write(pysbd_final_content)
     
     def _extract_title_and_body(self, content: str) -> tuple[str, str]:
         """
@@ -169,7 +179,7 @@ class SentenceProcessor:
         body = '\n'.join(body_lines)
         return title, body
 
-    def _split_paragraphs_to_sentences(self, content: str) -> tuple[str, str, str]:
+    def _split_paragraphs_to_sentences(self, content: str) -> tuple[str, str]:
         """
         将内容按段落拆分再将每个段落拆分为句子同时返回中间处理结果
         
@@ -177,7 +187,7 @@ class SentenceProcessor:
             content: 正文内容
             
         Returns:
-            (最终处理内容, spaCy原始内容, 长句拆分内容)
+            (最终处理内容, pySBD原始内容)
         """
         # 按段落分割（双换行分割）
         paragraphs = re.split(r'\n\n', content)
@@ -186,22 +196,22 @@ class SentenceProcessor:
         paragraphs = [p.strip() for p in paragraphs if p.strip()]
         
         final_paragraphs = []
-        spacy_paragraphs = []
+        pysbd_paragraphs = []
         
         for paragraph in paragraphs:
             # 对段落进行句子拆分
-            final_sentences, spacy_sentences = self._split_sentences(paragraph)
+            final_sentences, pysbd_sentences = self._split_sentences(paragraph)
             
             # 将句子列表转换为字符串（每句一行）
             if final_sentences:
                 final_paragraphs.append('\n'.join(final_sentences))
-            if spacy_sentences:
-                spacy_paragraphs.append('\n'.join(spacy_sentences))
+            if pysbd_sentences:
+                pysbd_paragraphs.append('\n'.join(pysbd_sentences))
         
         # 段落间用空行分隔
         return (
             '\n\n'.join(final_paragraphs),
-            '\n\n'.join(spacy_paragraphs),
+            '\n\n'.join(pysbd_paragraphs),
         )
 
     def _split_sentences(self, text: str) -> tuple[List[str], List[str]]:
@@ -212,7 +222,7 @@ class SentenceProcessor:
             text: 输入文本
             
         Returns:
-            (最终句子列表, spaCy原始句子列表, 长句拆分句子列表)
+            (最终句子列表, pySBD原始句子列表)
         """
         # 清理文本（移除多余空白）
         text = re.sub(r'\s+', ' ', text.strip())
@@ -220,22 +230,22 @@ class SentenceProcessor:
         if not text:
             return [], []
         
-        # 第一阶段：使用spaCy进行基础句子分割
+        # 第一阶段：使用pySBD进行基础句子分割
         if len(text) <= MAX_SENTENCE_LENGTH:
             return [text], [text] 
 
-        spacy_sentences = self._split_with_spacy(text)
-        spacy_sentences = [s.strip() for s in spacy_sentences if s.strip()]
+        pysbd_sentences = self._split_with_pysbd(text)
+        pysbd_sentences = [s.strip() for s in pysbd_sentences if s.strip()]
         
         # 第二阶段：长句拆分逻辑
-        final_sentences = self._split_long_sentences(spacy_sentences)
+        final_sentences = self._split_long_sentences(pysbd_sentences)
         final_sentences = [s.strip() for s in final_sentences if s.strip()]
         
-        return final_sentences, spacy_sentences
+        return final_sentences, pysbd_sentences
     
-    def _split_with_spacy(self, text: str) -> List[str]:
+    def _split_with_nltk(self, text: str) -> List[str]:
         """
-        使用spaCy进行句子分割
+        使用NLTK进行句子分割
         
         Args:
             text: 输入文本
@@ -243,8 +253,23 @@ class SentenceProcessor:
         Returns:
             句子列表
         """
-        doc = self.nlp(text)
-        return [sent.text.strip() for sent in doc.sents if sent.text.strip()]
+        return nltk.sent_tokenize(text)
+
+    def _split_with_pysbd(self, text: str) -> List[str]:
+        """
+        使用pySBD进行句子分割
+        
+        Args:
+            text: 输入文本
+            
+        Returns:
+            句子列表
+        """
+        debug_print("pySBD输入", text)
+        result = self.segmenter.segment(text)
+        result = [sent.strip() for sent in result if sent.strip()]
+        debug_print("pySBD输出", result)
+        return result
     
     
     def _split_long_sentences(self, sentences: List[str]) -> List[str]:
@@ -276,106 +301,99 @@ class SentenceProcessor:
                                 split_punct=SPLIT_PUNCT):
         """
         将文本拆分成子句的核心逻辑:
-        1. 使用统一的配对符号处理逻辑
-        2. 分隔符包含在子句末尾触发拆分
-        3. 确保语义边界的正确性
+        使用简化的状态跟踪，避免复杂的栈管理
         """
-        # 统一所有配对符号
-        all_pairs = []
-        # 添加括号类符号
-        for open_sym, close_sym in paren_symbols:
-            all_pairs.append((open_sym, close_sym, "paren"))
-        # 添加引号类符号
-        for open_sym, close_sym in quote_symbols:
-            all_pairs.append((open_sym, close_sym, "quote"))
-        
-        # 创建符号映射
-        open_to_close = {}
-        close_to_open = {}
-        symbol_types = {}
-        
-        for open_sym, close_sym, symbol_type in all_pairs:
-            open_to_close[open_sym] = close_sym
-            close_to_open[close_sym] = open_sym
-            symbol_types[open_sym] = symbol_type
-            symbol_types[close_sym] = symbol_type
-        
         clauses = []
         buf = []
-        stack = []  # 跟踪配对符号状态 [(symbol_type, open_symbol, content)]
         
-        for ch in text:
-            # 检查是否是配对符号
-            if ch in open_to_close:
-                # 可能是开始符号
-                expected_close = open_to_close[ch]
-                symbol_type = symbol_types[ch]
-                
-                # 检查是否真的是开始符号（对于相同开始/结束符号如引号）
-                is_opening = True
-                if ch == expected_close:  # 相同符号，需要通过栈状态判断
-                    # 查找栈中是否有相同符号类型的未配对符号
-                    for stack_item in stack:
-                        if stack_item[0] == symbol_type and stack_item[1] == ch:
-                            is_opening = False
-                            break
-                
-                if is_opening:
-                    # 开始符号：保存当前缓冲区，开始收集配对内容
-                    if buf:
-                        clause = ''.join(buf).rstrip()  # 去除尾部空格
+        # 简化的引号状态跟踪
+        in_double_quote = False  # 标准双引号状态
+        in_curved_quote = False  # 弯引号状态
+        in_paren = 0  # 括号嵌套层级
+        
+        i = 0
+        while i < len(text):
+            ch = text[i]
+            
+            # 处理标准双引号 "
+            if ch == '"':
+                if not in_curved_quote and in_paren == 0:  # 只在不在其他引号/括号内时处理
+                    if not in_double_quote:
+                        # 开始双引号 - 保存当前缓冲区，开始引号内容
+                        if buf:
+                            clause = ''.join(buf).strip()
+                            if clause:
+                                clauses.append(clause)
+                            buf = []
+                        in_double_quote = True
+                        buf.append(ch)
+                    else:
+                        # 结束双引号 - 完成引号内容
+                        buf.append(ch)
+                        clause = ''.join(buf).strip()
                         if clause:
                             clauses.append(clause)
                         buf = []
-                    
-                    stack.append((symbol_type, ch, [ch]))
+                        in_double_quote = False
                 else:
-                    # 结束符号：完成配对内容收集
-                    if stack:
-                        for i in reversed(range(len(stack))):
-                            if stack[i][0] == symbol_type and stack[i][1] == ch:
-                                # 找到匹配的开始符号
-                                symbol_type, open_sym, content = stack.pop(i)
-                                content.append(ch)
-                                clause = ''.join(content).strip()
-                                if clause:
-                                    clauses.append(clause)
-                                break
-                continue
+                    buf.append(ch)
             
-            elif ch in close_to_open:
-                # 明确的结束符号（开始和结束不同的情况）
-                open_sym = close_to_open[ch]
-                symbol_type = symbol_types[ch]
-                
-                # 查找栈中匹配的开始符号
-                if stack:
-                    for i in reversed(range(len(stack))):
-                        if stack[i][0] == symbol_type and stack[i][1] == open_sym:
-                            # 找到匹配的开始符号
-                            symbol_type, open_sym, content = stack.pop(i)
-                            content.append(ch)
-                            clause = ''.join(content).strip()
+            # 处理弯引号 ""
+            elif ch == '"':
+                if not in_double_quote and in_paren == 0:
+                    if not in_curved_quote:
+                        # 开始弯引号
+                        if buf:
+                            clause = ''.join(buf).strip()
                             if clause:
                                 clauses.append(clause)
-                            break
-                continue
+                            buf = []
+                        in_curved_quote = True
+                        buf.append(ch)
+                    else:
+                        # 这应该是结束，但我们检查下一个字符是否是结束弯引号
+                        buf.append(ch)
+                else:
+                    buf.append(ch)
             
-            # 如果在配对符号内，添加到相应的内容中
-            if stack:
-                stack[-1][2].append(ch)
-                continue
-            
-            # 正常字符处理
-            buf.append(ch)
-            
-            # 分隔符处理：包含在当前子句中，然后触发拆分
-            if ch in split_punct:
-                clause = ''.join(buf).strip()
-                if clause and len(clause) > 1:  # 避免单个分隔符成为独立子句
-                    clauses.append(clause)
+            elif ch == '"':
+                if in_curved_quote and not in_double_quote and in_paren == 0:
+                    # 结束弯引号
+                    buf.append(ch)
+                    clause = ''.join(buf).strip()
+                    if clause:
+                        clauses.append(clause)
                     buf = []
-                continue
+                    in_curved_quote = False
+                else:
+                    buf.append(ch)
+            
+            # 处理括号类符号
+            elif ch in '([{（【《':
+                buf.append(ch)
+                if not in_double_quote and not in_curved_quote:
+                    in_paren += 1
+            
+            elif ch in ')]}）】》':
+                buf.append(ch)
+                if not in_double_quote and not in_curved_quote and in_paren > 0:
+                    in_paren -= 1
+            
+            # 处理分隔符
+            elif ch in split_punct:
+                buf.append(ch)
+                # 只在不在引号或括号内时进行拆分
+                if not in_double_quote and not in_curved_quote and in_paren == 0:
+                    clause = ''.join(buf).strip()
+                    if clause and len(clause) > 1:  # 避免单个分隔符成为独立子句
+                        clauses.append(clause)
+                        buf = []
+            
+            # 普通字符
+            else:
+                buf.append(ch)
+            
+            i += 1
         
         # 收尾处理
         if buf:
@@ -385,6 +403,7 @@ class SentenceProcessor:
         
         # 清理并过滤空子句
         clauses = [clause.strip() for clause in clauses if clause.strip()]
+        debug_print("_parse_text_into_clauses输出", clauses)
         
         return clauses
 
@@ -400,8 +419,11 @@ class SentenceProcessor:
         4. 短子句自动与前一个子句合并
         5. 对长度超过阈值的括号或引号子句再次拆分
         """
+        debug_print("split_into_clauses输入", text)
+        
         # 第一次调用内部逻辑进行基础拆分
         clauses = self._parse_text_into_clauses(text, paren_symbols, quote_symbols, split_punct)
+        debug_print("基础拆分结果", clauses)
 
         # 第二次调用内部逻辑对长度超过阈值的括号或引号包围的子句进行再拆分
         final_result = []
@@ -453,6 +475,7 @@ class SentenceProcessor:
         # 后置处理: 合并被分离的标点符号
         merged = self._merge_split_punctuation(merged)
 
+        debug_print("split_into_clauses最终输出", merged)
         return merged
 
     def _ends_with_sentence_terminator(self, text: str) -> bool:
