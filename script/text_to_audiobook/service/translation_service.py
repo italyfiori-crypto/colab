@@ -137,26 +137,32 @@ class TranslationService:
         """
         translated_entries = subtitle_entries.copy()
         
-        # 找出需要翻译的条目
-        entries_to_translate = []
-        for i, entry in enumerate(subtitle_entries):
-            if (not entry.get('chinese_text') or 
-                entry['chinese_text'].startswith('[解析失败]') or 
-                entry['chinese_text'].startswith('[翻译失败]')):
-                entries_to_translate.append((i, entry))
+        # 直接按批次检查并生成翻译批次
+        batch_size = BATCH_PROCESSING['translation_batch_size']
+        batches = []
         
-        if not entries_to_translate:
+        for i in range(0, len(subtitle_entries), batch_size):
+            batch_entries = [(i + j, subtitle_entries[i + j]) for j in range(min(batch_size, len(subtitle_entries) - i))]
+            
+            # 检查批次内是否有条目需要翻译
+            batch_needs_translation = any(
+                not entry.get('chinese_text') or 
+                entry['chinese_text'].startswith('[解析失败]') or 
+                entry['chinese_text'].startswith('[翻译失败]')
+                for _, entry in batch_entries
+            )
+            
+            # 如果批次需要翻译，则加入翻译批次列表
+            if batch_needs_translation:
+                batches.append(batch_entries)
+        
+        if not batches:
             print("✅ 所有字幕已有翻译")
             return translated_entries
         
-        print(f"🔄 需要翻译 {len(entries_to_translate)} 条字幕，共 {len(subtitle_entries)} 条")
-        
-        # 按批量大小分组
-        batch_size = BATCH_PROCESSING['translation_batch_size']
-        batches = []
-        for i in range(0, len(entries_to_translate), batch_size):
-            batch = entries_to_translate[i:i + batch_size]
-            batches.append(batch)
+        # 计算总的需要翻译的条目数
+        total_entries_to_translate = sum(len(batch) for batch in batches)
+        print(f"🔄 需要翻译 {len(batches)} 个批次，共 {total_entries_to_translate} 条字幕")
         
         print(f"🚀 开始批次间并发翻译，共 {len(batches)} 个批次")
         
@@ -210,7 +216,7 @@ class TranslationService:
             response = self.ai_client.chat_completion(
                 batch_prompt, 
                 temperature=0.3, 
-                max_tokens=2000
+                max_tokens=4000
             )
             
             if not response or not response.strip():
@@ -218,7 +224,9 @@ class TranslationService:
                 return None
             
             # 解析批量翻译结果
+            print("批量翻译:", batch)
             batch_results = self._parse_batch_translation_result(response, batch)
+            print("批量翻译结果:", batch_results)
             return batch_results
             
         except Exception as e:

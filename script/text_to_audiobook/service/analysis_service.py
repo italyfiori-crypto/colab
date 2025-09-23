@@ -241,7 +241,7 @@ class AnalysisService:
             user_prompt = f"请分析以下英语句子: \"{english_text}\""""
             
             # 使用AIClient的chat_completion方法
-            response = self.ai_client.chat_completion(user_prompt, system_prompt, temperature=0.2, max_tokens=1500)
+            response = self.ai_client.chat_completion(user_prompt, system_prompt, temperature=0.2, max_tokens=5000)
             if not response:
                 return None
             

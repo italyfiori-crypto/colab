@@ -166,42 +166,71 @@ class WorkflowExecutor:
                 traceback.print_exc()
             raise
     
-    def execute_translation_and_analysis(self, subtitle_files: List[str], sub_chapter_files: List[str], audio_files: List[str], output_dir: str, verbose: bool = False) -> Tuple[List[str], float]:
+    def execute_translation(self, subtitle_files: List[str], output_dir: str, verbose: bool = False) -> Tuple[List[str], float]:
         """
-        执行翻译和分析流程
+        执行翻译流程
         
         Args:
             subtitle_files: 字幕文件列表
-            sub_chapter_files: 子章节文件列表
-            audio_files: 音频文件列表
             output_dir: 输出目录
             verbose: 是否详细输出
             
         Returns:
-            (解析文件列表, 耗时)
+            (翻译文件列表, 耗时)
         """
-        print(f"\n🔄 开始翻译和分析流程...")
+        print(f"\n🔄 开始字幕翻译流程...")
         start_time = time.time()
         
         try:
             # 处理翻译
             translated_files = self.translation_service.translate_subtitle_files(subtitle_files)
             
-            # 处理分析
-            parsed_files = self.analysis_service.analyze_subtitle_files(translated_files, output_dir)
-            
             elapsed_time = time.time() - start_time
             
-            print(f"\n✅ 翻译和分析完成! 生成:")
+            print(f"\n✅ 字幕翻译完成! 翻译:")
             print(f"  🌍 翻译文件: {len(translated_files)} 个")
-            print(f"  📊 分析文件: {len(parsed_files)} 个")
             print(f"  ⏱️ 耗时: {elapsed_time:.2f}秒")
             
-            return parsed_files, elapsed_time
+            return translated_files, elapsed_time
             
         except Exception as e:
             elapsed_time = time.time() - start_time
-            print(f"\n❌ 翻译和分析失败: {e} (耗时: {elapsed_time:.2f}秒)")
+            print(f"\n❌ 字幕翻译失败: {e} (耗时: {elapsed_time:.2f}秒)")
+            if verbose:
+                import traceback
+                traceback.print_exc()
+            raise
+    
+    def execute_analysis(self, subtitle_files: List[str], output_dir: str, verbose: bool = False) -> Tuple[List[str], float]:
+        """
+        执行分析流程
+        
+        Args:
+            subtitle_files: 字幕文件列表
+            output_dir: 输出目录
+            verbose: 是否详细输出
+            
+        Returns:
+            (分析文件列表, 耗时)
+        """
+        print(f"\n🔄 开始语言学分析流程...")
+        start_time = time.time()
+        
+        try:
+            # 处理分析
+            analyzed_files = self.analysis_service.analyze_subtitle_files(subtitle_files, output_dir)
+            
+            elapsed_time = time.time() - start_time
+            
+            print(f"\n✅ 语言学分析完成! 分析:")
+            print(f"  📊 分析文件: {len(analyzed_files)} 个")
+            print(f"  ⏱️ 耗时: {elapsed_time:.2f}秒")
+            
+            return analyzed_files, elapsed_time
+            
+        except Exception as e:
+            elapsed_time = time.time() - start_time
+            print(f"\n❌ 语言学分析失败: {e} (耗时: {elapsed_time:.2f}秒)")
             if verbose:
                 import traceback
                 traceback.print_exc()

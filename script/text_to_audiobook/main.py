@@ -71,10 +71,17 @@ def process_single_file(input_file: str, args, config: dict, workflow: 'Workflow
         audio_files = get_existing_files(output_dir, OUTPUT_DIRECTORIES['audio'], ".wav")
         subtitle_files = get_existing_files(output_dir, OUTPUT_DIRECTORIES['subtitles'], ".srt")
 
-    # 字幕解析和翻译
-    parsed_files, parse_time = [], 0
-    if args.parse:
-        parsed_files, parse_time = workflow.execute_translation_and_analysis(subtitle_files, sub_chapter_files, audio_files, output_dir, args.verbose)
+    # 翻译和分析
+    translated_files, translation_time = [], 0
+    analyzed_files, analysis_time = [], 0
+    
+    # 翻译处理
+    if args.translation:
+        translated_files, translation_time = workflow.execute_translation(subtitle_files, output_dir, args.verbose)
+    
+    # 分析处理
+    if args.analysis:
+        analyzed_files, analysis_time = workflow.execute_analysis(subtitle_files, output_dir, args.verbose)
 
     # 音频压缩
     compressed_files, compression_time = [], 0
@@ -97,7 +104,7 @@ def process_single_file(input_file: str, args, config: dict, workflow: 'Workflow
         _, statistics_time = workflow.execute_statistics_collection(sub_chapter_files, audio_files, output_dir, args.verbose)
     
     # 计算耗时
-    total_time = chapter_time + sentence_time + audio_time + parse_time + compression_time + vocabulary_time + statistics_time
+    total_time = chapter_time + sentence_time + audio_time + translation_time + analysis_time + compression_time + vocabulary_time + statistics_time
     file_total_time = time.time() - file_start_time
     
     return {
@@ -108,7 +115,8 @@ def process_single_file(input_file: str, args, config: dict, workflow: 'Workflow
             'chapter': chapter_time,
             'sentence': sentence_time,
             'audio': audio_time,
-            'parse': parse_time,
+            'translation': translation_time,
+            'analysis': analysis_time,
             'compression': compression_time,
             'vocabulary': vocabulary_time,
             'statistics': statistics_time,
@@ -120,7 +128,8 @@ def process_single_file(input_file: str, args, config: dict, workflow: 'Workflow
             'audio_files': len(audio_files),
             'subtitle_files': len(subtitle_files),
             'compressed_files': len(compressed_files),
-            'parsed_files': len(parsed_files),
+            'translated_files': len(translated_files),
+            'analyzed_files': len(analyzed_files),
             'chapter_vocab_files': len(chapter_vocab_files)
         }
     }
@@ -136,7 +145,7 @@ def main():
   %(prog)s data/greens.txt
   %(prog)s data/books/  # 批量处理目录下所有.txt文件
   %(prog)s data/book.txt --chapter --sentence
-  %(prog)s data/book.txt --chapter --sentence --audio --parse --vocabulary
+  %(prog)s data/book.txt --chapter --sentence --audio --translation --analysis --vocabulary
   %(prog)s data/book.txt --sentence --audio  # 只运行句子拆分和音频生成
   %(prog)s data/book.txt --chapter  # 只运行章节拆分
   
@@ -160,8 +169,9 @@ def main():
     parser.add_argument('--voice', default='af_bella', help='语音模型 (默认: af_bella)')
     parser.add_argument('--speed', type=float, default=0.8, help='语音速度 (默认: 1.0)')
     
-    # 字幕解析参数
-    parser.add_argument('--parse', action='store_true', help='启用字幕解析')
+    # 翻译和分析参数
+    parser.add_argument('--translation', action='store_true', help='启用字幕翻译')
+    parser.add_argument('--analysis', action='store_true', help='启用语言学分析')
     
     # 音频压缩参数
     parser.add_argument('--compress', action='store_true', help='启用音频压缩')
@@ -238,7 +248,8 @@ def main():
                 'chapter': sum(r['times']['chapter'] for r in successful_results),
                 'sentence': sum(r['times']['sentence'] for r in successful_results),
                 'audio': sum(r['times']['audio'] for r in successful_results),
-                'parse': sum(r['times']['parse'] for r in successful_results),
+                'translation': sum(r['times']['translation'] for r in successful_results),
+                'analysis': sum(r['times']['analysis'] for r in successful_results),
                 'compression': sum(r['times']['compression'] for r in successful_results),
                 'vocabulary': sum(r['times']['vocabulary'] for r in successful_results),
                 'statistics': sum(r['times']['statistics'] for r in successful_results),
@@ -253,8 +264,10 @@ def main():
                 print(f"  句子拆分: {total_times['sentence']:.2f}秒 ({total_times['sentence']/total_times['total']*100:.1f}%)")
             if args.audio and total_times['total'] > 0:
                 print(f"  音频生成: {total_times['audio']:.2f}秒 ({total_times['audio']/total_times['total']*100:.1f}%)")
-            if args.parse and total_times['total'] > 0:
-                print(f"  翻译和分析: {total_times['parse']:.2f}秒 ({total_times['parse']/total_times['total']*100:.1f}%)")
+            if args.translation and total_times['total'] > 0:
+                print(f"  字幕翻译: {total_times['translation']:.2f}秒 ({total_times['translation']/total_times['total']*100:.1f}%)")
+            if args.analysis and total_times['total'] > 0:
+                print(f"  语言学分析: {total_times['analysis']:.2f}秒 ({total_times['analysis']/total_times['total']*100:.1f}%)")
             if args.compress and total_times['total'] > 0:
                 print(f"  音频压缩: {total_times['compression']:.2f}秒 ({total_times['compression']/total_times['total']*100:.1f}%)")
             if args.vocabulary and total_times['total'] > 0:
@@ -271,7 +284,8 @@ def main():
                     'audio_files': sum(r['files']['audio_files'] for r in successful_results),
                     'subtitle_files': sum(r['files']['subtitle_files'] for r in successful_results),
                     'compressed_files': sum(r['files']['compressed_files'] for r in successful_results),
-                    'parsed_files': sum(r['files']['parsed_files'] for r in successful_results),
+                    'translated_files': sum(r['files']['translated_files'] for r in successful_results),
+                    'analyzed_files': sum(r['files']['analyzed_files'] for r in successful_results),
                     'chapter_vocab_files': sum(r['files']['chapter_vocab_files'] for r in successful_results)
                 }
                 
@@ -282,8 +296,10 @@ def main():
                     print(f"  生成的字幕文件: {total_files['subtitle_files']} 个")
                 if args.compress and total_files['compressed_files'] > 0:
                     print(f"  压缩的音频文件: {total_files['compressed_files']} 个")
-                if args.parse and total_files['parsed_files'] > 0:
-                    print(f"  解析的字幕文件: {total_files['parsed_files']} 个")
+                if args.translation and total_files['translated_files'] > 0:
+                    print(f"  翻译的字幕文件: {total_files['translated_files']} 个")
+                if args.analysis and total_files['analyzed_files'] > 0:
+                    print(f"  分析的字幕文件: {total_files['analyzed_files']} 个")
                 if args.vocabulary and total_files['chapter_vocab_files'] > 0:
                     print(f"  生成的章节词汇文件: {total_files['chapter_vocab_files']} 个")
         

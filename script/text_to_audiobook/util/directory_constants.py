@@ -38,7 +38,7 @@ API_SETTINGS = {
 
 # 批量处理设置
 BATCH_PROCESSING = {
-    'translation_batch_size': 20,  # 参考modules中的max_concurrent_workers
+    'translation_batch_size': 10,  # 参考modules中的max_concurrent_workers
     'analysis_batch_size': 10,     # 分析批量大小
     'api_delay': 0.5              # 批次间延迟
 }

@@ -46,7 +46,7 @@
   "api": {
     "api_key": "sk-umedlfcxxcbzvyiobzxnigiyjrwgpeocgbffhhmwqmnlnein",
     "model": "Qwen/Qwen3-30B-A3B-Instruct-2507",
-    "timeout": 120,
+    "timeout": 300,
     "max_retries": 5,
     "max_concurrent_workers": 10
   }
