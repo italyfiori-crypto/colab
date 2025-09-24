@@ -5,8 +5,9 @@
 """
 
 import os
+import json
 import numpy as np
-from typing import List, Tuple, Optional
+from typing import List, Tuple, Optional, Dict
 from dataclasses import dataclass
 from infra import FileManager
 from infra.config_loader import AppConfig
@@ -116,33 +117,34 @@ class AudioProcessor:
     
     def _process_file(self, sentence_file: str, audio_dir: str, subtitle_dir: str) -> Tuple[Optional[str], Optional[str]]:
         """
-        处理单个句子文件，生成对应的音频和字幕
+        处理单个句子文件（JSONL格式），生成对应的音频和字幕
         
         Args:
-            sentence_file: 句子文件路径
+            sentence_file: 句子文件路径（JSONL格式）
             audio_dir: 音频输出目录
             subtitle_dir: 字幕输出目录
             
         Returns:
             (音频文件路径, 字幕文件路径)
         """
-        # 读取句子文件
-        content = self.file_manager.read_text_file(sentence_file)
-        
-        # 提取标题和句子
-        lines = content.split('\n')
-        title = lines[0].strip() if lines else "Unknown"
-        
-        # 提取所有非空行作为句子
-        sentences = []
-        for line in lines[1:]:
-            line = line.strip()
-            if line and any(c.isalpha() for c in line):  # 忽略没有单词的句子
-                sentences.append(line)
+        try:
+            # 检查文件完整性并提取句子
+            is_complete, segments_data = self._check_file_completeness(sentence_file)
+            
+            if not is_complete:
+                print(f"⚠️ 文件拆分翻译不完整，跳过: {os.path.basename(sentence_file)}")
+                return None, None
+            
+            if not segments_data:
+                print(f"⚠️ 文件无有效句子片段: {os.path.basename(sentence_file)}")
+                return None, None
                 
-        if not sentences:
-            print(f"⚠️ 文件无有效句子: {os.path.basename(sentence_file)}")
+        except Exception as e:
+            print(f"⚠️ 文件解析失败: {os.path.basename(sentence_file)}, 错误: {e}")
             return None, None
+        
+        # 提取英文句子用于音频生成
+        english_sentences = [seg['original'] for seg in segments_data]
         
         # 生成文件名
         base_name = self.file_manager.get_basename_without_extension(sentence_file)
@@ -154,13 +156,13 @@ class AudioProcessor:
             return audio_file, subtitle_file
 
         # 为每个句子单独生成音频并获取真实时长
-        temp_audio_files, durations = self._generate_individual_audios(sentences, base_name, audio_dir)
+        temp_audio_files, durations = self._generate_individual_audios(english_sentences, base_name, audio_dir)
         
         if temp_audio_files and durations:
             # 将单句音频合并为完整音频文件
             if self._merge_audio_files(temp_audio_files, audio_file):
-                # 使用真实时长生成精确字幕文件
-                self._generate_subtitle_file(sentences, durations, subtitle_file)
+                # 使用真实时长生成双语字幕文件
+                self._generate_bilingual_subtitle_file(segments_data, durations, subtitle_file)
                 return audio_file, subtitle_file
             else:
                 print(f"❌ 音频合并失败: {base_name}")
@@ -417,5 +419,108 @@ class AudioProcessor:
         except Exception as e:
             print(f"❌ 音频压缩失败: {e}")
             return False
+    
+    def _check_file_completeness(self, sentence_file: str) -> Tuple[bool, List[Dict[str, str]]]:
+        """
+        检查JSONL文件的完整性并提取句子片段
+        
+        Args:
+            sentence_file: JSONL句子文件路径
+            
+        Returns:
+            (是否完整, 句子片段列表)
+        """
+        try:
+            segments_data = []
+            all_paragraphs_success = True
+            
+            with open(sentence_file, 'r', encoding='utf-8') as f:
+                for line_num, line in enumerate(f, 1):
+                    line = line.strip()
+                    if not line:
+                        continue
+                    
+                    try:
+                        paragraph_data = json.loads(line)
+                        
+                        # 检查必需字段
+                        if not isinstance(paragraph_data, dict):
+                            continue
+                        
+                        # 检查success状态
+                        if not paragraph_data.get('success', False):
+                            all_paragraphs_success = False
+                            break
+                        
+                        # 提取segments
+                        segments = paragraph_data.get('segments', [])
+                        if segments:
+                            for segment in segments:
+                                if isinstance(segment, dict) and 'original' in segment and 'translation' in segment:
+                                    segments_data.append({
+                                        'original': segment['original'].strip(),
+                                        'translation': segment['translation'].strip()
+                                    })
+                                    
+                    except json.JSONDecodeError as e:
+                        print(f"      ⚠️ JSON解析失败 行{line_num}: {e}")
+                        all_paragraphs_success = False
+                        break
+            
+            return all_paragraphs_success, segments_data
+            
+        except Exception as e:
+            print(f"      ❌ 文件读取异常: {e}")
+            return False, []
+    
+    def _generate_bilingual_subtitle_file(self, segments_data: List[Dict[str, str]], durations: List[float], subtitle_file: str):
+        """
+        生成双语字幕文件
+        
+        Args:
+            segments_data: 句子片段数据 [{"original": "英文", "translation": "中文"}, ...]
+            durations: 每个句子的音频时长列表
+            subtitle_file: 字幕文件路径
+        """
+        try:
+            with open(subtitle_file, 'w', encoding='utf-8') as f:
+                current_time = 0.0
+                
+                for i, (segment, duration) in enumerate(zip(segments_data, durations), 1):
+                    # 计算时间戳
+                    start_time = current_time
+                    end_time = current_time + duration
+                    current_time = end_time
+                    
+                    # 格式化时间戳
+                    start_timestamp = self._format_timestamp(start_time)
+                    end_timestamp = self._format_timestamp(end_time)
+                    
+                    # 写入字幕条目（双语）
+                    f.write(f"{i}\n")
+                    f.write(f"{start_timestamp} --> {end_timestamp}\n")
+                    f.write(f"{segment['original']}\n")
+                    f.write(f"{segment['translation']}\n")
+                    f.write("\n")
+                    
+        except Exception as e:
+            print(f"❌ 生成双语字幕文件失败: {e}")
+    
+    def _format_timestamp(self, seconds: float) -> str:
+        """
+        格式化时间戳为SRT格式
+        
+        Args:
+            seconds: 秒数
+            
+        Returns:
+            SRT格式时间戳
+        """
+        hours = int(seconds // 3600)
+        minutes = int((seconds % 3600) // 60)
+        secs = int(seconds % 60)
+        millisecs = int((seconds - int(seconds)) * 1000)
+        
+        return f"{hours:02d}:{minutes:02d}:{secs:02d},{millisecs:03d}"
     
     

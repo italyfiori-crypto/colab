@@ -166,41 +166,6 @@ class WorkflowExecutor:
                 traceback.print_exc()
             raise
     
-    def execute_translation(self, subtitle_files: List[str], output_dir: str, verbose: bool = False) -> Tuple[List[str], float]:
-        """
-        执行翻译流程
-        
-        Args:
-            subtitle_files: 字幕文件列表
-            output_dir: 输出目录
-            verbose: 是否详细输出
-            
-        Returns:
-            (翻译文件列表, 耗时)
-        """
-        print(f"\n🔄 开始字幕翻译流程...")
-        start_time = time.time()
-        
-        try:
-            # 处理翻译
-            translated_files = self.translation_service.translate_subtitle_files(subtitle_files)
-            
-            elapsed_time = time.time() - start_time
-            
-            print(f"\n✅ 字幕翻译完成! 翻译:")
-            print(f"  🌍 翻译文件: {len(translated_files)} 个")
-            print(f"  ⏱️ 耗时: {elapsed_time:.2f}秒")
-            
-            return translated_files, elapsed_time
-            
-        except Exception as e:
-            elapsed_time = time.time() - start_time
-            print(f"\n❌ 字幕翻译失败: {e} (耗时: {elapsed_time:.2f}秒)")
-            if verbose:
-                import traceback
-                traceback.print_exc()
-            raise
-    
     def execute_analysis(self, subtitle_files: List[str], output_dir: str, verbose: bool = False) -> Tuple[List[str], float]:
         """
         执行分析流程

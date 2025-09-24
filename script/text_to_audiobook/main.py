@@ -64,7 +64,7 @@ def cleanup_sub_chapter_files(sub_chapter_file: str, output_dir: str, verbose: b
     
     # 定义需要清理的文件路径
     files_to_clean = [
-        os.path.join(output_dir, OUTPUT_DIRECTORIES['sentences'], f"{base_name}.txt"),
+        os.path.join(output_dir, OUTPUT_DIRECTORIES['sentences'], f"{base_name}.jsonl"),
         os.path.join(output_dir, OUTPUT_DIRECTORIES['audio'], f"{base_name}.wav"),
         os.path.join(output_dir, OUTPUT_DIRECTORIES['subtitles'], f"{base_name}.srt"),
         os.path.join(output_dir, OUTPUT_DIRECTORIES['parsed_analysis'], f"{base_name}.json"),
@@ -86,22 +86,6 @@ def cleanup_sub_chapter_files(sub_chapter_file: str, output_dir: str, verbose: b
         print(f"🧹 已清理 {cleaned_count} 个相关文件")
     elif verbose:
         print("🧹 未找到需要清理的文件")
-
-
-def get_existing_files_for_sub_chapter(output_dir: str, base_name: str) -> list[str]:
-    """
-    为单个子章节查找对应的句子文件
-    
-    Args:
-        output_dir: 输出目录
-        base_name: 子章节基础名称
-        
-    Returns:
-        句子文件列表
-    """
-    sentence_file = os.path.join(output_dir, OUTPUT_DIRECTORIES['sentences'], f"{base_name}.txt")
-    return [sentence_file] if os.path.exists(sentence_file) else []
-
 
 def process_single_book(input_file: str, args, config: dict, workflow: 'WorkflowExecutor') -> dict:
     """
@@ -153,7 +137,7 @@ def process_single_book(input_file: str, args, config: dict, workflow: 'Workflow
         sentence_files, sentence_time = workflow.execute_sentence_processing(sub_chapter_files, output_dir, args.verbose)
     else:
         # 获取已存在的句子文件
-        sentence_files = get_existing_files(output_dir, OUTPUT_DIRECTORIES['sentences'], ".txt")
+        sentence_files = get_existing_files(output_dir, OUTPUT_DIRECTORIES['sentences'], ".jsonl")
     
     # 音频生成
     audio_files, subtitle_files, audio_time = [], [], 0
@@ -163,15 +147,8 @@ def process_single_book(input_file: str, args, config: dict, workflow: 'Workflow
         audio_files = get_existing_files(output_dir, OUTPUT_DIRECTORIES['audio'], ".wav")
         subtitle_files = get_existing_files(output_dir, OUTPUT_DIRECTORIES['subtitles'], ".srt")
 
-    # 翻译和分析
-    translated_files, translation_time = [], 0
-    analyzed_files, analysis_time = [], 0
-    
-    # 翻译处理
-    if args.translation:
-        translated_files, translation_time = workflow.execute_translation(subtitle_files, output_dir, args.verbose)
-    
     # 分析处理
+    analyzed_files, analysis_time = [], 0
     if args.analysis:
         analyzed_files, analysis_time = workflow.execute_analysis(subtitle_files, output_dir, args.verbose)
 
@@ -207,7 +184,6 @@ def process_single_book(input_file: str, args, config: dict, workflow: 'Workflow
             'chapter': chapter_time,
             'sentence': sentence_time,
             'audio': audio_time,
-            'translation': translation_time,
             'analysis': analysis_time,
             'compression': compression_time,
             'vocabulary': vocabulary_time,
@@ -220,7 +196,6 @@ def process_single_book(input_file: str, args, config: dict, workflow: 'Workflow
             'audio_files': len(audio_files),
             'subtitle_files': len(subtitle_files),
             'compressed_files': len(compressed_files),
-            'translated_files': len(translated_files),
             'analyzed_files': len(analyzed_files),
             'chapter_vocab_files': len(chapter_vocab_files)
         }
@@ -269,7 +244,7 @@ def process_single_sub_chapter(sub_chapter_file: str, args, config: dict, workfl
             sentence_files, sentence_time = workflow.execute_sentence_processing([sub_chapter_file], output_dir, args.verbose)
         else:
             # 获取已存在的句子文件
-            sentence_files = get_existing_files_for_sub_chapter(output_dir, base_name)
+            sentence_files = get_existing_files(output_dir, OUTPUT_DIRECTORIES['sentences'], ".jsonl")
             if not sentence_files and args.verbose:
                 print("⚠️ 未找到对应的句子文件，请先运行 --sentence 进行句子拆分")
         
@@ -281,11 +256,6 @@ def process_single_sub_chapter(sub_chapter_file: str, args, config: dict, workfl
             # 获取已存在的音频和字幕文件
             audio_files = [os.path.join(output_dir, OUTPUT_DIRECTORIES['audio'], f"{base_name}.wav")] if os.path.exists(os.path.join(output_dir, OUTPUT_DIRECTORIES['audio'], f"{base_name}.wav")) else []
             subtitle_files = [os.path.join(output_dir, OUTPUT_DIRECTORIES['subtitles'], f"{base_name}.srt")] if os.path.exists(os.path.join(output_dir, OUTPUT_DIRECTORIES['subtitles'], f"{base_name}.srt")) else []
-
-        # 翻译处理
-        translated_files = []
-        if args.translation and subtitle_files:
-            translated_files, translation_time = workflow.execute_translation(subtitle_files, output_dir, args.verbose)
         
         # 分析处理
         analyzed_files = []
@@ -333,7 +303,6 @@ def process_single_sub_chapter(sub_chapter_file: str, args, config: dict, workfl
                 'audio_files': len(audio_files),
                 'subtitle_files': len(subtitle_files),
                 'compressed_files': len(compressed_files),
-                'translated_files': len(translated_files),
                 'analyzed_files': len(analyzed_files),
                 'chapter_vocab_files': len(chapter_vocab_files)
             }
@@ -388,8 +357,6 @@ def print_sub_chapter_results(results: list[dict]):
         print(f"  字幕文件: {files['subtitle_files']} 个")
     if files['compressed_files'] > 0:
         print(f"  压缩文件: {files['compressed_files']} 个")
-    if files['translated_files'] > 0:
-        print(f"  翻译文件: {files['translated_files']} 个")
     if files['analyzed_files'] > 0:
         print(f"  分析文件: {files['analyzed_files']} 个")
     if files['chapter_vocab_files'] > 0:
@@ -448,7 +415,6 @@ def print_book_results(results: list[dict], args, program_start_time: float):
                 'audio_files': sum(r['files']['audio_files'] for r in successful_results),
                 'subtitle_files': sum(r['files']['subtitle_files'] for r in successful_results),
                 'compressed_files': sum(r['files']['compressed_files'] for r in successful_results),
-                'translated_files': sum(r['files']['translated_files'] for r in successful_results),
                 'analyzed_files': sum(r['files']['analyzed_files'] for r in successful_results),
                 'chapter_vocab_files': sum(r['files']['chapter_vocab_files'] for r in successful_results)
             }
@@ -460,8 +426,6 @@ def print_book_results(results: list[dict], args, program_start_time: float):
                 print(f"  生成的字幕文件: {total_files['subtitle_files']} 个")
             if args.compress and total_files['compressed_files'] > 0:
                 print(f"  压缩的音频文件: {total_files['compressed_files']} 个")
-            if args.translation and total_files['translated_files'] > 0:
-                print(f"  翻译的字幕文件: {total_files['translated_files']} 个")
             if args.analysis and total_files['analyzed_files'] > 0:
                 print(f"  分析的字幕文件: {total_files['analyzed_files']} 个")
             if args.vocabulary and total_files['chapter_vocab_files'] > 0:

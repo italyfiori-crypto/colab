@@ -1,171 +1,37 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-句子拆分模块
-将子章节的段落拆分为句子每个句子占一行保留段落间隔
-使用引号优先的语义感知分割方法
+句子拆分与翻译模块
+使用AI同时进行句子拆分和翻译，确保语义一致性
 """
 
 import os
 import re
-import nltk
-import pysbd
-from typing import List
+import json
+import time
+from typing import List, Dict, Optional
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from infra import AIClient, FileManager
 from infra.config_loader import AppConfig
-
-# 调试开关
-DEBUG_SENTENCE_PROCESSING = False
-
-def debug_print(stage, content):
-    """调试输出函数"""
-    if DEBUG_SENTENCE_PROCESSING:
-        if isinstance(content, list):
-            print(f"[DEBUG] {stage}: {len(content)} items")
-            for i, item in enumerate(content):
-                print(f"  [{i}]: {repr(item)}")
-        else:
-            print(f"[DEBUG] {stage}: {repr(content)}")
-        print()  # 空行分隔
-
-# 配置：括号类符号
-PAIR_SYMBOLS_PARENS = [
-    ("(", ")"),
-    ("[", "]"),
-    ("{", "}"),
-    ("（", "）"),
-    ("【", "】"),
-    ("《", "》"),
-]
-
-# 配置：引号类符号
-PAIR_SYMBOLS_QUOTES = [
-    ("‘", "’"),
-    ("“", "”"),
-    ('"', '"'),  # 恢复标准双引号用于调试
-]
-
-# 配置：句中分隔符（可以再扩展）
-SPLIT_PUNCT = [",", "，", ":", "：", ";", "；", "!", "?", "."]
-
-# 配置：英语常见缩写词（不应在句号处拆分）
-ENGLISH_ABBREVIATIONS = ["Dr", "Mrs", "Ms", "Mr", "Prof", "St", "Ave", "etc", "vs", "Jr", "Sr", "Co", "Inc", "Ltd", "Corp"]
-
-# 配置：英语缩写词模式（单引号在这些情况下不应作为引号分隔符）
-CONTRACTION_PATTERNS = [
-    "'t",   # don't, can't, won't, isn't, aren't, haven't, hasn't
-    "'m",    # I'm, we'm  
-    "'am",
-    "'re",   # you're, we're, they're
-    "'ve",   # I've, you've, we've, they've
-    "'d",    # I'd, you'd, he'd, she'd, we'd, they'd
-    "'ll",   # I'll, you'll, he'll, she'll, we'll, they'll
-    "'s",    # possessive: John's, Mary's, 或 is/has: he's, she's
-]
-
-# 句末分隔符（不应在此处合并子句）
-SENTENCE_TERMINATORS = [".", "?", ";"]
-
-# 可合并的分隔符 + 成对符号的结束部分
-PREV_MERGEABLE_SEPARATORS = [".", "!", "?", ";"]
-NEXT_SYMBOL_ENDINGS = ["”", "’", ")", "]", "}", "）", "】", "》"]
-
-PREV_SYMBOL_ENDINGS = ["”", "’", ")", "]", "}", "）", "】", "》"]
-NEXT_MERGEABLE_SEPARATORS = [".", "!", "?", ";",  ",", "，"]
-
-# 语义连接词配置（按优先级排序的2维数组）
-SEMANTIC_CONNECTORS = [
-    # 第1优先级：转折对比词 (最高优先级)
-    ['but', 'however', 'nevertheless', 'nonetheless', 'yet', 'still'],
-    
-    # 第2优先级：因果关系词  
-    ['because', 'since', 'therefore', 'thus', 'consequently', 'as a result'],
-    
-    # 第3优先级：时间转换词
-    ['when', 'while', 'before', 'after', 'until', 'once'],
-    
-    # 第4优先级：条件关系词
-    ['if', 'unless', 'whether', 'provided', 'in case', 'even if'],
-    
-    # 第5优先级：让步关系词
-    ['although', 'though', 'even though', 'whereas', 'despite', 'regardless'],
-    
-    # 第6优先级：选择关系词
-    ['or', 'nor', 'either', 'neither'],
-    
-    # 第7优先级：目的关系词
-    ['so', 'so that', 'in order to', 'so as to'],
-    
-    # 第8优先级：时间细节词
-    ['whenever', 'as soon as', 'as long as', 'now that', 'till'],
-    
-    # 第9优先级：递进强化词
-    ['furthermore', 'moreover', 'additionally', 'besides', 'likewise', 'similarly', 'also', 'too', 'as well'],
-    
-    # 第10优先级：举例说明词
-    ['for example', 'for instance', 'namely', 'specifically', 'particularly', 'especially', 'in particular', 'such as'],
-    
-    # 第11优先级：对比转折副词
-    ['conversely', 'on the other hand', 'on the contrary', 'in contrast', 'meanwhile', 'alternatively'],
-    
-    # 第12优先级：总结结论词
-    ['in conclusion', 'in summary', 'overall', 'ultimately', 'finally', 'in the end', 'to summarize'],
-    
-    # 第13优先级：替换选择词
-    ['instead', 'rather', 'otherwise'],
-    
-    # 第14优先级：强调确认词
-    ['indeed', 'in fact', 'certainly', 'definitely', 'absolutely'],
-    
-    # 第15优先级：关系代词 (定语从句)
-    ['who', 'whom', 'whose', 'which', 'that', 'where'],
-    
-    # 第16优先级：空间时间介词
-    ['from', 'to', 'in', 'on', 'at', 'with', 'without', 'through', 'during', 'across', 'over', 'under', 'within', 'beyond', 'throughout'],
-    
-    # 第17优先级：方式介词
-    ['by', 'via', 'including', 'excluding'],
-    
-    # 第18优先级：常见连接词 (谨慎分隔)
-    ['and', 'for', 'as']
-]
-
-
-# 长度控制常量 - 针对语音合成优化
-MAX_SENTENCE_LENGTH = 80      # 目标最大长度（适合语音合成）
-MIN_MERGE_LENGTH = 30      # 最小合并长度
-MAX_MERGE_LENGTH = 80      # 最大合并长度
 
 
 class SentenceProcessor:
-    """句子拆分器"""
+    """句子拆分与翻译处理器"""
     
     def __init__(self, config: AppConfig):
         """
-        初始化句子拆分器
+        初始化句子处理器
+        
+        Args:
+            config: 应用配置
         """
-        self._ensure_nltk_data()
-        self._init_pysbd()
-    
-    def _ensure_nltk_data(self):
-        """
-        确保NLTK数据包可用
-        """
-        try:
-            nltk.data.find('tokenizers/punkt')
-        except LookupError:
-            print("下载NLTK punkt数据包...")
-            nltk.download('punkt')
-    
-    def _init_pysbd(self):
-        """
-        初始化pySBD分段器
-        """
-        self.segmenter = pysbd.Segmenter(language="en", clean=False)
-        print("✅ pySBD分段器初始化完成")
+        self.config = config
+        self.ai_client = AIClient(config.api)
+        self.file_manager = FileManager()
     
     def split_sub_chapters_to_sentences(self, input_files: List[str], output_dir: str) -> List[str]:
         """
-        拆分文件列表为句子级文件
+        拆分文件列表为句子级文件（JSONL格式）
         
         Args:
             input_files: 输入文件路径列表
@@ -180,55 +46,139 @@ class SentenceProcessor:
         
         output_files = []
         
-        for input_file in input_files:
+        print(f"🔍 开始AI拆分翻译 {len(input_files)} 个子章节文件...")
+        
+        for i, input_file in enumerate(input_files, 1):
             try:
                 # 生成输出文件路径
                 filename = os.path.basename(input_file)
-                output_file = os.path.join(sentences_dir, filename)
+                base_name = os.path.splitext(filename)[0]
+                output_file = os.path.join(sentences_dir, f"{base_name}.jsonl")
+                
+                print(f"📄 [{i}/{len(input_files)}] 处理文件: {filename}")
                 
                 # 处理单个文件
-                self._process_file(input_file, output_file)
-                output_files.append(output_file)
-                
-                print(f"📝 已处理句子拆分: {filename}")
+                success = self._process_file(input_file, output_file)
+                if success:
+                    output_files.append(output_file)
+                    print(f"    ✅ 已完成AI拆分翻译: {filename}")
+                else:
+                    print(f"    ❌ 处理失败: {filename}")
+                    
             except Exception as e:
-                print(f"❌ 拆分失败: {e}")
+                print(f"    ❌ 拆分翻译失败: {e}")
                 continue
         
-        print(f"\n📁 句子拆分完成，输出到: {sentences_dir}")
+        print(f"\n📁 句子拆分翻译完成，输出到: {sentences_dir}")
+        print(f"📊 成功处理: {len(output_files)}/{len(input_files)} 个文件")
+        
         return output_files
     
-    def _process_file(self, input_file: str, output_file: str):
+    def _process_file(self, input_file: str, output_file: str) -> bool:
         """
-        处理单个文件的句子拆分
+        处理单个文件的句子拆分和翻译（增量处理）
         
         Args:
             input_file: 输入文件路径
             output_file: 输出文件路径
+            
+        Returns:
+            是否处理成功
         """
-        # 读取输入文件
-        with open(input_file, 'r', encoding='utf-8') as f:
-            content = f.read()
-        
-        # 提取标题和正文
-        title, body = self._extract_title_and_body(content)
-        
-        # 处理段落句子拆分
-        processed_content, _ = self._split_paragraphs_to_sentences(body)
-        
-        # 构建最终内容
-        final_content = f"{title}\n\n{processed_content}"
-        
-        # 写入输出文件
-        with open(output_file, 'w', encoding='utf-8') as f:
-            f.write(final_content)        
-        
-        # pySBD原始结果
-        # base_name = os.path.splitext(output_file)[0]
-        # pysbd_file = f"{base_name}_pysbd.txt"
-        # pysbd_final_content = f"{title}\n\n{pysbd_content}"
-        # with open(pysbd_file, 'w', encoding='utf-8') as f:
-        #     f.write(pysbd_final_content)
+        try:
+            # 读取输入文件
+            with open(input_file, 'r', encoding='utf-8') as f:
+                content = f.read()
+            
+            # 提取标题和正文
+            title, body = self._extract_title_and_body(content)
+            
+            if not body.strip():
+                print(f"    ⚠️ 文件内容为空，跳过")
+                return False
+            
+            # 按段落分割
+            paragraphs = re.split(r'\n\n', body)
+            paragraphs = [p.strip() for p in paragraphs if p.strip()]
+            
+            print(f"    🔍 处理 {len(paragraphs)} 个段落")
+            
+            # 加载已有处理结果
+            existing_results = self._load_existing_paragraph_results(output_file)
+            processed_indices = {result['paragraph_index'] for result in existing_results if result.get('success', False)}
+            
+            # 识别未处理的段落
+            unprocessed_paragraphs = []
+            for para_idx, paragraph in enumerate(paragraphs, 1):
+                if para_idx not in processed_indices:
+                    unprocessed_paragraphs.append((para_idx, paragraph))
+            
+            if not unprocessed_paragraphs:
+                print(f"    ✅ 所有段落已处理完毕，跳过")
+                return True
+            
+            print(f"    🔄 需要处理 {len(unprocessed_paragraphs)}/{len(paragraphs)} 个段落")
+            
+            # 并发处理未完成的段落
+            new_results = []
+            max_workers = min(len(unprocessed_paragraphs), self.config.api.max_concurrent_workers)
+            
+            print(f"    🚀 开始并发处理，使用 {max_workers} 个worker")
+            
+            with ThreadPoolExecutor(max_workers=max_workers) as executor:
+                # 提交所有段落任务
+                future_to_paragraph = {}
+                for para_idx, paragraph in unprocessed_paragraphs:
+                    future = executor.submit(self._process_single_paragraph, para_idx, paragraph, len(paragraphs))
+                    future_to_paragraph[future] = (para_idx, paragraph)
+                
+                # 收集并发处理结果
+                completed_count = 0
+                for future in as_completed(future_to_paragraph):
+                    para_idx, paragraph = future_to_paragraph[future]
+                    try:
+                        paragraph_result = future.result()
+                        if paragraph_result:
+                            new_results.append(paragraph_result)
+                        else:
+                            # 创建失败结果
+                            paragraph_result = {
+                                "paragraph_index": para_idx,
+                                "original_text": paragraph,
+                                "segments": [],
+                                "success": False
+                            }
+                            new_results.append(paragraph_result)
+                        
+                        completed_count += 1
+                        if completed_count % 3 == 0 or completed_count == len(unprocessed_paragraphs):
+                            print(f"    📊 并发进度: {completed_count}/{len(unprocessed_paragraphs)} 个段落")
+                            
+                    except Exception as e:
+                        print(f"    ❌ 段落 {para_idx} 并发处理异常: {e}")
+                        # 记录失败的段落
+                        paragraph_result = {
+                            "paragraph_index": para_idx,
+                            "original_text": paragraph,
+                            "segments": [],
+                            "success": False
+                        }
+                        new_results.append(paragraph_result)
+            
+            # 保存结果（追加模式）
+            if new_results:
+                self._save_paragraph_results(output_file, new_results, existing_results)
+                
+                success_count = sum(1 for result in new_results if result['success'])
+                print(f"    💾 已保存 {len(new_results)} 个段落结果，成功 {success_count} 个")
+                return success_count > 0
+            else:
+                print(f"    ⚠️ 未生成新的段落结果")
+                return False
+                
+        except Exception as e:
+            print(f"    ❌ 文件处理异常: {e}")
+            return False
     
     def _extract_title_and_body(self, content: str) -> tuple[str, str]:
         """
@@ -252,666 +202,297 @@ class SentenceProcessor:
         
         body = '\n'.join(body_lines)
         return title, body
+    
+    def _process_single_paragraph(self, para_idx: int, paragraph: str, total_paragraphs: int) -> Optional[Dict]:
+        """
+        处理单个段落（用于并发）
+        
+        Args:
+            para_idx: 段落索引
+            paragraph: 段落内容
+            total_paragraphs: 总段落数
+            
+        Returns:
+            段落处理结果，失败返回None
+        """
+        try:
+            print(f"      📝 段落 {para_idx}/{total_paragraphs}: {len(paragraph)} 字符")
+            
+            # 使用AI进行拆分和翻译
+            segments = self._split_and_translate_with_ai(paragraph)
+            
+            # 构建段落结果
+            paragraph_result = {
+                "paragraph_index": para_idx,
+                "original_text": paragraph,
+                "segments": segments if segments else [],
+                "success": bool(segments)
+            }
+            
+            if segments:
+                print(f"      ✅ 段落 {para_idx} 生成 {len(segments)} 个句子片段")
+            else:
+                print(f"      ❌ 段落 {para_idx} 处理失败")
+            
+            return paragraph_result
+            
+        except Exception as e:
+            print(f"      ❌ 段落 {para_idx} 处理异常: {e}")
+            return None
+    
+    def _split_and_translate_with_ai(self, paragraph: str) -> List[Dict[str, str]]:
+        """
+        使用AI同时进行句子拆分和翻译
+        
+        Args:
+            paragraph: 输入段落
+            
+        Returns:
+            拆分翻译结果列表 [{"original": "英文", "translation": "中文"}, ...]
+        """
+        try:
+            system_prompt = """⚠️ 严格要求：必须且只能返回JSON数组格式！
 
-    def _split_paragraphs_to_sentences(self, content: str) -> tuple[str, str]:
-        """
-        将内容按段落拆分再将每个段落拆分为句子同时返回中间处理结果
-        
-        Args:
-            content: 正文内容
-            
-        Returns:
-            (最终处理内容, pySBD原始内容)
-        """
-        # 按段落分割（双换行分割）
-        paragraphs = re.split(r'\n\n', content)
-        
-        # 过滤空段落
-        paragraphs = [p.strip() for p in paragraphs if p.strip()]
-        
-        final_paragraphs = []
-        pysbd_paragraphs = []
-        
-        for paragraph in paragraphs:
-            # 对段落进行句子拆分
-            final_sentences, pysbd_sentences = self._split_sentences(paragraph)
-            
-            # 将句子列表转换为字符串（每句一行）
-            if final_sentences:
-                final_paragraphs.append('\n'.join(final_sentences))
-            if pysbd_sentences:
-                pysbd_paragraphs.append('\n'.join(pysbd_sentences))
-        
-        # 段落间用空行分隔
-        return (
-            '\n\n'.join(final_paragraphs),
-            '\n\n'.join(pysbd_paragraphs),
-        )
+# 句子拆分与翻译专家
 
-    def _split_sentences(self, text: str) -> tuple[List[str], List[str]]:
-        """
-        将文本拆分为句子返回
-        
-        Args:
-            text: 输入文本
-            
-        Returns:
-            (最终句子列表, pySBD原始句子列表)
-        """
-        # 清理文本（移除多余空白）
-        text = re.sub(r'\s+', ' ', text.strip())
-        
-        if not text:
-            return [], []
-        
-        # 第一阶段：使用pySBD进行基础句子分割
-        if len(text) <= MAX_SENTENCE_LENGTH:
-            return [text], [text] 
+## ❌ 绝对禁止返回的内容
+- 任何文字说明、解释、注释
+- 代码块标记（如```json```）
+- 前言、总结、提示性文字
+- 除JSON数组外的任何其他格式
 
-        pysbd_sentences = self._split_with_pysbd(text)
-        pysbd_sentences = [s.strip() for s in pysbd_sentences if s.strip()]
-        
-        # 第二阶段：长句拆分逻辑
-        final_sentences = self._split_long_sentences(pysbd_sentences)
-        final_sentences = [s.strip() for s in final_sentences if s.strip()]
-        
-        return final_sentences, pysbd_sentences
-    
-    def _split_with_nltk(self, text: str) -> List[str]:
-        """
-        使用NLTK进行句子分割
-        
-        Args:
-            text: 输入文本
-            
-        Returns:
-            句子列表
-        """
-        return nltk.sent_tokenize(text)
+## ✅ 正确输出格式示例
 
-    def _split_with_pysbd(self, text: str) -> List[str]:
-        """
-        使用pySBD进行句子分割
-        
-        Args:
-            text: 输入文本
+### 示例1：短句保持完整（不拆分）
+输入：Alice was beginning to get very tired.
+输出：
+[
+  {"original": "Alice was beginning to get very tired.", "translation": "爱丽丝开始感到非常疲倦。"}
+]
+
+### 示例2：长句合理拆分
+输入：Alice was beginning to get very tired of sitting by her sister on the bank, and of having nothing to do.
+输出：
+[
+  {"original": "Alice was beginning to get very tired of sitting by her sister on the bank,", "translation": "爱丽丝开始对坐在姐姐身边的河岸上感到非常疲倦，"},
+  {"original": "and of having nothing to do.", "translation": "也厌倦了无所事事。"}
+]
+
+### 示例3：超长句必须充分拆分
+输入：Alice had learnt several things of this sort in her lessons in the schoolroom, and though this was not a very good opportunity for showing off her knowledge, as there was no one to listen to her, still it was good practice.
+输出：
+[
+  {"original": "Alice had learnt several things of this sort in her lessons in the schoolroom,", "translation": "爱丽丝在学校里上课时学过很多这类东西，"},
+  {"original": "and though this was not a very good opportunity for showing off her knowledge,", "translation": "虽然这不是炫耀她知识的好机会，"},
+  {"original": "as there was no one to listen to her,", "translation": "因为没有人听她说话，"},
+  {"original": "still it was good practice.", "translation": "但这仍然是很好的练习。"}
+]
+
+## 任务描述
+请将给定的英文长句按照**语义完整性**拆分成合适的片段，然后对每个片段进行信达雅的中文翻译。
+
+## 核心原则
+**严格保持原文完整性**：不得以任何方式修改、重组、删减或添加原文内容，包括所有标点符号、大小写、斜体等格式标记。
+
+## 拆分规则
+1. **长度控制**：
+   - 短句（≤15个单词）：保持原样，不拆分
+   - 长句（>15个单词）：必须拆分为8-15个单词的片段
+   - 严禁生成超过15个单词的片段
+2. **拆分判断**：
+   - 优先考虑句子是否已经足够简洁完整
+   - 避免不必要的过度拆分短句
+   - 确保长句充分拆分，不留过长片段
+3. **拆分原则**：
+   - 保持语义完整性，在自然停顿处拆分
+   - 严格遵循原文的语法结构和标点符号进行拆分
+   - 优先在从句边界、连词、标点处拆分
+   - 保持修辞结构和逻辑连贯性
+   - 避免破坏习语和固定搭配
+   - 长句必须充分拆分，确保每个片段都在合理长度范围内
+3. **格式保留**：
+   - 完整保留所有标点符号（逗号、分号、引号、括号等）
+   - 保留斜体标记 `_word_` 不作任何改动
+   - 保留对话的直接引语形式
+   - 保持括号内容的完整性
+
+## 翻译要求
+- **信**：准确传达原意，不遗漏任何细节
+- **达**：中文流畅自然，符合中文表达习惯
+- **雅**：文学性表达，保持原文风格韵味
+   - 恰当处理斜体强调（在翻译中使用中文强调表达）
+   - 保持对话的直接引语形式
+   - 自然处理括号内的补充说明
+
+## 输出格式要求
+- 必须是有效的JSON数组
+- 数组中每个对象必须包含"original"和"translation"两个字段
+- 不允许有任何额外的文字或格式
+
+## 🔥 最终强调：
+- 只返回纯JSON数组！绝不允许任何其他内容！
+- 短句（≤15词）保持完整，避免过度拆分！
+- 长句（>15词）必须充分拆分为8-15词片段！
+- 严禁生成超过15个单词的片段！
+- 每个片段必须在合理长度范围内（8-15词）！"""
             
-        Returns:
-            句子列表
-        """
-        debug_print("pySBD输入", text)
-        result = self.segmenter.segment(text)
-        result = [sent.strip() for sent in result if sent.strip()]
-        debug_print("pySBD输出", result)
-        return result
-    
-    
-    def _split_long_sentences(self, sentences: List[str]) -> List[str]:
-        """
-        新的长句拆分策略: 成对符号保护 + 分隔符拆分 + 智能合并
-        
-        Args:
-            sentences: 原始句子列表
+            user_prompt = f"请对以下英文段落进行拆分和翻译：\n\n{paragraph}"
             
-        Returns:
-            处理后的句子列表
-        """
-        result = []
-        
-        for sentence in sentences:
-            if len(sentence) <= MAX_SENTENCE_LENGTH:
-                result.append(sentence)
-                continue
+            # 调用AI API
+            response = self.ai_client.chat_completion(
+                user_prompt, 
+                system_prompt,
+                temperature=0.8, 
+                max_tokens=4000
+            )
             
-            # 对长句进行拆分-合并处理
-            split_result = self.split_into_clauses(sentence)
-            result.extend(split_result)
-        
-        return result
-    
-    def _is_abbreviation(self, position: int, text: str) -> bool:
-        """检测指定位置的句号前是否为英语缩写词"""
-        if position == 0:
-            return False
-        
-        # 向前查找单词边界
-        word_start = position - 1
-        while word_start > 0 and text[word_start - 1].isalpha():
-            word_start -= 1
-        
-        if word_start == position:
-            return False
-        
-        # 提取可能的缩写词
-        word = text[word_start:position]
-        return word in ENGLISH_ABBREVIATIONS
-    
-    def _get_quote_type(self, ch: str) -> tuple[str, str] | None:
-        """获取引号字符的开始和结束符号，如果不是引号返回None"""
-        for open_quote, close_quote in PAIR_SYMBOLS_QUOTES:
-            if ch == open_quote or ch == close_quote:
-                return open_quote, close_quote
-        return None
-    
-    def _get_paren_type(self, ch: str) -> tuple[str, str] | None:
-        """获取括号字符的开始和结束符号，如果不是括号返回None"""
-        for open_paren, close_paren in PAIR_SYMBOLS_PARENS:
-            if ch == open_paren or ch == close_paren:
-                return open_paren, close_paren
-        return None
-    
-    def _split_by_quotes_and_parens(self, text: str) -> List[tuple[str, int]]:
-        """
-        第1步：按引号和括号拆分文本，为每个片段分配序号
-        
-        Args:
-            text: 输入文本
+            if not response or not response.strip():
+                print(f"      ⚠️ AI返回空结果")
+                return []
             
-        Returns:
-            List of (文本片段, 源序号) 元组
-        """
-        segments = []
-        buf = []
-        current_segment_index = 0
-        
-        # 统一的符号状态跟踪
-        quote_stack = []  # 引号栈，记录当前打开的引号类型
-        paren_count = 0   # 括号嵌套层级
-        
-        def add_segment_if_not_empty():
-            """添加当前缓冲区内容为新片段"""
-            nonlocal current_segment_index
-            if buf:
-                clause = ''.join(buf).strip()
-                if clause:
-                    segments.append((clause, current_segment_index))
-                    current_segment_index += 1
-                buf.clear()
-        
-        i = 0
-        while i < len(text):
-            ch = text[i]
-            
-            # 检查是否为引号字符
-            quote_info = self._get_quote_type(ch)
-            if quote_info:
-                open_quote, close_quote = quote_info
+            # 解析JSON响应
+            try:
+                # 智能提取JSON内容
+                json_str = self._extract_json_from_response(response)
+                if not json_str:
+                    print(f"      ⚠️ 无法从响应中提取JSON")
+                    return []
                 
-                # 检查是否为缩写词中的撇号，如果是则不作为引号处理
-                if ch in ["'", "'"] and self._is_contraction_apostrophe(i, text):
-                    buf.append(ch)
-                else:
-                    # 只在没有括号嵌套时处理引号
-                    if paren_count == 0:
-                        if ch == open_quote:
-                            # 检查是否为开始引号
-                            if not quote_stack or quote_stack[-1] != (open_quote, close_quote):
-                                # 开始新的引号区域 - 先保存当前缓冲区
-                                add_segment_if_not_empty()
-                                buf.append(ch)
-                                quote_stack.append((open_quote, close_quote))
-                            else:
-                                buf.append(ch)
-                        elif ch == close_quote:
-                            # 检查是否为结束引号
-                            if quote_stack and quote_stack[-1] == (open_quote, close_quote):
-                                buf.append(ch)
-                                # 结束当前引号区域
-                                quote_stack.pop()
-                                add_segment_if_not_empty()
-                            else:
-                                buf.append(ch)
-                        else:
-                            buf.append(ch)
-                    else:
-                        buf.append(ch)
-            
-            # 检查是否为括号字符
-            elif self._get_paren_type(ch):
-                open_paren, close_paren = self._get_paren_type(ch)
+                sentences = json.loads(json_str)
                 
-                # 只在没有引号嵌套时计算括号层级
-                if not quote_stack:
-                    if ch == open_paren:
-                        # 开始新的括号区域 - 先保存当前缓冲区
-                        add_segment_if_not_empty()
-                        buf.append(ch)
-                        paren_count += 1
-                    elif ch == close_paren and paren_count > 0:
-                        buf.append(ch)
-                        paren_count -= 1
-                        # 如果括号完全闭合，结束当前片段
-                        if paren_count == 0:
-                            add_segment_if_not_empty()
-                    else:
-                        buf.append(ch)
+                # 验证结果格式
+                if not isinstance(sentences, list):
+                    print(f"      ⚠️ JSON格式错误，不是数组")
+                    return []
+                
+                valid_sentences = []
+                for sentence in sentences:
+                    if isinstance(sentence, dict) and 'original' in sentence and 'translation' in sentence:
+                        valid_sentences.append({
+                            'original': sentence['original'].strip(),
+                            'translation': sentence['translation'].strip()
+                        })
+                
+                if valid_sentences:
+                    return valid_sentences
                 else:
-                    buf.append(ch)
-            
-            # 普通字符
-            else:
-                buf.append(ch)
-            
-            i += 1
-        
-        # 收尾处理
-        add_segment_if_not_empty()
-        
-        debug_print("第1步-引号括号拆分", [(seg[0], seg[1]) for seg in segments])
-        return segments
-
-    def _is_contraction_apostrophe(self, position: int, text: str) -> bool:
-        """检测指定位置的单引号是否为英语缩写词中的撇号"""
-        if position == 0 or position >= len(text) - 1:
-            return False
-        
-        # 检查是否符合缩写词模式
-        for pattern in CONTRACTION_PATTERNS:
-            pattern_start = position
-            pattern_end = position + len(pattern)
-            
-            if pattern_end <= len(text):
-                if text[pattern_start:pattern_end] == pattern:
-                    # 检查前面是否有字母（确保是单词的一部分）
-                    if position > 0 and text[position-1].isalpha():
-                        # 检查后面是否是单词边界（空格、标点、文本结尾）
-                        if (pattern_end >= len(text) or 
-                            text[pattern_end].isspace() or 
-                            text[pattern_end] in SPLIT_PUNCT or
-                            text[pattern_end] in '"",，"'):
-                            return True
-        
-        return False
+                    print(f"      ⚠️ 未找到有效的句子对象")
+                    return []
+                    
+            except json.JSONDecodeError as e:
+                print(f"      ⚠️ JSON解析失败: {e}")
+                return []
+                
+        except Exception as e:
+            print(f"      ❌ AI拆分翻译异常: {e}")
+            return []
     
-    def _split_by_punctuation(self, segments: List[tuple[str, int]]) -> List[tuple[str, int]]:
+    def _extract_json_from_response(self, response: str) -> str:
         """
-        第2步：按分隔符拆分长度超过阈值的片段
+        从AI响应中智能提取JSON内容
         
         Args:
-            segments: 第1步的输出 - (文本, 源序号) 元组列表
+            response: AI返回的原始响应
             
         Returns:
-            进一步拆分的 (文本, 源序号) 元组列表
+            提取的JSON字符串，失败返回空字符串
         """
-        result = []
+        if not response:
+            return ""
         
-        for text, source_idx in segments:
-            if len(text) <= MAX_SENTENCE_LENGTH:
-                # 短片段直接保留
-                result.append((text, source_idx))
-            else:
-                # 长片段按分隔符拆分
-                sub_parts = self._split_text_by_punct(text)
-                # 保持相同的源序号
-                result.extend([(part, source_idx) for part in sub_parts])
+        # 清理响应内容
+        response = response.strip()
         
-        debug_print("第2步-分隔符拆分", [(seg[0], seg[1]) for seg in result])
-        return result
+        # 1. 尝试移除代码块标记
+        if response.startswith('```json'):
+            response = response[7:]  # 移除 ```json
+        if response.startswith('```'):
+            response = response[3:]  # 移除 ```
+        if response.endswith('```'):
+            response = response[:-3]  # 移除结尾的 ```
+        
+        response = response.strip()
+        
+        # 2. 寻找第一个[和最后一个]
+        first_bracket = response.find('[')
+        last_bracket = response.rfind(']')
+        
+        if first_bracket != -1 and last_bracket != -1 and last_bracket > first_bracket:
+            json_str = response[first_bracket:last_bracket + 1]
+            return json_str
+        
+        # 3. 如果已经是完整JSON格式，直接返回
+        if response.startswith('[') and response.endswith(']'):
+            return response
+        
+        return ""
     
-    def _split_text_by_punct(self, text: str) -> List[str]:
+    def _load_existing_paragraph_results(self, output_file: str) -> List[Dict]:
         """
-        按分隔符拆分文本（不处理引号括号逻辑）
+        加载已有的段落处理结果
         
         Args:
-            text: 输入文本
+            output_file: 输出文件路径
             
         Returns:
-            拆分后的文本片段列表
+            已有的段落结果列表
         """
-        clauses = []
-        buf = []
-        
-        i = 0
-        while i < len(text):
-            ch = text[i]
-            buf.append(ch)
-            
-            # 处理分隔符
-            if ch in SPLIT_PUNCT:
-                # 特殊处理句号：检查是否为缩写词
-                if ch == '.' and self._is_abbreviation(i, text):
-                    pass  # 不拆分缩写词
-                else:
-                    clause = ''.join(buf).strip()
-                    if clause and len(clause) > 1:  # 避免单个分隔符成为独立子句
-                        clauses.append(clause)
-                        buf = []
-            
-            i += 1
-        
-        # 收尾处理
-        if buf:
-            clause = ''.join(buf).strip()
-            if clause:
-                clauses.append(clause)
-        
-        # 清理并过滤空子句
-        clauses = [clause.strip() for clause in clauses if clause.strip()]
-        return clauses
-    
-    def _split_by_semantic_words(self, segments: List[tuple[str, int]]) -> List[tuple[str, int]]:
-        """
-        第3步：按语义连接词分隔长片段，保持序号
-        
-        在句子中间部位寻找合适的连接词进行语义分隔
-        
-        Args:
-            segments: 第2步的输出 - (文本, 源序号) 元组列表
-            
-        Returns:
-            按语义词分隔后的 (文本, 源序号) 元组列表
-        """
-        result = []
-        
-        for text, source_idx in segments:
-            if len(text) <= MAX_SENTENCE_LENGTH:
-                # 短片段直接保留
-                result.append((text, source_idx))
-            else:
-                # 长片段尝试按语义连接词分隔
-                split_parts = self._find_semantic_split_points(text)
-                if len(split_parts) > 1:
-                    # 找到分隔点，保持相同的源序号
-                    result.extend([(part, source_idx) for part in split_parts])
-                    debug_print("语义分隔", f"序号{source_idx}: {text} -> {split_parts}")
-                else:
-                    # 没有找到合适分隔点，保持原样
-                    result.append((text, source_idx))
-        
-        debug_print("第3步-语义分隔", [(seg[0], seg[1]) for seg in result])
-        return result
-    
-    def _find_semantic_split_points(self, text: str) -> List[str]:
-        """
-        在文本中寻找最佳的语义分隔点
-        
-        按优先级顺序查找连接词，优先使用高优先级的连接词分隔
-        
-        Args:
-            text: 输入文本
-            
-        Returns:
-            分隔后的文本片段列表，如果没有找到合适分隔点则返回[text]
-        """
-        words = text.split()
-        text_length = len(text)
-        
-        # 只有超过阈值的文本才进行语义分隔
-        if text_length < MAX_SENTENCE_LENGTH:
-            return [text]
-        
-        # 按优先级顺序查找连接词
-        for priority_group in SEMANTIC_CONNECTORS:
-            split_positions = self._find_connector_positions(words, priority_group, text)
-            if split_positions:
-                # 选择最接近中间位置的分隔点
-                best_split = self._select_middle_split(split_positions, text_length, text)
-                if best_split:
-                    return best_split
-        
-        # 没有找到合适分隔点，返回原文本
-        return [text]
-    
-    def _find_connector_positions(self, words: List[str], connectors: List[str], text: str) -> List[int]:
-        """
-        在单词列表中查找连接词的字符位置
-        
-        Args:
-            words: 单词列表
-            connectors: 连接词列表
-            text: 原始文本
-            
-        Returns:
-            连接词在文本中的字符位置列表
-        """
-        positions = []
-        current_pos = 0
-        
-        for word in words:
-            # 清理单词（去除标点符号）
-            clean_word = word.strip('.,!?;:"').lower()
-            
-            if clean_word in connectors:
-                # 找到连接词，记录其在原文本中的位置
-                word_start = text.find(word, current_pos)
-                if word_start != -1:
-                    positions.append(word_start)
-            
-            # 更新当前位置（包括空格）
-            current_pos = text.find(word, current_pos)
-            if current_pos != -1:
-                current_pos += len(word)
-        
-        return positions
-    
-    def _select_middle_split(self, positions: List[int], text_length: int, text: str) -> List[str]:
-        """
-        选择最接近文本中间位置的分隔点
-        
-        Args:
-            positions: 候选分隔位置列表
-            text_length: 文本总长度
-            text: 原始文本
-            
-        Returns:
-            分隔后的文本片段列表，如果没有合适位置则返回空列表
-        """
-        if not positions:
+        if not os.path.exists(output_file):
             return []
         
-        middle_pos = text_length // 2
-        best_position = min(positions, key=lambda pos: abs(pos - middle_pos))
-        
-        # 确保分隔后两部分都有合理长度（30%-70%之间）
-        if not (text_length * 0.3 < best_position < text_length * 0.7):
-            return []
-        
-        # 在连接词前分隔，保持连接词在第二部分开头
-        part1 = text[:best_position].strip()
-        part2 = text[best_position:].strip()
-        
-        if part1 and part2:  # 确保两部分都非空
-            return [part1, part2]
-        
-        return []
+        results = []
+        try:
+            with open(output_file, 'r', encoding='utf-8') as f:
+                for line_num, line in enumerate(f, 1):
+                    line = line.strip()
+                    if not line:
+                        continue
+                    
+                    try:
+                        result = json.loads(line)
+                        if isinstance(result, dict) and 'paragraph_index' in result:
+                            results.append(result)
+                    except json.JSONDecodeError as e:
+                        print(f"      ⚠️ 解析JSON行 {line_num} 失败: {e}")
+                        continue
+                        
+        except Exception as e:
+            print(f"      ⚠️ 读取已有结果文件失败 {output_file}: {e}")
+            
+        return results
     
-    def _has_adjacent_same_source(self, segments: List[tuple[str, int]], current_index: int, source_idx: int) -> bool:
+    def _save_paragraph_results(self, output_file: str, new_results: List[Dict], existing_results: List[Dict]):
         """
-        检查当前位置是否有相邻的相同源序号片段
+        保存段落处理结果（合并新旧结果）
         
         Args:
-            segments: 完整的片段列表
-            current_index: 当前片段在列表中的位置
-            source_idx: 要检查的源序号
+            output_file: 输出文件路径
+            new_results: 新的处理结果
+            existing_results: 已有的处理结果
+        """
+        try:
+            # 合并结果：用新结果覆盖相同段落索引的旧结果
+            all_results = {}
             
-        Returns:
-            是否存在相邻的相同源序号片段
-        """
-        # 检查下一个片段是否为相同序号
-        if (current_index + 1 < len(segments) and 
-            segments[current_index + 1][1] == source_idx):
-            debug_print("邻近检查", f"序号{source_idx}在位置{current_index}有后续相同序号片段")
-            return True
-        
-        # 检查前一个片段是否为相同序号
-        # 注意：这里不需要检查前一个，因为如果前一个是相同序号，在处理前一个片段时就会合并
-        # 这里主要关心是否有后续的相同序号片段需要等待
-        
-        return False
-    
-    def _merge_short_segments(self, segments: List[tuple[str, int]]) -> List[str]:
-        """
-        第3步：智能合并短片段，优先与相同源序号的片段合并
-        
-        Args:
-            segments: 第2步的输出 - (文本, 源序号) 元组列表
+            # 先添加已有结果
+            for result in existing_results:
+                para_idx = result.get('paragraph_index')
+                if para_idx is not None:
+                    all_results[para_idx] = result
             
-        Returns:
-            最终的子句列表
-        """
-        merged = []
-        merged_indices = []  # 追踪已合并文本的源序号
-        
-        for i, (text, source_idx) in enumerate(segments):
-            # 优先级1：与相同源序号的前一片段合并
-            if (merged and merged_indices and merged_indices[-1] == source_idx and 
-                self._can_merge_segments(merged[-1], text)):
-                merged[-1] += " " + text
-                debug_print("相同序号合并", f"序号{source_idx}: {merged[-1]}")
+            # 再添加新结果（覆盖相同索引）
+            for result in new_results:
+                para_idx = result.get('paragraph_index')
+                if para_idx is not None:
+                    all_results[para_idx] = result
             
-            # 优先级2：与不同序号的前一片段合并
-            # 新增条件：只有当前片段没有相邻的相同序号片段时才允许
-            elif (merged and self._can_merge_segments(merged[-1], text) and
-                  not self._has_adjacent_same_source(segments, i, source_idx)):
-                merged[-1] += " " + text
-                merged_indices[-1] = source_idx  # 更新序号为新片段的序号
-                debug_print("跨序号合并", f"序号{merged_indices[-1]}: {merged[-1]}")
+            # 按段落索引排序并写入文件
+            sorted_results = sorted(all_results.values(), key=lambda x: x.get('paragraph_index', 0))
             
-            else:
-                # 无法合并，添加为新片段
-                merged.append(text)
-                merged_indices.append(source_idx)
-                debug_print("独立片段", f"序号{source_idx}: {text}")
-        
-        debug_print("第3步-智能合并", merged)
-        return merged
-    
-    def _can_merge_segments(self, prev_text: str, current_text: str) -> bool:
-        """
-        检查两个片段是否可以合并
-        
-        Args:
-            prev_text: 前一个片段文本
-            current_text: 当前片段文本
-            
-        Returns:
-            是否可以合并
-        """
-        # 合并条件：
-        # 1. 前一个片段或当前片段过短
-        # 2. 合并后不超过最大长度
-        # 3. 前一个片段不以句末分隔符结尾
-        return (
-            (len(prev_text) < MIN_MERGE_LENGTH or len(current_text) < MIN_MERGE_LENGTH) and 
-            len(prev_text) + len(current_text) < MAX_MERGE_LENGTH and
-            not self._ends_with_sentence_terminator(prev_text)
-        )
-    
-    def split_into_clauses(self, text: str):
-        """
-        四步优化的子句拆分:
-        1. 按括号和引号拆分，记录序号
-        2. 按分隔符拆分长片段，保持序号
-        3. 按语义连接词拆分长片段，保持序号
-        4. 智能合并，优先相同序号片段
-        """
-        debug_print("split_into_clauses输入", text)
-        
-        # 第1步：按引号和括号拆分，分配序号
-        segments = self._split_by_quotes_and_parens(text)
-        
-        # 第2步：按分隔符拆分长片段  
-        segments = self._split_by_punctuation(segments)
-        
-        # 第3步：按语义连接词拆分长片段
-        segments = self._split_by_semantic_words(segments)
-        
-        # 第4步：智能合并
-        result = self._merge_short_segments(segments)
-        
-        # 后置处理: 合并被分离的标点符号
-        result = self._merge_split_punctuation(result)
-        debug_print("split_into_clauses最终输出", result)
-        
-        return result
-
-    def _ends_with_sentence_terminator(self, text: str) -> bool:
-        """
-        检查文本是否以句末分隔符结尾(去除空格后)
-        
-        Args:
-            text: 输入文本
-            
-        Returns:
-            True if 文本以句末分隔符结尾
-        """
-        if not text:
-            return False
-            
-        # 去除尾部空格后检查最后一个字符
-        trimmed = text.rstrip()
-        if not trimmed:
-            return False
-            
-        return trimmed[-1] in SENTENCE_TERMINATORS
-
-    def _merge_split_punctuation(self, clauses: List[str]) -> List[str]:
-        """
-        后置处理: 合并被分离的分隔符和成对符号
-        两种情况:
-        1. 分隔符(非冒号) + 成对符号结束部分
-        2. 成对符号结束部分 + 分隔符(非冒号)
-        
-        Args:
-            clauses: 原始子句列表
-            
-        Returns:
-            合并后的子句列表
-        """
-        if not clauses:
-            return clauses
-            
-        merged = []
-        
-        for clause in clauses:
-            if merged and self._should_merge_with_previous(merged[-1], clause):
-                # 合并符号
-                clause = clause.lstrip()
-                merged[-1] += clause[0]
-                if len(clause) > 1:
-                    merged.append(clause[1:].lstrip())
-            else:
-                merged.append(clause)
-        
-        return merged
-    
-    def _should_merge_with_previous(self, prev_clause: str, current_clause: str) -> bool:
-        """
-        检查当前子句是否应该与前一个子句合并
-        两种情况:
-        1. 分隔符(非冒号) + 成对符号结束部分
-        2. 成对符号结束部分 + 分隔符(非冒号)
-        
-        Args:
-            prev_clause: 前一个子句
-            current_clause: 当前子句
-            
-        Returns:
-            True if 应该合并
-        """
-        if not prev_clause or not current_clause:
-            return False
-            
-        # 检查前一句的结尾字符
-        prev_trimmed = prev_clause.rstrip()
-        if not prev_trimmed:
-            return False
-        prev_end_char = prev_trimmed[-1]
-        
-        # 检查当前句的开头字符
-        current_trimmed = current_clause.lstrip()
-        if not current_trimmed:
-            return False
-        current_start_char = current_trimmed[0]
-        
-        # 情况1: 分隔符(非冒号) + 成对符号结束部分
-        case1 = (prev_end_char in PREV_MERGEABLE_SEPARATORS and 
-                current_start_char in NEXT_SYMBOL_ENDINGS)
-        
-        # 情况2: 成对符号结束部分 + 分隔符(非冒号)
-        case2 = (prev_end_char in PREV_SYMBOL_ENDINGS and 
-                current_start_char in NEXT_MERGEABLE_SEPARATORS)
-        
-        return case1 or case2
-
-
+            with open(output_file, 'w', encoding='utf-8') as f:
+                for result in sorted_results:
+                    f.write(json.dumps(result, ensure_ascii=False) + '\n')
+                    
+        except Exception as e:
+            print(f"      ❌ 保存段落结果失败: {e}")
+            raise
