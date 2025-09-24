@@ -251,90 +251,35 @@ class SentenceProcessor:
             拆分翻译结果列表 [{"original": "英文", "translation": "中文"}, ...]
         """
         try:
-            system_prompt = """⚠️ 严格要求：必须且只能返回JSON数组格式！
+            system_prompt = """作为英语句子拆分与翻译专家，请将英文段落按语义完整性拆分并翻译成中文。
 
-# 句子拆分与翻译专家
-
-## ❌ 绝对禁止返回的内容
-- 任何文字说明、解释、注释
-- 代码块标记（如```json```）
-- 前言、总结、提示性文字
-- 除JSON数组外的任何其他格式
-
-## ✅ 正确输出格式示例
-
-### 示例1：短句保持完整（不拆分）
-输入：Alice was beginning to get very tired.
-输出：
-[
-  {"original": "Alice was beginning to get very tired.", "translation": "爱丽丝开始感到非常疲倦。"}
-]
-
-### 示例2：长句合理拆分
-输入：Alice was beginning to get very tired of sitting by her sister on the bank, and of having nothing to do.
-输出：
-[
-  {"original": "Alice was beginning to get very tired of sitting by her sister on the bank,", "translation": "爱丽丝开始对坐在姐姐身边的河岸上感到非常疲倦，"},
-  {"original": "and of having nothing to do.", "translation": "也厌倦了无所事事。"}
-]
-
-### 示例3：超长句必须充分拆分
-输入：Alice had learnt several things of this sort in her lessons in the schoolroom, and though this was not a very good opportunity for showing off her knowledge, as there was no one to listen to her, still it was good practice.
-输出：
-[
-  {"original": "Alice had learnt several things of this sort in her lessons in the schoolroom,", "translation": "爱丽丝在学校里上课时学过很多这类东西，"},
-  {"original": "and though this was not a very good opportunity for showing off her knowledge,", "translation": "虽然这不是炫耀她知识的好机会，"},
-  {"original": "as there was no one to listen to her,", "translation": "因为没有人听她说话，"},
-  {"original": "still it was good practice.", "translation": "但这仍然是很好的练习。"}
-]
-
-## 任务描述
-请将给定的英文长句按照**语义完整性**拆分成合适的片段，然后对每个片段进行信达雅的中文翻译。
-
-## 核心原则
-**严格保持原文完整性**：不得以任何方式修改、重组、删减或添加原文内容，包括所有标点符号、大小写、斜体等格式标记。
+## 输出格式
+每行一个句子对，格式：英文 || 中文
+不要任何其他说明或格式标记。
 
 ## 拆分规则
 1. **长度控制**：
-   - 短句（≤15个单词）：保持原样，不拆分
-   - 长句（>15个单词）：必须拆分为8-15个单词的片段
-   - 严禁生成超过15个单词的片段
-2. **拆分判断**：
-   - 优先考虑句子是否已经足够简洁完整
-   - 避免不必要的过度拆分短句
-   - 确保长句充分拆分，不留过长片段
-3. **拆分原则**：
-   - 保持语义完整性，在自然停顿处拆分
-   - 严格遵循原文的语法结构和标点符号进行拆分
-   - 优先在从句边界、连词、标点处拆分
-   - 保持修辞结构和逻辑连贯性
-   - 避免破坏习语和固定搭配
-   - 长句必须充分拆分，确保每个片段都在合理长度范围内
-3. **格式保留**：
-   - 完整保留所有标点符号（逗号、分号、引号、括号等）
-   - 保留斜体标记 `_word_` 不作任何改动
-   - 保留对话的直接引语形式
-   - 保持括号内容的完整性
+   - 短句（≤15个单词）：保持完整，不拆分
+   - 长句（>15个单词）：拆分为8-15个单词的片段
+   - 严禁超过15个单词的片段
+
+2. **拆分原则**：
+   - 在自然停顿处拆分（从句边界、连词、标点）
+   - 保持语义完整性和逻辑连贯性
+   - 不破坏习语和固定搭配
+   - 严格保留原文所有内容（标点、大小写、斜体等）
 
 ## 翻译要求
-- **信**：准确传达原意，不遗漏任何细节
-- **达**：中文流畅自然，符合中文表达习惯
-- **雅**：文学性表达，保持原文风格韵味
-   - 恰当处理斜体强调（在翻译中使用中文强调表达）
-   - 保持对话的直接引语形式
-   - 自然处理括号内的补充说明
+- **信达雅**：准确传意，中文流畅，保持文学性
+- 恰当处理斜体强调和对话引语
+- 自然处理括号补充说明
 
-## 输出格式要求
-- 必须是有效的JSON数组
-- 数组中每个对象必须包含"original"和"translation"两个字段
-- 不允许有任何额外的文字或格式
+## 示例
+输入：Alice was beginning to get very tired of sitting by her sister on the bank, and of having nothing to do.
 
-## 🔥 最终强调：
-- 只返回纯JSON数组！绝不允许任何其他内容！
-- 短句（≤15词）保持完整，避免过度拆分！
-- 长句（>15词）必须充分拆分为8-15词片段！
-- 严禁生成超过15个单词的片段！
-- 每个片段必须在合理长度范围内（8-15词）！"""
+输出：
+Alice was beginning to get very tired of sitting by her sister on the bank, || 爱丽丝开始对坐在姐姐身边的河岸上感到非常疲倦，
+and of having nothing to do. || 也厌倦了无所事事。"""
             
             user_prompt = f"请对以下英文段落进行拆分和翻译：\n\n{paragraph}"
             
@@ -350,82 +295,69 @@ class SentenceProcessor:
                 print(f"      ⚠️ AI返回空结果")
                 return []
             
-            # 解析JSON响应
+            # 解析句子对响应
             try:
-                # 智能提取JSON内容
-                json_str = self._extract_json_from_response(response)
-                if not json_str:
-                    print(f"      ⚠️ 无法从响应中提取JSON")
-                    return []
+                # 使用新的句子对解析方法
+                sentences = self._parse_sentence_pairs(response)
                 
-                sentences = json.loads(json_str)
-                
-                # 验证结果格式
-                if not isinstance(sentences, list):
-                    print(f"      ⚠️ JSON格式错误，不是数组")
-                    return []
-                
-                valid_sentences = []
-                for sentence in sentences:
-                    if isinstance(sentence, dict) and 'original' in sentence and 'translation' in sentence:
-                        valid_sentences.append({
-                            'original': sentence['original'].strip(),
-                            'translation': sentence['translation'].strip()
-                        })
-                
-                if valid_sentences:
-                    return valid_sentences
+                if sentences:
+                    return sentences
                 else:
-                    print(f"      ⚠️ 未找到有效的句子对象")
+                    print(f"      ⚠️ 未解析到有效的句子对")
                     return []
                     
-            except json.JSONDecodeError as e:
-                print(f"      ⚠️ JSON解析失败: {e}")
+            except Exception as e:
+                print(f"      ⚠️ 句子对解析失败: {e}")
                 return []
                 
         except Exception as e:
             print(f"      ❌ AI拆分翻译异常: {e}")
             return []
     
-    def _extract_json_from_response(self, response: str) -> str:
+    def _parse_sentence_pairs(self, response: str) -> List[Dict[str, str]]:
         """
-        从AI响应中智能提取JSON内容
+        从AI响应中解析双竖线分隔的句子对
         
         Args:
             response: AI返回的原始响应
             
         Returns:
-            提取的JSON字符串，失败返回空字符串
+            解析的句子对列表 [{"original": "英文", "translation": "中文"}, ...]
         """
         if not response:
-            return ""
+            return []
         
-        # 清理响应内容
-        response = response.strip()
-        
-        # 1. 尝试移除代码块标记
-        if response.startswith('```json'):
-            response = response[7:]  # 移除 ```json
-        if response.startswith('```'):
-            response = response[3:]  # 移除 ```
-        if response.endswith('```'):
-            response = response[:-3]  # 移除结尾的 ```
-        
-        response = response.strip()
-        
-        # 2. 寻找第一个[和最后一个]
-        first_bracket = response.find('[')
-        last_bracket = response.rfind(']')
-        
-        if first_bracket != -1 and last_bracket != -1 and last_bracket > first_bracket:
-            json_str = response[first_bracket:last_bracket + 1]
-            return json_str
-        
-        # 3. 如果已经是完整JSON格式，直接返回
-        if response.startswith('[') and response.endswith(']'):
-            return response
-        
-        return ""
+        sentences = []
+        try:
+            # 按行分割响应
+            lines = response.strip().split('\n')
+            
+            for line in lines:
+                line = line.strip()
+                # 跳过空行
+                if not line:
+                    continue
+                
+                # 检查是否包含双竖线分隔符
+                if '||' in line:
+                    # 只分割第一个||，防止翻译文本中的||被误分割
+                    parts = line.split('||', 1)
+                    if len(parts) == 2:
+                        original = parts[0].strip()
+                        translation = parts[1].strip()
+                        
+                        # 验证内容不为空
+                        if original and translation:
+                            sentences.append({
+                                'original': original,
+                                'translation': translation
+                            })
+            
+            return sentences
+            
+        except Exception as e:
+            print(f"      ⚠️ 解析句子对失败: {e}")
+            return []
     
     def _load_existing_paragraph_results(self, output_file: str) -> List[Dict]:
         """
