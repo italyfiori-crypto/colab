@@ -196,7 +196,77 @@ class TranslationService:
     
     def _translate_single_batch(self, batch: List, batch_num: int, total_batches: int) -> Optional[Dict]:
         """
-        翻译单个批次（一个API调用处理整批字幕）
+        带降级的批次翻译：优先批次翻译，失败时降级为逐条翻译
+        
+        Args:
+            batch: 需要翻译的条目批次 [(index, entry), ...]
+            batch_num: 当前批次号
+            total_batches: 总批次数
+            
+        Returns:
+            翻译结果字典 {batch_index: translation}
+        """
+        # 先尝试批量翻译
+        batch_results = self._try_batch_translation(batch, batch_num, total_batches)
+        
+        # 检查批量翻译结果完整性
+        if batch_results and len(batch_results) == len(batch):
+            print(f"    ✅ 批量翻译成功: {len(batch)} 条")
+            return batch_results
+        
+        # 批量翻译失败，降级为逐条翻译
+        print(f"    🔄 批次 {batch_num} 翻译不完整，降级为逐条翻译...")
+        return self._translate_batch_one_by_one(batch, batch_num, total_batches)
+    
+    def _build_batch_translation_prompts(self, batch: List) -> tuple[str, str]:
+        """
+        构建批量翻译的system_prompt和user_prompt
+        
+        Args:
+            batch: 字幕条目批次 [(index, entry), ...]
+            
+        Returns:
+            (system_prompt, user_prompt)
+        """
+        system_prompt = """你是专业的英中翻译专家，专门翻译英文字幕。
+
+翻译要求：
+1. 序号对应：每个英文句子必须有且仅有一个对应的中文翻译
+2. 格式严格：必须保持"序号. 翻译内容"的格式
+3. 数量相等：输出行数必须与输入行数完全相等
+4. 一一对应：第N行输入对应第N行输出
+5. 保持原意：每个句子准确传达原句的完整含义，不遗漏也不添加信息
+6. 信息完整：每个翻译必须表达原句的全部信息，不可省略任何内容
+7. 语言自然：翻译要求信达雅：准确、流畅、优美
+8. 保留符号：翻译时每个严格保留句子原有的符号
+
+格式示例：
+输入：
+1. Hello, how are you today?
+2. I'm fine, thank you.
+3. What a beautiful day!
+
+输出：
+1. 你好，你今天怎么样？
+2. 我很好，谢谢你。
+3. 多么美好的一天！
+
+重要：必须包含所有序号，每个序号后面必须有且仅有一行翻译，不要添加任何额外的解释或说明。"""
+
+        # 构建带序号的英文句子列表
+        english_sentences = []
+        for i, (entry_index, entry) in enumerate(batch, 1):
+            english_sentences.append(f"{i}. {entry['english_text']}")
+        
+        sentences_text = "\n".join(english_sentences)
+        
+        user_prompt = f"""请翻译以下英文字幕，输出必须严格包含序号 1 到 {len(batch)}：{sentences_text}"""
+        
+        return system_prompt, user_prompt
+    
+    def _try_batch_translation(self, batch: List, batch_num: int, total_batches: int) -> Optional[Dict]:
+        """
+        尝试批量翻译（原有逻辑）
         
         Args:
             batch: 需要翻译的条目批次 [(index, entry), ...]
@@ -207,14 +277,15 @@ class TranslationService:
             批次翻译结果字典 {序号: 翻译结果}
         """
         try:
-            print(f"    📦 批次 {batch_num}/{total_batches}: 处理 {len(batch)} 条字幕")
+            print(f"    📦 批次 {batch_num}/{total_batches}: 尝试批量翻译 {len(batch)} 条字幕")
             
-            # 构建批量翻译prompt
-            batch_prompt = self._build_batch_translation_prompt(batch)
+            # 构建批量翻译prompts
+            system_prompt, user_prompt = self._build_batch_translation_prompts(batch)
             
             # 调用API进行批量翻译
             response = self.ai_client.chat_completion(
-                batch_prompt, 
+                user_prompt, 
+                system_prompt,
                 temperature=0.3, 
                 max_tokens=4000
             )
@@ -230,62 +301,6 @@ class TranslationService:
         except Exception as e:
             print(f"    ❌ 批次 {batch_num} 翻译异常: {e}")
             return None
-    
-    def _build_batch_translation_prompt(self, batch: List) -> str:
-        """
-        构建带序号的批量翻译prompt
-        
-        Args:
-            batch: 字幕条目批次 [(index, entry), ...]
-            
-        Returns:
-            批量翻译prompt
-        """
-        # 构建带序号的英文句子列表
-        english_sentences = []
-        for i, (entry_index, entry) in enumerate(batch, 1):
-            english_sentences.append(f"{i}. {entry['english_text']}")
-        
-        sentences_text = "\n".join(english_sentences)
-        
-        prompt = f"""你是专业的英中翻译专家，专门翻译英文字幕。
-
-请翻译以下英文字幕，**输出必须严格包含序号 1 到 {len(batch)}**：
-
-{sentences_text}
-
-**【关键要求】输出必须严格包含序号 1 到 {len(batch)}，一个都不能少！**
-
-翻译要求：
-1. **序号完整性：输出必须包含序号 1 到 {len(batch)}，禁止省略任何序号**
-2. **格式严格：必须保持"序号. 翻译内容"的格式**
-3. **数量相等：输出行数必须与输入行数完全相等（共{len(batch)}行）**
-4. **一一对应：第N行输入对应第N行输出**
-5. 准确传达原意，语言自然流畅，表达优美
-6. 翻译要求信达雅：准确、流畅、优美
-7. 保留符号: 翻译时尽量保留句子原有的符号
-
-格式示例：
-输入：
-1. Hello, how are you today?
-2. I'm fine, thank you.
-3. What a beautiful day!
-
-输出：
-1. 你好，你今天怎么样？
-2. 我很好，谢谢你。
-3. 多么美好的一天！
-
-**【强制要求】：**
-- 输出必须严格包含序号 1 到 {len(batch)}
-- 每个序号后面必须有且仅有一行翻译
-- 不要添加任何额外的解释或说明
-- 不要跳过任何序号
-- 请逐一检查输出是否包含所有序号
-
-**开始翻译（必须输出{len(batch)}行，序号1到{len(batch)}）：**"""
-        
-        return prompt
     
     def _parse_batch_translation_result(self, response: str, batch: List) -> Dict[int, str]:
         """
@@ -336,6 +351,137 @@ class TranslationService:
             print(f"    ✅ 序号完整性验证通过: 1-{len(batch)}")
         
         return results
+    
+    def _translate_batch_one_by_one(self, batch: List, batch_num: int, total_batches: int) -> Dict[int, str]:
+        """
+        逐条翻译批次，确保100%序号对应，并传入上下文
+        
+        Args:
+            batch: 批次条目列表 [(index, entry), ...]
+            batch_num: 当前批次号
+            total_batches: 总批次数
+            
+        Returns:
+            翻译结果字典 {batch_index: translation}
+        """
+        print(f"    🔄 逐条翻译批次 {batch_num}/{total_batches}: 处理 {len(batch)} 条字幕")
+        results = {}
+        
+        for i, (entry_index, entry) in enumerate(batch):
+            try:
+                # 构建上下文：前后各2句
+                context_before = self._get_context_before(batch, i, 2)
+                context_after = self._get_context_after(batch, i, 2)
+                
+                # 翻译单个句子
+                translation = self._translate_single_sentence_with_context(
+                    entry['english_text'], 
+                    i + 1, 
+                    context_before, 
+                    context_after
+                )
+                
+                if translation:
+                    results[i] = translation
+                    print(f"      ✅ 句子 {i+1}/{len(batch)} 翻译完成")
+                else:
+                    results[i] = f"[翻译失败] {entry['english_text']}"
+                    print(f"      ❌ 句子 {i+1}/{len(batch)} 翻译失败")
+                
+                # 添加延迟避免API限流
+                if i < len(batch) - 1:
+                    time.sleep(0.3)
+                    
+            except Exception as e:
+                print(f"      ❌ 句子 {i+1} 处理异常: {e}")
+                results[i] = f"[翻译失败] {entry['english_text']}"
+        
+        print(f"    ✅ 逐条翻译完成: {len(results)}/{len(batch)} 条")
+        return results
+    
+    def _get_context_before(self, batch: List, current_index: int, count: int = 2) -> List[str]:
+        """
+        获取当前句子前面的上下文
+        
+        Args:
+            batch: 批次条目列表 [(index, entry), ...]
+            current_index: 当前句子在批次中的索引
+            count: 获取的上下文句子数量
+            
+        Returns:
+            前文上下文列表
+        """
+        start = max(0, current_index - count)
+        context = []
+        for i in range(start, current_index):
+            _, entry = batch[i]
+            context.append(entry['english_text'])
+        return context
+    
+    def _get_context_after(self, batch: List, current_index: int, count: int = 2) -> List[str]:
+        """
+        获取当前句子后面的上下文
+        
+        Args:
+            batch: 批次条目列表 [(index, entry), ...]
+            current_index: 当前句子在批次中的索引
+            count: 获取的上下文句子数量
+            
+        Returns:
+            后文上下文列表
+        """
+        end = min(len(batch), current_index + count + 1)
+        context = []
+        for i in range(current_index + 1, end):
+            _, entry = batch[i]
+            context.append(entry['english_text'])
+        return context
+    
+    def _translate_single_sentence_with_context(self, text: str, seq_num: int, context_before: List[str], context_after: List[str]) -> str:
+        """
+        翻译单个句子，带上下文信息
+        
+        Args:
+            text: 待翻译的英文句子
+            seq_num: 句子序号（用于日志）
+            context_before: 前文上下文列表
+            context_after: 后文上下文列表
+            
+        Returns:
+            翻译结果，失败返回None
+        """
+        try:
+            system_prompt = """你是专业的英中翻译专家。请根据上下文翻译指定的英文句子。
+
+翻译要求：
+1. 只翻译"待翻译句子"部分
+2. 考虑前后文语境，确保翻译连贯自然
+3. 语言自然流畅，信达雅
+4. 保留原文标点符号和语气
+5. 只返回翻译结果，不要解释或说明"""
+
+            context_prompt = ""
+            if context_before:
+                context_prompt += f"前文语境：\n" + "\n".join(f"- {ctx}" for ctx in context_before) + "\n\n"
+            
+            context_prompt += f"待翻译句子：{text}\n\n"
+            
+            if context_after:
+                context_prompt += f"后文语境：\n" + "\n".join(f"- {ctx}" for ctx in context_after) + "\n\n"
+            
+            user_prompt = f"""{context_prompt}请翻译待翻译句子："""
+
+            response = self.ai_client.chat_completion(user_prompt, system_prompt, temperature=0.3, max_tokens=200)
+            if response and response.strip():
+                return response.strip()
+            else:
+                print(f"    ⚠️ 单句翻译 {seq_num} 返回空结果")
+                return None
+                
+        except Exception as e:
+            print(f"    ❌ 单句翻译 {seq_num} 异常: {e}")
+            return None
+    
     
     def _apply_batch_results(self, batch_results: Dict[int, str], batch: List, translated_entries: List[Dict]):
         """
