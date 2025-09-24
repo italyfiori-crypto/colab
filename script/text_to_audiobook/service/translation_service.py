@@ -12,7 +12,6 @@ from typing import List, Dict, Optional
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from infra import AIClient, FileManager
 from infra.config_loader import AppConfig
-from util import parse_srt_file, write_bilingual_srt, BATCH_PROCESSING
 
 
 class TranslationService:
@@ -150,11 +149,3 @@ class TranslationService:
         except Exception as e:
             print(f"❌ 批量翻译章节标题失败: {e}")
             return {}
-    
-    def _parse_srt_file(self, subtitle_file: str) -> List[Dict]:
-        """解析SRT字幕文件 - 使用统一的解析工具"""
-        return parse_srt_file(subtitle_file)
-    
-    def _write_bilingual_srt(self, entries: List[Dict], subtitle_file: str) -> None:
-        """写入双语SRT文件 - 使用统一的写入工具"""
-        write_bilingual_srt(entries, subtitle_file)

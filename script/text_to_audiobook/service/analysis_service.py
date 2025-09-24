@@ -12,7 +12,7 @@ from typing import List, Dict, Optional
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from infra import AIClient, FileManager
 from infra.config_loader import AppConfig
-from util import OUTPUT_DIRECTORIES, parse_srt_file
+from util import OUTPUT_DIRECTORIES, parse_jsonl_subtitle_file, write_jsonl_subtitle_file
 
 
 class AnalysisService:
@@ -45,7 +45,7 @@ class AnalysisService:
             return []
         
         # 创建分析结果目录
-        analysis_dir = os.path.join(output_dir, OUTPUT_DIRECTORIES['parsed_analysis'])
+        analysis_dir = os.path.join(output_dir, OUTPUT_DIRECTORIES['analysis'])
         self.file_manager.create_directory(analysis_dir)
         
         print(f"🔍 开始逐文件分析 {len(subtitle_files)} 个字幕文件...")
@@ -112,7 +112,7 @@ class AnalysisService:
         
         try:
             # 1. 解析字幕文件
-            subtitle_entries = self._parse_srt_file(subtitle_file)
+            subtitle_entries = self._parse_jsonl_subtitle_file(subtitle_file)
             if not subtitle_entries:
                 print(f"    ⚠️ 文件无有效字幕，跳过")
                 return file_stats
@@ -166,8 +166,13 @@ class AnalysisService:
             
             # 5. 保存合并结果
             if new_results or existing_results:
-                success = self._save_analysis_results(new_results, existing_results, subtitle_file, analysis_dir)
-                if success:
+                # 保存分析结果
+                analysis_success = self._save_analysis_results(new_results, existing_results, subtitle_file, analysis_dir)
+                
+                # 更新字幕文件，添加has_analysis字段
+                subtitle_success = self._update_subtitle_with_analysis_flag(subtitle_file, new_results, existing_results)
+                
+                if analysis_success and subtitle_success:
                     file_stats['success'] = True
                     print(f"    ✅ 文件处理完成")
                 else:
@@ -234,23 +239,6 @@ work on|从事，致力于
 
 [COLLOQUIAL_EXPRESSION]
 will be completed soon|will be done soon|口语中用'done'替代'completed'更简洁
-
-示例2:
-输入: "She said hello to me."
-输出:
-[SENTENCE_STRUCTURE]
-主语(She) + 谓语(said) + 宾语(hello) + 介词短语(to me)
-
-[STRUCTURE_EXPLANATION]
-一般过去时，动词say的过去式said，表示过去发生的动作
-
-[KEY_WORDS]
-said|v.|说，讲|/sed/
-
-[FIXED_PHRASES]
-
-[COLLOQUIAL_EXPRESSION]
-She said hello to me|She said hi to me|口语中常用'hi'代替'hello'更简洁
 
 注意事项:
 1. 严格按标记格式输出，每个标记必须独占一行
@@ -494,6 +482,55 @@ She said hello to me|She said hi to me|口语中常用'hi'代替'hello'更简洁
                 
         return missing_subtitles
     
-    def _parse_srt_file(self, subtitle_file: str) -> List[Dict]:
-        """解析SRT字幕文件 - 使用统一的解析工具"""
-        return parse_srt_file(subtitle_file)
+    def _parse_jsonl_subtitle_file(self, subtitle_file: str) -> List[Dict]:
+        """解析JSONL字幕文件 - 使用统一的解析工具"""
+        return parse_jsonl_subtitle_file(subtitle_file)
+    
+    def _update_subtitle_with_analysis_flag(self, subtitle_file: str, new_results: List[Dict], existing_results: Dict[str, Dict]) -> bool:
+        """
+        更新字幕文件，为已分析的条目添加has_analysis字段
+        
+        Args:
+            subtitle_file: 字幕文件路径
+            new_results: 新分析的结果列表
+            existing_results: 已存在的分析结果字典
+            
+        Returns:
+            更新是否成功
+        """
+        try:
+            # 读取原字幕文件
+            subtitle_entries = self._parse_jsonl_subtitle_file(subtitle_file)
+            if not subtitle_entries:
+                return True  # 如果没有字幕条目，视为成功
+            
+            # 收集所有有分析结果的序号
+            analyzed_indices = set()
+            
+            # 从新结果中收集
+            for result in new_results:
+                subtitle_index = str(result.get('subtitle_index', ''))
+                if subtitle_index:
+                    analyzed_indices.add(subtitle_index)
+            
+            # 从已有结果中收集
+            analyzed_indices.update(existing_results.keys())
+            
+            # 更新字幕条目，添加has_analysis字段
+            updated_entries = []
+            for entry in subtitle_entries:
+                entry_index = str(entry.get('index', ''))
+                entry_copy = dict(entry)  # 创建副本
+                
+                if entry_index in analyzed_indices:
+                    entry_copy['has_analysis'] = True
+                
+                updated_entries.append(entry_copy)
+            
+            # 写回字幕文件
+            write_jsonl_subtitle_file(updated_entries, subtitle_file)
+            return True
+            
+        except Exception as e:
+            print(f"    ❌ 更新字幕文件has_analysis字段失败: {e}")
+            return False

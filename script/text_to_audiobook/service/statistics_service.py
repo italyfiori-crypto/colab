@@ -95,7 +95,7 @@ class StatisticsService:
                     print(f"⚠️ 未找到对应音频文件: {audio_file}")
                 
                 chapter_info = {
-                    "local_subtitle_file": os.path.join(OUTPUT_DIRECTORIES['subtitles'], f'{filekey}.srt'),
+                    "local_subtitle_file": os.path.join(OUTPUT_DIRECTORIES['subtitles'], f'{filekey}.jsonl'),
                     "local_audio_file": os.path.join(OUTPUT_DIRECTORIES['compressed_audio'], f'{filekey}.mp3'),
                     "chapter_number": i + 1,
                     "title": title,

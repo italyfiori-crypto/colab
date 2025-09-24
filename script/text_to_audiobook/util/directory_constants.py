@@ -11,7 +11,7 @@ OUTPUT_DIRECTORIES = {
     'sentences': 'sentences',
     'audio': 'audio',
     'subtitles': 'subtitles',
-    'parsed_analysis': 'parsed_analysis',
+    'analysis': 'analysis',
     'compressed_audio': 'compressed_audio',
     'vocabulary': 'vocabulary'
 }

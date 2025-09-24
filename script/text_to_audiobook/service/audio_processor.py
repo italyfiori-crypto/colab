@@ -31,7 +31,7 @@ class AudioProcessingConfig:
     speed: float = 0
     sample_rate: int = 24000
     audio_format: str = "wav"
-    subtitle_format: str = "srt"
+    subtitle_format: str = "jsonl"
 
 
 class AudioProcessor:
@@ -475,7 +475,7 @@ class AudioProcessor:
     
     def _generate_bilingual_subtitle_file(self, segments_data: List[Dict[str, str]], durations: List[float], subtitle_file: str):
         """
-        生成双语字幕文件
+        生成双语字幕文件（JSONL格式）
         
         Args:
             segments_data: 句子片段数据 [{"original": "英文", "translation": "中文"}, ...]
@@ -483,6 +483,8 @@ class AudioProcessor:
             subtitle_file: 字幕文件路径
         """
         try:
+            import json
+            
             with open(subtitle_file, 'w', encoding='utf-8') as f:
                 current_time = 0.0
                 
@@ -495,13 +497,18 @@ class AudioProcessor:
                     # 格式化时间戳
                     start_timestamp = self._format_timestamp(start_time)
                     end_timestamp = self._format_timestamp(end_time)
+                    timestamp = f"{start_timestamp} --> {end_timestamp}"
                     
-                    # 写入字幕条目（双语）
-                    f.write(f"{i}\n")
-                    f.write(f"{start_timestamp} --> {end_timestamp}\n")
-                    f.write(f"{segment['original']}\n")
-                    f.write(f"{segment['translation']}\n")
-                    f.write("\n")
+                    # 构建JSONL条目
+                    entry = {
+                        "index": i,
+                        "timestamp": timestamp,
+                        "english_text": segment['original'],
+                        "chinese_text": segment['translation']
+                    }
+                    
+                    # 写入JSONL条目
+                    f.write(json.dumps(entry, ensure_ascii=False, separators=(',', ':')) + '\n')
                     
         except Exception as e:
             print(f"❌ 生成双语字幕文件失败: {e}")

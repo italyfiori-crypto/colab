@@ -66,8 +66,8 @@ def cleanup_sub_chapter_files(sub_chapter_file: str, output_dir: str, verbose: b
     files_to_clean = [
         os.path.join(output_dir, OUTPUT_DIRECTORIES['sentences'], f"{base_name}.jsonl"),
         os.path.join(output_dir, OUTPUT_DIRECTORIES['audio'], f"{base_name}.wav"),
-        os.path.join(output_dir, OUTPUT_DIRECTORIES['subtitles'], f"{base_name}.srt"),
-        os.path.join(output_dir, OUTPUT_DIRECTORIES['parsed_analysis'], f"{base_name}.json"),
+        os.path.join(output_dir, OUTPUT_DIRECTORIES['subtitles'], f"{base_name}.jsonl"),
+        os.path.join(output_dir, OUTPUT_DIRECTORIES['analysis'], f"{base_name}.jsonl"),
         os.path.join(output_dir, OUTPUT_DIRECTORIES['compressed_audio'], f"{base_name}.mp3"),
     ]
     
@@ -139,13 +139,13 @@ def process_single_book(input_file: str, args, config: dict, workflow: 'Workflow
         # 获取已存在的句子文件
         sentence_files = get_existing_files(output_dir, OUTPUT_DIRECTORIES['sentences'], ".jsonl")
     
-    # 音频生成
+    # 音频&字幕生成
     audio_files, subtitle_files, audio_time = [], [], 0
     if args.audio:
         audio_files, subtitle_files, audio_time = workflow.execute_audio_processing(sentence_files, output_dir, args.voice, args.speed, args.verbose)
     else:
         audio_files = get_existing_files(output_dir, OUTPUT_DIRECTORIES['audio'], ".wav")
-        subtitle_files = get_existing_files(output_dir, OUTPUT_DIRECTORIES['subtitles'], ".srt")
+        subtitle_files = get_existing_files(output_dir, OUTPUT_DIRECTORIES['subtitles'], ".jsonl")
 
     # 分析处理
     analyzed_files, analysis_time = [], 0
@@ -173,7 +173,7 @@ def process_single_book(input_file: str, args, config: dict, workflow: 'Workflow
         _, statistics_time = workflow.execute_statistics_collection(sub_chapter_files, audio_files, output_dir, args.verbose)
     
     # 计算耗时
-    total_time = chapter_time + sentence_time + audio_time + translation_time + analysis_time + compression_time + vocabulary_time + statistics_time
+    total_time = chapter_time + sentence_time + audio_time + analysis_time + compression_time + vocabulary_time + statistics_time
     file_total_time = time.time() - file_start_time
     
     return {
@@ -235,7 +235,7 @@ def process_single_sub_chapter(sub_chapter_file: str, args, config: dict, workfl
         start_time = time.time()
         
         # 初始化计时变量
-        sentence_time, audio_time, translation_time, analysis_time = 0, 0, 0, 0
+        sentence_time, audio_time, analysis_time = 0, 0, 0
         compression_time, vocabulary_time, statistics_time = 0, 0, 0
         
         # 句子拆分（必须执行，因为是从子章节开始）
@@ -255,7 +255,7 @@ def process_single_sub_chapter(sub_chapter_file: str, args, config: dict, workfl
         else:
             # 获取已存在的音频和字幕文件
             audio_files = [os.path.join(output_dir, OUTPUT_DIRECTORIES['audio'], f"{base_name}.wav")] if os.path.exists(os.path.join(output_dir, OUTPUT_DIRECTORIES['audio'], f"{base_name}.wav")) else []
-            subtitle_files = [os.path.join(output_dir, OUTPUT_DIRECTORIES['subtitles'], f"{base_name}.srt")] if os.path.exists(os.path.join(output_dir, OUTPUT_DIRECTORIES['subtitles'], f"{base_name}.srt")) else []
+            subtitle_files = [os.path.join(output_dir, OUTPUT_DIRECTORIES['subtitles'], f"{base_name}.jsonl")] if os.path.exists(os.path.join(output_dir, OUTPUT_DIRECTORIES['subtitles'], f"{base_name}.jsonl")) else []
         
         # 分析处理
         analyzed_files = []
@@ -278,7 +278,7 @@ def process_single_sub_chapter(sub_chapter_file: str, args, config: dict, workfl
             _, statistics_time = workflow.execute_statistics_collection([sub_chapter_file], audio_files, output_dir, args.verbose)
         
         # 计算耗时
-        total_time = sentence_time + audio_time + translation_time + analysis_time + compression_time + vocabulary_time + statistics_time
+        total_time = sentence_time + audio_time + analysis_time + compression_time + vocabulary_time + statistics_time
         file_total_time = time.time() - start_time
         
         return {
@@ -290,7 +290,6 @@ def process_single_sub_chapter(sub_chapter_file: str, args, config: dict, workfl
             'times': {
                 'sentence': sentence_time,
                 'audio': audio_time,
-                'translation': translation_time,
                 'analysis': analysis_time,
                 'compression': compression_time,
                 'vocabulary': vocabulary_time,

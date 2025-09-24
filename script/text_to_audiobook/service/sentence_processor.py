@@ -99,7 +99,7 @@ class SentenceProcessor:
             
             # 按段落分割
             paragraphs = re.split(r'\n\n', body)
-            paragraphs = [p.strip() for p in paragraphs if p.strip()]
+            paragraphs = [p.strip() for p in paragraphs if p.strip() and re.search(r'[a-zA-Z]+', p)]
             
             print(f"    🔍 处理 {len(paragraphs)} 个段落")
             
