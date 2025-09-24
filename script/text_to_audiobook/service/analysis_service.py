@@ -7,6 +7,7 @@
 
 import os
 import json
+import re
 from typing import List, Dict, Optional
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from infra import AIClient, FileManager
@@ -118,7 +119,7 @@ class AnalysisService:
             
             # 2. 加载已有分析结果
             subtitle_name = self.file_manager.get_basename_without_extension(subtitle_file)
-            json_file = os.path.join(analysis_dir, f"{subtitle_name}.json")
+            json_file = os.path.join(analysis_dir, f"{subtitle_name}.jsonl")
             existing_results = self._load_existing_results(json_file)
             
             # 3. 识别需要处理的字幕条目
@@ -194,49 +195,68 @@ class AnalysisService:
             english_text = entry['english_text']
             chinese_text = entry.get('chinese_text', '')
             
-            system_prompt = """IMPORTANT: 只返回JSON格式，不要任何额外文字或解释。
+            system_prompt = """作为英语语言学家，请分析用户输入的英语句子，严格按以下标记格式输出语言学分析。
 
-作为英语语言学家，请分析用户输入的英语句子，并严格按以下JSON格式输出语言学分析。
+使用以下标记分隔各个段落，每个标记独占一行，内容紧随其后：
 
-字段要求:
-- sentence_structure: 句法成分分析（主语+谓语+宾语+状语等）
-- key_words: 句子中有意义的核心词汇，排除the、a、is、Mrs.等常见词
-- fixed_phrases: 有固定含义的短语搭配，排除过于简单的组合
-- core_grammar: 重要语法现象（时态、语态、句式等）
-- colloquial_expression: 正式与口语表达对比
+[SENTENCE_STRUCTURE]
+句法成分分析（主语+谓语+宾语+状语等）
 
-输出格式:
-{
-  "sentence_structure": "句子结构分析",
-  "key_words": [{"word": "单词", "pos": "词性", "meaning": "含义", "pronunciation": "音标"}],
-  "fixed_phrases": [{"phrase": "短语", "meaning": "含义"}],
-  "core_grammar": [{"point": "语法点", "explanation": "解释"}],
-  "colloquial_expression": [{"formal": "正式表达", "informal": "口语表达", "explanation": "用法说明"}]
-}
+[STRUCTURE_EXPLANATION]  
+句子结构的语法解释（时态、语态、句式等重要语法现象）
+
+[KEY_WORDS]
+核心词汇，每行一个，格式：单词|词性|含义|音标
+排除the、a、is、Mrs.等常见词
+
+[FIXED_PHRASES]
+固定短语，每行一个，格式：短语|含义
+排除过于简单的组合
+
+[COLLOQUIAL_EXPRESSION]
+正式与口语表达对比，每行一组，格式：正式表达|口语表达|用法说明
 
 示例1:
-输入: "The project that we've been working on for months, which involves multiple stakeholders, will be completed once we receive the final approval."
+输入: "The project that we've been working on for months will be completed soon."
 输出:
-{
-  "sentence_structure": "主语(The project) + 定语从句1(that we've been working on for months) + 定语从句2(which involves multiple stakeholders) + 谓语(will be completed) + 时间状语从句(once we receive the final approval)",
-  "key_words": [{"word": "stakeholders", "pos": "n.", "meaning": "利益相关者", "pronunciation": "/ˈsteɪkhoʊldərz/"}, {"word": "approval", "pos": "n.", "meaning": "批准，同意", "pronunciation": "/əˈpruːvəl/"}],
-  "fixed_phrases": [{"phrase": "work on", "meaning": "从事，致力于"}],
-  "core_grammar": [{"point": "定语从句嵌套", "explanation": "两个定语从句修饰同一主语，'that'引导限制性定语从句，'which'引导非限制性定语从句"}],
-  "colloquial_expression": [{"formal": "receive the final approval", "informal": "get the green light", "explanation": "'get the green light'表示获得许可，比'receive approval'更生动"}]
-}
+[SENTENCE_STRUCTURE]
+主语(The project) + 定语从句(that we've been working on for months) + 谓语(will be completed) + 时间状语(soon)
+
+[STRUCTURE_EXPLANATION]
+定语从句修饰主语，'that'引导限制性定语从句；主句使用一般将来时的被动语态
+
+[KEY_WORDS]
+project|n.|项目|/ˈprɑːdʒekt/
+completed|v.|完成|/kəmˈpliːtɪd/
+
+[FIXED_PHRASES]
+work on|从事，致力于
+
+[COLLOQUIAL_EXPRESSION]
+will be completed soon|will be done soon|口语中用'done'替代'completed'更简洁
 
 示例2:
-输入: "I visited the museum yesterday."
+输入: "She said hello to me."
 输出:
-{
-  "sentence_structure": "主语(I) + 谓语(visited) + 宾语(the museum) + 时间状语(yesterday)",
-  "key_words": [{"word": "museum", "pos": "n.", "meaning": "博物馆", "pronunciation": "/mjuˈziːəm/"}, {"word": "visited", "pos": "v.", "meaning": "参观，拜访", "pronunciation": "/ˈvɪzɪtɪd/"}],
-  "fixed_phrases": [],
-  "core_grammar": [{"point": "一般过去时", "explanation": "动词visit的过去式visited，表示过去发生的动作"}],
-  "colloquial_expression": [{"formal": "I went to see the museum yesterday.", "informal": "I checked out the museum yesterday.", "explanation": "口语中常用check out代替visit，语气更随意"}]
-}
+[SENTENCE_STRUCTURE]
+主语(She) + 谓语(said) + 宾语(hello) + 介词短语(to me)
 
-注意: 无相关内容时字段留空(空数组[]或空字符串"")，但不可省略字段。记住：仅输出JSON格式。"""
+[STRUCTURE_EXPLANATION]
+一般过去时，动词say的过去式said，表示过去发生的动作
+
+[KEY_WORDS]
+said|v.|说，讲|/sed/
+
+[FIXED_PHRASES]
+
+[COLLOQUIAL_EXPRESSION]
+She said hello to me|She said hi to me|口语中常用'hi'代替'hello'更简洁
+
+注意事项:
+1. 严格按标记格式输出，每个标记必须独占一行
+2. 无相关内容时该段落留空，但标记必须保留
+3. 数组字段每行一项，用|分隔各个属性
+4. 不要添加任何解释性文字，只输出标记格式内容"""
             
             user_prompt = f"请分析以下英语句子: \"{english_text}\""""
             
@@ -245,15 +265,13 @@ class AnalysisService:
             if not response:
                 return None
             
-            # 解析JSON响应
+            # 解析结构化响应
             try:
-                # 智能提取JSON内容
-                json_str = self._extract_json_from_response(response)
-                if not json_str:
-                    print(f"⚠️ 无法从响应中提取JSON: {response[:100]}...")
+                # 使用新的结构化解析方法
+                analysis_data = self._parse_structured_response(response)
+                if not analysis_data:
+                    print(f"⚠️ 无法解析响应内容: {response[:100]}...")
                     return None
-                
-                analysis_data = json.loads(json_str)
                 
                 result = {
                     "subtitle_index": entry['index'],
@@ -263,14 +281,14 @@ class AnalysisService:
                     "sentence_structure": analysis_data.get("sentence_structure", ""),
                     "key_words": analysis_data.get("key_words", []),
                     "fixed_phrases": analysis_data.get("fixed_phrases", []),
-                    "core_grammar": analysis_data.get("core_grammar", []),
+                    "structure_explanation": analysis_data.get("structure_explanation", ""),
                     "colloquial_expression": analysis_data.get("colloquial_expression", [])
                 }
                 
                 return result
                 
-            except json.JSONDecodeError as e:
-                print(f"⚠️ JSON解析失败: {e}")
+            except Exception as e:
+                print(f"⚠️ 响应解析失败: {e}")
                 print(f"⚠️ 原始响应: {response[:200]}...")
                 return None
                 
@@ -278,45 +296,96 @@ class AnalysisService:
             print(f"❌ 分析字幕条目失败: {e}")
             return None
     
-    def _extract_json_from_response(self, response: str) -> str:
+    def _parse_structured_response(self, response: str) -> Dict:
         """
-        从AI响应中智能提取JSON内容
+        从AI响应中解析结构化标记内容
         
         Args:
             response: AI返回的原始响应
             
         Returns:
-            提取的JSON字符串，失败返回空字符串
+            解析的结构化数据字典
         """
         if not response:
-            return ""
+            return {}
         
-        # 清理响应内容
-        response = response.strip()
+        # 初始化结果
+        result = {
+            "sentence_structure": "",
+            "structure_explanation": "",
+            "key_words": [],
+            "fixed_phrases": [],
+            "colloquial_expression": []
+        }
         
-        # 1. 尝试移除代码块标记
-        if response.startswith('```json'):
-            response = response[7:]  # 移除 ```json
-        if response.startswith('```'):
-            response = response[3:]  # 移除 ```
-        if response.endswith('```'):
-            response = response[:-3]  # 移除结尾的 ```
-        
-        response = response.strip()
-        
-        # 2. 寻找第一个{和最后一个}
-        first_brace = response.find('{')
-        last_brace = response.rfind('}')
-        
-        if first_brace != -1 and last_brace != -1 and last_brace > first_brace:
-            json_str = response[first_brace:last_brace + 1]
-            return json_str
-        
-        # 3. 如果已经是完整JSON格式，直接返回
-        if response.startswith('{') and response.endswith('}'):
-            return response
-        
-        return ""
+        try:
+            # 使用正则表达式提取各个段落
+            
+            # 提取句子结构
+            structure_match = re.search(r'\[SENTENCE_STRUCTURE\]\s*(.*?)(?=\[|$)', response, re.DOTALL)
+            if structure_match:
+                result["sentence_structure"] = structure_match.group(1).strip()
+            
+            # 提取结构解释
+            explanation_match = re.search(r'\[STRUCTURE_EXPLANATION\]\s*(.*?)(?=\[|$)', response, re.DOTALL)
+            if explanation_match:
+                result["structure_explanation"] = explanation_match.group(1).strip()
+            
+            # 提取关键词
+            keywords_match = re.search(r'\[KEY_WORDS\]\s*(.*?)(?=\[|$)', response, re.DOTALL)
+            if keywords_match:
+                keywords_text = keywords_match.group(1).strip()
+                for line in keywords_text.split('\n'):
+                    line = line.strip()
+                    if line and '|' in line:
+                        parts = line.split('|')
+                        if len(parts) >= 3:
+                            word_dict = {
+                                "word": parts[0].strip(),
+                                "pos": parts[1].strip(),
+                                "meaning": parts[2].strip()
+                            }
+                            # 可选的音标
+                            if len(parts) >= 4:
+                                word_dict["pronunciation"] = parts[3].strip()
+                            result["key_words"].append(word_dict)
+            
+            # 提取固定短语
+            phrases_match = re.search(r'\[FIXED_PHRASES\]\s*(.*?)(?=\[|$)', response, re.DOTALL)
+            if phrases_match:
+                phrases_text = phrases_match.group(1).strip()
+                for line in phrases_text.split('\n'):
+                    line = line.strip()
+                    if line and '|' in line:
+                        parts = line.split('|')
+                        if len(parts) >= 2:
+                            phrase_dict = {
+                                "phrase": parts[0].strip(),
+                                "meaning": parts[1].strip()
+                            }
+                            result["fixed_phrases"].append(phrase_dict)
+            
+            # 提取口语表达
+            colloquial_match = re.search(r'\[COLLOQUIAL_EXPRESSION\]\s*(.*?)(?=\[|$)', response, re.DOTALL)
+            if colloquial_match:
+                colloquial_text = colloquial_match.group(1).strip()
+                for line in colloquial_text.split('\n'):
+                    line = line.strip()
+                    if line and '|' in line:
+                        parts = line.split('|')
+                        if len(parts) >= 3:
+                            expression_dict = {
+                                "formal": parts[0].strip(),
+                                "informal": parts[1].strip(),
+                                "explanation": parts[2].strip()
+                            }
+                            result["colloquial_expression"].append(expression_dict)
+            
+            return result
+            
+        except Exception as e:
+            print(f"⚠️ 解析结构化响应失败: {e}")
+            return result
     
     def _save_analysis_results(self, new_results: List[Dict], existing_results: Dict[str, Dict], 
                                subtitle_file: str, analysis_dir: str) -> bool:
@@ -334,7 +403,7 @@ class AnalysisService:
         """
         try:
             subtitle_name = self.file_manager.get_basename_without_extension(subtitle_file)
-            json_file = os.path.join(analysis_dir, f"{subtitle_name}.json")
+            json_file = os.path.join(analysis_dir, f"{subtitle_name}.jsonl")
             
             # 合并新旧结果
             all_results = dict(existing_results)  # 复制已有结果
