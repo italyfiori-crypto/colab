@@ -164,7 +164,7 @@ def process_single_book(input_file: str, args, config: dict, workflow: 'Workflow
     chapter_vocab_files, vocabulary_time = [], 0
     if args.vocabulary:
         book_name = os.path.splitext(os.path.basename(input_file))[0]
-        chapter_vocab_files, vocabulary_time = workflow.execute_vocabulary_processing(sentence_files, output_dir, book_name, master_vocab_file, args.verbose)
+        chapter_vocab_files, vocabulary_time = workflow.execute_vocabulary_processing(sub_chapter_files, output_dir, book_name, master_vocab_file, args.verbose)
     
     # 统计信息收集
     statistics_time = 0
@@ -270,7 +270,7 @@ def process_single_sub_chapter(sub_chapter_file: str, args, config: dict, workfl
         # 词汇处理
         chapter_vocab_files = []
         if args.vocabulary and sentence_files:
-            chapter_vocab_files, vocabulary_time = workflow.execute_vocabulary_processing(sentence_files, output_dir, book_name, master_vocab_file, args.verbose)
+            chapter_vocab_files, vocabulary_time = workflow.execute_vocabulary_processing([sub_chapter_file], output_dir, book_name, master_vocab_file, args.verbose)
         
         # 统计信息收集（仅针对单个子章节的统计）
         if args.stats:
@@ -337,8 +337,6 @@ def print_sub_chapter_results(results: list[dict]):
         print(f"  句子拆分: {times['sentence']:.2f}秒")
     if times['audio'] > 0:
         print(f"  音频生成: {times['audio']:.2f}秒")
-    if times['translation'] > 0:
-        print(f"  字幕翻译: {times['translation']:.2f}秒")
     if times['analysis'] > 0:
         print(f"  语言学分析: {times['analysis']:.2f}秒")
     if times['compression'] > 0:
@@ -378,7 +376,6 @@ def print_book_results(results: list[dict], args, program_start_time: float):
             'chapter': sum(r['times']['chapter'] for r in successful_results),
             'sentence': sum(r['times']['sentence'] for r in successful_results),
             'audio': sum(r['times']['audio'] for r in successful_results),
-            'translation': sum(r['times']['translation'] for r in successful_results),
             'analysis': sum(r['times']['analysis'] for r in successful_results),
             'compression': sum(r['times']['compression'] for r in successful_results),
             'vocabulary': sum(r['times']['vocabulary'] for r in successful_results),
@@ -394,8 +391,6 @@ def print_book_results(results: list[dict], args, program_start_time: float):
             print(f"  句子拆分: {total_times['sentence']:.2f}秒 ({total_times['sentence']/total_times['total']*100:.1f}%)")
         if args.audio and total_times['total'] > 0:
             print(f"  音频生成: {total_times['audio']:.2f}秒 ({total_times['audio']/total_times['total']*100:.1f}%)")
-        if args.translation and total_times['total'] > 0:
-            print(f"  字幕翻译: {total_times['translation']:.2f}秒 ({total_times['translation']/total_times['total']*100:.1f}%)")
         if args.analysis and total_times['total'] > 0:
             print(f"  语言学分析: {total_times['analysis']:.2f}秒 ({total_times['analysis']/total_times['total']*100:.1f}%)")
         if args.compress and total_times['total'] > 0:
@@ -447,13 +442,13 @@ def main():
   # 书籍处理模式（完整流程）
   %(prog)s data/greens.txt --chapter --sentence --audio
   %(prog)s data/books/  # 批量处理目录下所有.txt文件
-  %(prog)s data/book.txt --chapter --sentence --audio --translation --analysis --vocabulary
+  %(prog)s data/book.txt --chapter --sentence --audio --analysis --vocabulary
   %(prog)s data/book.txt --sentence --audio  # 只运行句子拆分和音频生成
   %(prog)s data/book.txt --chapter  # 只运行章节拆分
   
   # 子章节处理模式（从句子拆分开始）
   %(prog)s output/book_name/sub_chapters/chapter_01_001.txt --sub-chapter --sentence --audio
-  %(prog)s output/book_name/sub_chapters/chapter_01_001.txt --sub-chapter --sentence --audio --translation --analysis
+  %(prog)s output/book_name/sub_chapters/chapter_01_001.txt --sub-chapter --sentence --audio --analysis
   %(prog)s output/book_name/sub_chapters/chapter_01_001.txt --sub-chapter --overwrite --sentence --audio  # 覆盖模式
   
 默认配置文件: text_to_audiobook/config.json
@@ -481,7 +476,6 @@ def main():
     parser.add_argument('--speed', type=float, default=0.8, help='语音速度 (默认: 1.0)')
     
     # 翻译和分析参数
-    parser.add_argument('--translation', action='store_true', help='启用字幕翻译')
     parser.add_argument('--analysis', action='store_true', help='启用语言学分析')
     
     # 音频压缩参数

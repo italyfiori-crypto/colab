@@ -70,12 +70,12 @@ class WordExtractor:
         print(f"📝 单词提取器初始化完成")
     
     
-    def extract_subchapter_words(self, sentence_files: List[str], output_dir: str, master_vocab_path: str) -> Tuple[List[str], List[str]]:
+    def extract_subchapter_words(self, sub_chapter_files: List[str], output_dir: str, master_vocab_path: str) -> Tuple[List[str], List[str]]:
         """
         从句子文件中提取子章节词汇（以子章节为单位）
         
         Args:
-            sentence_files: 句子文件路径列表
+            sub_chapter_files: 句子文件路径列表
             output_dir: 输出目录
             master_vocab_path: 总词汇表文件路径
             
@@ -94,15 +94,15 @@ class WordExtractor:
         all_new_words = set()
         
         # 按子章节处理句子文件（每个句子文件对应一个子章节）
-        for sentence_file in sorted(sentence_files):
+        for sub_chapter_file in sorted(sub_chapter_files):
             # 获取子章节名称
-            filename = os.path.basename(sentence_file)
+            filename = os.path.basename(sub_chapter_file)
             subchapter_name = os.path.splitext(filename)[0]
             
             print(f"📝 处理子章节: {subchapter_name}")
             
             # 提取子章节所有单词
-            all_words, filtered_words = self._extract_words_from_files([sentence_file])
+            all_words, filtered_words = self._extract_words_from_files([sub_chapter_file])
             
             # 收集所有提取的单词（不区分新旧）
             all_new_words.update(all_words)
@@ -126,22 +126,7 @@ class WordExtractor:
         print(f"\n📝 子章节词汇提取完成，共提取 {len(all_new_words)} 个单词")
         return subchapter_vocab_files, list(all_new_words)
     
-    def _group_sentence_files_by_chapter(self, sentence_files: List[str]) -> Dict[str, List[str]]:
-        """按章节名称分组句子文件"""
-        chapter_groups = defaultdict(list)
-        
-        for sentence_file in sentence_files:
-            # 从文件名提取章节名称 (例: 01_Down_the_Rabbit-Hole(1).txt -> 01_Down_the_Rabbit-Hole)
-            filename = os.path.basename(sentence_file)
-            base_name = os.path.splitext(filename)[0]
-            
-            # 移除括号部分，获取章节基础名称
-            chapter_name = re.sub(r'\([^)]*\)$', '', base_name)
-            chapter_groups[chapter_name].append(sentence_file)
-        
-        return dict(chapter_groups)
-    
-    def _extract_words_from_files(self, sentence_files: List[str]) -> Tuple[List[str], List[str]]:
+    def _extract_words_from_files(self, sub_chapter_files: List[str]) -> Tuple[List[str], List[str]]:
         """
         从文件列表中提取单词
         
@@ -151,16 +136,16 @@ class WordExtractor:
         all_text = ""
         
         # 读取所有文件内容
-        for sentence_file in sentence_files:
+        for sub_chapter_file in sub_chapter_files:
             try:
-                with open(sentence_file, 'r', encoding='utf-8') as f:
+                with open(sub_chapter_file, 'r', encoding='utf-8') as f:
                     content = f.read()
                     # 跳过第一行标题
                     lines = content.strip().split('\n')
                     if len(lines) > 1:
                         all_text += " " + " ".join(lines[1:])
             except Exception as e:
-                print(f"⚠️ 读取文件失败: {sentence_file}, {e}")
+                print(f"⚠️ 读取文件失败: {sub_chapter_file}, {e}")
                 continue
         
         return self._extract_words_from_text(all_text)

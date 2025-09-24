@@ -59,12 +59,12 @@ class VocabularyService:
         
         print("📚 词汇服务初始化完成")
     
-    def process_vocabulary(self, sentence_files: List[str], output_dir: str, book_name: str, master_vocab_path: str) -> Tuple[List[str], bool]:
+    def process_vocabulary(self, sub_chapter_files: List[str], output_dir: str, book_name: str, master_vocab_path: str) -> Tuple[List[str], bool]:
         """
         处理词汇提取和分级 - 完全按照modules/vocabulary_manager.py的process_book_vocabulary逻辑
         
         Args:
-            sentence_files: 句子文件列表
+            sentence_files: 子章节文件列表
             output_dir: 输出目录
             book_name: 书籍名称
             master_vocab_path: 主词汇表路径
@@ -72,7 +72,7 @@ class VocabularyService:
         Returns:
             (章节词汇文件列表, 是否成功)
         """
-        if not sentence_files:
+        if not sub_chapter_files:
             print("⚠️ 未找到句子文件，跳过词汇处理")
             return [], True
         
@@ -81,9 +81,9 @@ class VocabularyService:
             print(f"📖 使用总词汇表: {master_vocab_path}")
             
             # 第一步：提取子章节词汇（提取所有单词）
-            print(f"\n🔄 第1步: 从 {len(sentence_files)} 个句子文件中提取词汇...")
+            print(f"\n🔄 第1步: 从 {len(sub_chapter_files)} 个句子文件中提取词汇...")
             subchapter_vocab_files, all_words = self.extractor.extract_subchapter_words(
-                sentence_files, output_dir, master_vocab_path
+                sub_chapter_files, output_dir, master_vocab_path
             )
                     
             if not all_words:

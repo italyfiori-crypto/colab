@@ -201,7 +201,7 @@ class WorkflowExecutor:
                 traceback.print_exc()
             raise
     
-    def execute_vocabulary_processing(self, sentence_files: List[str], output_dir: str, book_name: str, master_vocab_file: str, verbose: bool = False) -> Tuple[List[str], float]:
+    def execute_vocabulary_processing(self, sub_chapter_files: List[str], output_dir: str, book_name: str, master_vocab_file: str, verbose: bool = False) -> Tuple[List[str], float]:
         """
         执行词汇处理流程
         
@@ -220,7 +220,7 @@ class WorkflowExecutor:
         
         try:
             chapter_vocab_files = self.vocabulary_service.process_vocabulary(
-                sentence_files, output_dir, book_name, master_vocab_file
+                sub_chapter_files, output_dir, book_name, master_vocab_file
             )
             elapsed_time = time.time() - start_time
             
