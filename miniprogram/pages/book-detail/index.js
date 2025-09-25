@@ -134,7 +134,7 @@ Page({
 
     // 跳转到learning页面
     wx.navigateTo({
-      url: `/pages/article-detail/index?chapterId=${chapter.chapter_id}&bookId=${this.data.bookInfo._id}&chapterTitle=${encodeURIComponent(chapter.title)}`
+      url: `/pages/article-detail/index?chapterId=${chapter._id}&bookId=${this.data.bookInfo._id}&chapterTitle=${encodeURIComponent(chapter.title)}`
     });
   },
 

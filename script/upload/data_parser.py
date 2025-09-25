@@ -145,7 +145,6 @@ class DataParser:
             chapter_data = {
                 '_id': f"{book_id}_{subchapter_name}",
                 'book_id': book_id,
-                'chapter_id': subchapter_name,  # 用于后续处理
                 'chapter_number': chapter_info['chapter_number'],
                 'title': chapter_info['title_cn'] or chapter_info['title'],
                 'duration': int(chapter_info['duration']) if chapter_info['duration'] else 0,

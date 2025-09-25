@@ -4,7 +4,7 @@ const settingsUtils = require('../../utils/settingsUtils.js');
 Page({
     data: {
         // 章节信息
-        bookChapterId: null,    // chapters表_id字段（URL传参）
+        chapterId: null,    // chapters表_id字段（URL传参）
         chapterId: null,        // chapters表chapter_id字段（业务ID）
         bookId: null,
         chapterData: {},
@@ -61,7 +61,6 @@ Page({
     async onLoad(options) {
         const bookId = options.bookId;
         const chapterId = options.chapterId
-        const bookChapterId = bookId + "_" + chapterId
         const chapterTitle = options.chapterTitle ? decodeURIComponent(options.chapterTitle) : '';
 
         // 加载用户设置并初始化页面
@@ -70,7 +69,6 @@ Page({
         this.setData({
             bookId,
             chapterId,
-            bookChapterId,
             title: chapterTitle
         });
 
@@ -159,7 +157,7 @@ Page({
                 name: 'articleDetailData',
                 data: {
                     type: 'getChapterDetail',
-                    bookChapterId: this.data.bookChapterId  // 传入chapters表_id
+                    chapterId: this.data.chapterId  // 传入chapters表_id
                 }
             });
 
@@ -168,7 +166,7 @@ Page({
             if (result.result.code === 0) {
                 const chapterData = result.result.data;
 
-                // 缓存bookChapterId和chapterId，避免后续重复查询
+                // 缓存chapterId和chapterId，避免后续重复查询
                 this.setData({
                     chapterData,
                     duration: chapterData.duration,
@@ -224,7 +222,7 @@ Page({
                 data: {
                     type: 'getSubtitles',
                     bookId: this.data.bookId,
-                    bookChapterId: this.data.bookChapterId  // 字幕数据从chapters表获取，使用bookChapterId
+                    chapterId: this.data.chapterId  // 字幕数据从chapters表获取，使用chapterId
                 }
             });
 
@@ -781,7 +779,6 @@ Page({
                 data: {
                     type: currentWord.is_favorited ? 'removeWordFromCollection' : 'addWordToCollection',
                     word: currentWord.word,
-                    wordId: currentWord._id || currentWord.id,
                     bookId: this.data.bookId,
                     chapterId: this.data.chapterId
                 }
@@ -847,7 +844,7 @@ Page({
         this.setData({ isFavorited });
 
         // 保存收藏状态到本地存储
-        wx.setStorageSync(`favorite_${this.data.bookChapterId}`, isFavorited);
+        wx.setStorageSync(`favorite_${this.data.chapterId}`, isFavorited);
 
         wx.showToast({
             title: isFavorited ? '已收藏' : '已取消收藏',
@@ -858,7 +855,7 @@ Page({
 
     // 加载收藏状态
     loadFavoriteStatus() {
-        const isFavorited = wx.getStorageSync(`favorite_${this.data.bookChapterId}`) || false;
+        const isFavorited = wx.getStorageSync(`favorite_${this.data.chapterId}`) || false;
         this.setData({ isFavorited });
     },
 

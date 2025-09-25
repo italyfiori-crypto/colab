@@ -65,8 +65,6 @@ class BookUploader:
 
     def upload_chapter_files(self, book_dir: str, book_id: str, chapter_data: Dict) -> bool:
         """上传章节音频、字幕和字幕解析文件"""
-        chapter_id = chapter_data["chapter_id"]
-        
         # 上传音频文件
         audio_file_path = chapter_data.get('local_audio_file')
         if chapter_data.get('local_audio_file', '') and os.path.exists(audio_file_path):
@@ -129,7 +127,7 @@ class BookUploader:
     def process_single_chapter(self, book_dir: str, book_id: str, chapter_data: Dict, existing_chapters_dict: Dict, stats: Dict) -> bool:
         """处理单个章节"""
         chapter_id = chapter_data["_id"]
-        chapter_title = chapter_data.get("title", chapter_id)
+        chapter_title = chapter_data.get("title")
         existing_chapter = existing_chapters_dict.get(chapter_id)
         
         # 比较数据

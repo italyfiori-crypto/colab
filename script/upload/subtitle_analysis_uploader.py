@@ -35,7 +35,7 @@ class SubtitleAnalysisUploader:
         
         for chapter in chapters:
             analysis_url = chapter.get('analysis_url')
-            chapter_id = chapter.get('chapter_id')
+            chapter_id = chapter.get('_id')
             
             if not analysis_url or not chapter_id:
                 continue

@@ -12,7 +12,7 @@
   - [2.4 单词词汇表 (vocabularies)](#24-单词词汇表-vocabularies)
   - [2.6 字幕解析信息表 (analysis)](#26-字幕解析信息表-analysis)
   - [2.7 学习进度表 (user_book_progress)](#27-学习进度表-user_book_progress)
-  - [2.8 单词学习记录表 (user_word_progresss)](#28-单词学习记录表-user_word_progresss)
+  - [2.8 单词学习记录表 (user_word_progress)](#28-单词学习记录表-user_word_progress)
   - [2.9 每日学习统计表 (user_daily_stats)](#29-每日学习统计表-user_daily_stats)
 - [3. 数据关系图](#3-数据关系图)
 - [4. 设计优化说明](#4-设计优化说明)
@@ -291,7 +291,7 @@
 ];
 ```
 
-### 2.7 单词学习记录表 (user_word_progresss)
+### 2.7 单词学习记录表 (user_word_progress)
 
 **功能**: 记录用户单词学习状态，专为艾宾浩斯记忆曲线优化
 
@@ -359,7 +359,7 @@
 ```
 users (用户)
 ├── user_book_progress (学习进度) ──→ books (书籍)
-├── user_word_progresss (单词记录) ──→ vocabularies (单词)
+├── user_word_progress (单词记录) ──→ vocabularies (单词)
 
 books (书籍)
 ├── chapters (章节)
@@ -400,7 +400,7 @@ books (书籍)
 - `users._id` (openid)
 - `vocabularies.word` (单词唯一)
 - `user_book_progress._id` (user_id_book_id)
-- `user_word_progresss._id` (user_id_word_id)
+- `user_word_progress._id` (user_id_word_id)
 - `daily_plans._id` (user_id_plan_date)
 
 ### 5.3 引用完整性
@@ -445,7 +445,7 @@ books (书籍)
 
 基于代码实际使用情况，识别出以下高频查询模式：
 
-#### user_word_progresss 表查询模式
+#### user_word_progress 表查询模式
 1. **学习统计查询**: `user_id + first_learn_date`
 2. **复习列表查询**: `user_id + level + next_review_date` 
 3. **逾期单词查询**: `user_id + level + next_review_date`
@@ -457,7 +457,7 @@ books (书籍)
 
 ### 7.2 复合索引设计
 
-#### user_word_progresss 表索引优化
+#### user_word_progress 表索引优化
 ```javascript
 [
   // 核心业务查询索引

@@ -11,18 +11,18 @@ function getNowTimestamp() {
 }
 
 exports.main = async (event, context) => {
-  const { type, bookChapterId, chapterId, bookId, currentTime, completed, word, wordId, page, pageSize, subtitleIndex } = event
+  const { type, chapterId, bookId, currentTime, completed, word, page, pageSize, subtitleIndex } = event
   const { OPENID } = cloud.getWXContext()
   const user_id = OPENID
 
-  console.log('📖 [DEBUG] articleDetailData云函数开始执行:', { type, chapterId, bookId, user_id, currentTime, completed, word, wordId, page, pageSize, subtitleIndex })
+  console.log('📖 [DEBUG] articleDetailData云函数开始执行:', { type, chapterId, bookId, user_id, currentTime, completed, word, page, pageSize, subtitleIndex })
 
   try {
     switch (type) {
       case 'getChapterDetail':
-        return await getChapterDetail(bookChapterId, user_id)
+        return await getChapterDetail(chapterId, user_id)
       case 'getSubtitles':
-        return await getSubtitles(bookId, bookChapterId)
+        return await getSubtitles(bookId, chapterId)
       case 'getChapterVocabularies':
         return await getChapterVocabularies(chapterId, user_id, page, pageSize)
       case 'saveChapterProgress':
@@ -32,7 +32,7 @@ exports.main = async (event, context) => {
       case 'addWordToCollection':
         return await addWordToCollection(word, user_id, bookId, chapterId)
       case 'removeWordFromCollection':
-        return await removeWordFromCollection(wordId, user_id)
+        return await removeWordFromCollection(word, user_id)
       case 'getSubtitleAnalysis':
         return await getSubtitleAnalysis(bookId, chapterId, subtitleIndex)
       default:
@@ -53,11 +53,11 @@ exports.main = async (event, context) => {
 }
 
 // 获取章节详情
-async function getChapterDetail(bookChapterId, user_id) {
-  console.log('🔄 [DEBUG] 开始获取章节详情:', { bookChapterId, user_id })
+async function getChapterDetail(chapterId, user_id) {
+  console.log('🔄 [DEBUG] 开始获取章节详情:', { chapterId, user_id })
 
   // 参数验证
-  if (!bookChapterId) {
+  if (!chapterId) {
     console.log('❌ [DEBUG] 参数验证失败: 缺少章节ID')
     return {
       code: -1,
@@ -67,11 +67,11 @@ async function getChapterDetail(bookChapterId, user_id) {
 
   try {
     // 1. 获取章节基本信息
-    console.log('📤 [DEBUG] 查询章节基本信息:', bookChapterId)
-    const chapterResult = await db.collection('chapters').doc(bookChapterId).get()
+    console.log('📤 [DEBUG] 查询章节基本信息:', chapterId)
+    const chapterResult = await db.collection('chapters').doc(chapterId).get()
 
     if (!chapterResult.data) {
-      console.log('❌ [DEBUG] 章节不存在:', bookChapterId)
+      console.log('❌ [DEBUG] 章节不存在:', chapterId)
       return {
         code: -1,
         message: '章节不存在'
@@ -79,7 +79,7 @@ async function getChapterDetail(bookChapterId, user_id) {
     }
 
     if (!chapterResult.data.is_active) {
-      console.log('❌ [DEBUG] 章节已下架:', bookChapterId)
+      console.log('❌ [DEBUG] 章节已下架:', chapterId)
       return {
         code: -1,
         message: '章节已下架'
@@ -140,30 +140,30 @@ async function getChapterVocabularies(chapterId, user_id, page = 1, pageSize = 2
   console.log('📊 [DEBUG] 分页参数处理:', { currentPage, limit, skip })
 
   try {
-    // 1. 获取章节信息
-    console.log('📤 [DEBUG] 查询章节信息:', chapterId)
-    const chapterResult = await db.collection('chapters').doc(chapterId).get()
+    // // 1. 获取章节信息
+    // console.log('📤 [DEBUG] 查询章节信息:', chapterId)
+    // const chapterResult = await db.collection('chapters').doc(chapterId).get()
 
-    if (!chapterResult.data) {
-      console.log('❌ [DEBUG] 章节不存在:', chapterId)
-      return {
-        code: -1,
-        message: '章节不存在'
-      }
-    }
+    // if (!chapterResult.data) {
+    //   console.log('❌ [DEBUG] 章节不存在:', chapterId)
+    //   return {
+    //     code: -1,
+    //     message: '章节不存在'
+    //   }
+    // }
 
-    const chapter = chapterResult.data
-    console.log('✅ [DEBUG] 获取到章节信息:', chapter.title)
+    // const chapter = chapterResult.data
+    // console.log('✅ [DEBUG] 获取到章节信息:', chapter.title)
 
     // 2. 查询用户在该章节的单词记录
-    console.log('📤 [DEBUG] 查询用户单词记录准备:', {
-      user_id,
-      chapterId,
-      user_id_type: typeof user_id,
-      chapterId_type: typeof chapterId,
-      user_id_value: user_id,
-      chapterId_value: chapterId
-    })
+    // console.log('📤 [DEBUG] 查询用户单词记录准备:', {
+    //   user_id,
+    //   chapterId,
+    //   user_id_type: typeof user_id,
+    //   chapterId_type: typeof chapterId,
+    //   user_id_value: user_id,
+    //   chapterId_value: chapterId
+    // })
 
     // 确保参数为字符串类型
     const userIdStr = String(user_id)
@@ -177,7 +177,7 @@ async function getChapterVocabularies(chapterId, user_id, page = 1, pageSize = 2
     })
 
     // 查询时多取1条用于判断是否还有更多数据
-    const wordRecordsResult = await db.collection('user_word_progresss')
+    const wordRecordsResult = await db.collection('user_word_progress')
       .where({
         'user_id': userIdStr,
         'source_chapter_id': chapterIdStr
@@ -213,31 +213,31 @@ async function getChapterVocabularies(chapterId, user_id, page = 1, pageSize = 2
       }
     }
 
-    // 3. 提取word_id并去重
-    const wordIds = [...new Set(actualRecords.map(record => record.word_id))]
-    console.log('📤 [DEBUG] 需要查询的单词ID数量:', wordIds.length)
+    // 3. 提取word并去重
+    const words = [...new Set(actualRecords.map(record => record.word_id))]
+    console.log('📤 [DEBUG] 需要查询的单词ID数量:', words.length)
 
     // 4. 分批查询vocabularies（解决in限制）
-    const vocabulariesData = await batchQueryVocabularies(wordIds)
+    const vocabulariesData = await batchQueryVocabularies(words)
     console.log('📥 [DEBUG] 查询到单词详情:', vocabulariesData.length)
 
     // 5. 创建单词记录映射，便于合并数据
     const recordsMap = new Map()
     actualRecords.forEach(record => {
-      recordsMap.set(record.word_id, record)
+      recordsMap.set(record.word, record)
     })
 
     // 6. 合并数据，统一标记为收藏状态（直接使用数据库字段）
-    const vocabularies = vocabulariesData.map(word => {
-      const userRecord = recordsMap.get(word._id)
+    const vocabularies = vocabulariesData.map(wordInfo => {
+      const userRecord = recordsMap.get(wordInfo.word)
 
       return {
-        ...word,
+        ...wordInfo,
         // 用户学习状态
         level: userRecord ? userRecord.level : 0,
         is_mastered: userRecord ? userRecord.level >= 7 : false,
         last_review_at: userRecord ? userRecord.last_review_at : null,
-        // 收藏状态 - 来自user_word_progresss的都是收藏状态
+        // 收藏状态 - 来自user_word_progress的都是收藏状态
         is_favorited: true
       }
     })
@@ -382,8 +382,9 @@ async function getWordDetail(word, user_id, bookId, chapterId) {
 
   try {
     // 1. 查询单词基本信息
+    word = word.toLowerCase()
     const wordResult = await db.collection('vocabularies').where({
-      word: word.toLowerCase()
+      word: word
     }).limit(1).get()
 
     if (!wordResult.data || wordResult.data.length === 0) {
@@ -400,14 +401,14 @@ async function getWordDetail(word, user_id, bookId, chapterId) {
     let isCollected = false
     if (user_id) {
       // 查询用户是否在任何章节收藏过这个单词
-      const userWordQuery = await db.collection('user_word_progresss').where({
+      const userWordQuery = await db.collection('user_word_progress').where({
         user_id: user_id,
-        word_id: wordInfo._id
+        word: word,
       }).limit(1).get()
 
       console.log('📤 [DEBUG] 全局查询用户单词收藏状态:', {
         user_id,
-        word_id: wordInfo._id,
+        word: word,
         found: userWordQuery.data.length > 0
       })
 
@@ -451,26 +452,15 @@ async function addWordToCollection(word, user_id, bookId, chapterId) {
 
   try {
     // 1. 查询单词信息
-    const wordResult = await db.collection('vocabularies').where({
-      word: word.toLowerCase()
-    }).limit(1).get()
-
-    if (!wordResult.data || wordResult.data.length === 0) {
-      return {
-        code: -1,
-        message: '单词不存在'
-      }
-    }
-
-    const wordInfo = wordResult.data[0]
-    const recordId = `${user_id}_${wordInfo._id}`
+    word = word.toLowerCase()
+    const recordId = `${user_id}_${word}`
     const now = getNowTimestamp()
 
     // 2. 直接创建或更新记录（使用set覆盖）
-    await db.collection('user_word_progresss').doc(recordId).set({
+    await db.collection('user_word_progress').doc(recordId).set({
       data: {
         user_id: user_id,
-        word_id: wordInfo._id,
+        word_id: word,
         source_book_id: bookId,
         source_chapter_id: chapterId,
 
@@ -500,10 +490,10 @@ async function addWordToCollection(word, user_id, bookId, chapterId) {
 }
 
 // 从收藏中移除单词（硬删除）
-async function removeWordFromCollection(wordId, user_id) {
-  console.log('🔄 [DEBUG] 从收藏移除单词:', { wordId, user_id })
+async function removeWordFromCollection(word, user_id) {
+  console.log('🔄 [DEBUG] 从收藏移除单词:', { word, user_id })
 
-  if (!wordId || !user_id) {
+  if (!word || !user_id) {
     return {
       code: -1,
       message: '参数不完整'
@@ -511,12 +501,13 @@ async function removeWordFromCollection(wordId, user_id) {
   }
 
   try {
-    const recordId = `${user_id}_${wordId}`
+    word = word.toLowerCase()
+    const recordId = `${user_id}_${word}`
 
     // 直接硬删除记录
-    await db.collection('user_word_progresss').doc(recordId).remove()
+    await db.collection('user_word_progress').doc(recordId).remove()
 
-    console.log('✅ [DEBUG] 单词从收藏删除成功:', wordId)
+    console.log('✅ [DEBUG] 单词从收藏删除成功:', word)
 
     return {
       code: 0,
@@ -533,10 +524,10 @@ async function removeWordFromCollection(wordId, user_id) {
 }
 
 // 分批查询辅助函数 - 解决微信云数据库in操作限制（最多20个）
-async function batchQueryVocabularies(wordIds) {
-  console.log('🔄 [DEBUG] 开始分批查询单词详情:', { wordCount: wordIds.length })
+async function batchQueryVocabularies(words) {
+  console.log('🔄 [DEBUG] 开始分批查询单词详情:', { wordCount: words.length })
 
-  if (wordIds.length === 0) {
+  if (words.length === 0) {
     console.log('📝 [DEBUG] 单词ID列表为空，跳过查询')
     return []
   }
@@ -544,18 +535,18 @@ async function batchQueryVocabularies(wordIds) {
   const batchSize = 20 // 微信云数据库 in 操作限制
   const batches = []
 
-  // 将wordIds分成多个批次
-  for (let i = 0; i < wordIds.length; i += batchSize) {
-    batches.push(wordIds.slice(i, i + batchSize))
+  // 将words分成多个批次
+  for (let i = 0; i < words.length; i += batchSize) {
+    batches.push(words.slice(i, i + batchSize))
   }
 
-  console.log('📦 [DEBUG] 分批查询:', { batchCount: batches.length, batchSize })
+  console.log('📦 [DEBUG] 分批查询:', { batchCount: batches.length, batchSize, batches: batches })
 
   // 并发查询所有批次
   const _ = db.command
   const batchPromises = batches.map((batch, index) => {
-    console.log(`📤 [DEBUG] 查询批次 ${index + 1}:`, batch.length, '个单词')
-    return db.collection('vocabularies').where({ '_id': _.in(batch) }).get()
+    console.log(`📤 [DEBUG] 查询批次 ${index + 1}:`, batch.length, '个单词', batch)
+    return db.collection('vocabularies').where({ 'word': _.in(batch) }).get()
   })
 
   const batchResults = await Promise.all(batchPromises)
@@ -568,12 +559,12 @@ async function batchQueryVocabularies(wordIds) {
 }
 
 // 获取字幕数据（从解析文件）
-async function getSubtitles(bookId, bookChapterId) {
-  console.log('🔄 [DEBUG] 开始获取字幕数据:', { bookId, bookChapterId })
+async function getSubtitles(bookId, chapterId) {
+  console.log('🔄 [DEBUG] 开始获取字幕数据:', { bookId, chapterId })
 
   // 参数验证
-  if (!bookId || !bookChapterId) {
-    console.log('❌ [DEBUG] 参数验证失败:', { bookId, bookChapterId })
+  if (!bookId || !chapterId) {
+    console.log('❌ [DEBUG] 参数验证失败:', { bookId, chapterId })
     return {
       code: -1,
       message: '缺少必要参数：书籍ID或章节ID'
@@ -582,10 +573,10 @@ async function getSubtitles(bookId, bookChapterId) {
 
   try {
     // 1. 获取章节信息，获取解析文件URL
-    const chapterResult = await db.collection('chapters').doc(bookChapterId).get()
+    const chapterResult = await db.collection('chapters').doc(chapterId).get()
 
     if (!chapterResult.data) {
-      console.log('❌ [DEBUG] 章节不存在:', bookChapterId)
+      console.log('❌ [DEBUG] 章节不存在:', chapterId)
       return {
         code: -1,
         message: '章节不存在'
@@ -596,7 +587,7 @@ async function getSubtitles(bookId, bookChapterId) {
     const analysisUrl = chapter.analysis_url
 
     if (!analysisUrl) {
-      console.log('❌ [DEBUG] 章节没有解析文件:', bookChapterId)
+      console.log('❌ [DEBUG] 章节没有解析文件:', chapterId)
       return {
         code: -1,
         message: '该章节暂无字幕解析文件'
@@ -612,7 +603,7 @@ async function getSubtitles(bookId, bookChapterId) {
 
     const fileBuffer = downloadResult.fileContent
     const fileContent = fileBuffer.toString('utf-8')
-    
+
     console.log('📥 [DEBUG] 解析文件下载成功，开始解析内容')
 
     // 3. 解析JSON内容，提取字幕数据
@@ -625,7 +616,7 @@ async function getSubtitles(bookId, bookChapterId) {
 
       try {
         const analysisData = JSON.parse(line)
-        
+
         // 提取字幕时间和文本信息
         const timeInSeconds = parseSRTTimestamp(analysisData.timestamp)
         const subtitle = {
@@ -636,7 +627,7 @@ async function getSubtitles(bookId, bookChapterId) {
           chinese: analysisData.chinese_text || '',
           // words解析移至前端处理
         }
-        
+
         console.log('📝 [DEBUG] 字幕项解析完成:', {
           索引: subtitle.index,
           原始时间戳: analysisData.timestamp,
@@ -645,7 +636,7 @@ async function getSubtitles(bookId, bookChapterId) {
           英文长度: subtitle.english.length,
           中文长度: subtitle.chinese.length
         })
-        
+
         subtitles.push(subtitle)
       } catch (parseError) {
         console.warn(`⚠️ [DEBUG] 跳过无效JSON行 ${i + 1}:`, parseError.message)
@@ -675,7 +666,7 @@ async function getSubtitles(bookId, bookChapterId) {
 // 将秒转换为显示时间格式
 function formatSecondsToTime(seconds) {
   if (seconds == null || seconds < 0) return '0:00'
-  
+
   const minutes = Math.floor(seconds / 60)
   const secs = Math.floor(seconds % 60)
   return `${minutes}:${secs.toString().padStart(2, '0')}`
@@ -684,35 +675,35 @@ function formatSecondsToTime(seconds) {
 // 解析SRT时间戳格式（如："00:00:00,000 --> 00:00:06,250"）
 function parseSRTTimestamp(timestamp) {
   console.log('🕒 [DEBUG] 解析SRT时间戳:', timestamp)
-  
+
   if (!timestamp || typeof timestamp !== 'string') {
     console.log('⚠️ [DEBUG] 时间戳格式无效:', timestamp)
     return 0
   }
-  
+
   // 提取起始时间（箭头前的部分）
   const startTime = timestamp.split(' --> ')[0]
   if (!startTime) {
     console.log('⚠️ [DEBUG] 无法提取起始时间:', timestamp)
     return 0
   }
-  
+
   // 解析时间格式: HH:MM:SS,mmm
   const timeMatch = startTime.match(/(\d{2}):(\d{2}):(\d{2}),(\d{3})/)
   if (!timeMatch) {
     console.log('⚠️ [DEBUG] 时间格式不匹配:', startTime)
     return 0
   }
-  
+
   const [, hours, minutes, seconds, milliseconds] = timeMatch
   const totalSeconds = parseInt(hours) * 3600 + parseInt(minutes) * 60 + parseInt(seconds) + parseInt(milliseconds) / 1000
-  
-  console.log('✅ [DEBUG] 时间戳解析成功:', { 
-    原始: timestamp, 
-    提取: startTime, 
-    解析结果: totalSeconds 
+
+  console.log('✅ [DEBUG] 时间戳解析成功:', {
+    原始: timestamp,
+    提取: startTime,
+    解析结果: totalSeconds
   })
-  
+
   return totalSeconds
 }
 
@@ -735,7 +726,7 @@ async function getSubtitleAnalysis(bookId, chapterId, subtitleIndex) {
     const query = {
       book_id: bookId,
       chapter_id: chapterId,
-      subtitle_index: String(subtitleIndex)
+      subtitle_index: subtitleIndex
     }
 
     console.log('📤 [DEBUG] 查询字幕解析信息:', {
@@ -773,7 +764,7 @@ async function getSubtitleAnalysis(bookId, chapterId, subtitleIndex) {
           'subtitle_index类型是否为字符串'
         ]
       })
-      
+
       // 进一步检查：查询该章节的所有analysis数据
       try {
         const chapterAnalysisResult = await db.collection('analysis')
@@ -783,7 +774,7 @@ async function getSubtitleAnalysis(bookId, chapterId, subtitleIndex) {
           })
           .limit(5)
           .get()
-        
+
         console.log('🔍 [DEBUG] 该章节存在的analysis数据示例:', chapterAnalysisResult.data.map(item => ({
           _id: item._id,
           subtitle_index: item.subtitle_index,
@@ -792,7 +783,7 @@ async function getSubtitleAnalysis(bookId, chapterId, subtitleIndex) {
       } catch (checkError) {
         console.log('⚠️ [DEBUG] 检查章节数据时出错:', checkError.message)
       }
-      
+
       return {
         code: -1,
         message: '未找到该字幕的解析信息'

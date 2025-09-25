@@ -524,7 +524,7 @@
 - `books` - 书籍信息
 - `chapters` - 章节信息
 - `vocabularies` - 单词词典
-- `user_word_progresss` - 用户单词学习记录
+- `user_word_progress` - 用户单词学习记录
 - `user_book_progress` - 用户阅读进度
 - `analysis` - 字幕解析信息
 
@@ -534,7 +534,7 @@
 - **字幕格式**: JSONL格式，每行一个JSON对象，包含index、timestamp、english_text、chinese_text字段
 - **数据访问**: 通过`getSubtitles`接口直接读取文件系统中的字幕文件
 
-### user_word_progresss 字段说明
+### user_word_progress 字段说明
 
 ```javascript
 {
