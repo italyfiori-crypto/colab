@@ -138,7 +138,7 @@ async function getStudyStats(userId, { dailyWordLimit } = {}) {
   console.log("todayString:", todayString, "dailyLimit:", dailyLimit, "原始参数:", dailyWordLimit)
 
   // 计算今日已学习的新单词数量（今日首次学习的单词）
-  const studiedTodayResult = await db.collection('word_records')
+  const studiedTodayResult = await db.collection('user_word_progresss')
     .where({
       user_id: userId,
       first_learn_date: todayString,
@@ -152,7 +152,7 @@ async function getStudyStats(userId, { dailyWordLimit } = {}) {
   let newWordsCount = 0
   if (maxRemainingToday > 0) {
     // 统计所有未学习的新单词数（level为null且first_learn_date为null）
-    const totalNewWordsResult = await db.collection('word_records')
+    const totalNewWordsResult = await db.collection('user_word_progresss')
       .where({
         user_id: userId,
         level: null,
@@ -165,7 +165,7 @@ async function getStudyStats(userId, { dailyWordLimit } = {}) {
   }
 
   // 统计今日需复习单词数
-  const reviewWordsResult = await db.collection('word_records')
+  const reviewWordsResult = await db.collection('user_word_progresss')
     .where({
       user_id: userId,
       level: db.command.lt(MAX_LEVEL),
@@ -174,7 +174,7 @@ async function getStudyStats(userId, { dailyWordLimit } = {}) {
     .count()
 
   // 统计逾期单词数
-  const overdueWordsResult = await db.collection('word_records')
+  const overdueWordsResult = await db.collection('user_word_progresss')
     .where({
       user_id: userId,
       level: db.command.lt(MAX_LEVEL),
@@ -226,7 +226,7 @@ async function getWordList(userId, { type, limit = 50, dailyWordLimit, sortOrder
       }
 
       // 计算今日已学习的新单词数量（今日首次学习的单词）
-      const studiedTodayResult = await db.collection('word_records')
+      const studiedTodayResult = await db.collection('user_word_progresss')
         .where({
           user_id: userId,
           first_learn_date: todayString,
@@ -246,7 +246,7 @@ async function getWordList(userId, { type, limit = 50, dailyWordLimit, sortOrder
       }
 
       // 获取未学习的新单词（level为null且first_learn_date为null）
-      query = db.collection('word_records')
+      query = db.collection('user_word_progresss')
         .where({
           user_id: userId,
           level: null,
@@ -257,7 +257,7 @@ async function getWordList(userId, { type, limit = 50, dailyWordLimit, sortOrder
       break
 
     case 'review':
-      query = db.collection('word_records')
+      query = db.collection('user_word_progresss')
         .where({
           user_id: userId,
           level: db.command.lt(MAX_LEVEL),
@@ -270,7 +270,7 @@ async function getWordList(userId, { type, limit = 50, dailyWordLimit, sortOrder
       break
 
     case 'overdue':
-      query = db.collection('word_records')
+      query = db.collection('user_word_progresss')
         .where({
           user_id: userId,
           level: db.command.lt(MAX_LEVEL),
@@ -393,7 +393,7 @@ async function updateWordRecord(userId, { word_id, actionType }) {
   console.log('📖 [DEBUG] updateWordRecord云函数开始执行:', { userId, word_id, actionType })
   try {
     // 使用user_id和word_id查找现有记录（安全查询）
-    const queryResult = await db.collection('word_records')
+    const queryResult = await db.collection('user_word_progresss')
       .where({
         user_id: userId,
         word_id: word_id
@@ -426,7 +426,7 @@ async function updateWordRecord(userId, { word_id, actionType }) {
       if (existingRecord.data) {
         // 更新现有记录
         console.log('📖 [DEBUG] 更新现有记录:', recordId)
-        await db.collection('word_records').doc(recordId).update({
+        await db.collection('user_word_progresss').doc(recordId).update({
           data: {
             level: level,
             first_learn_date: todayString,
@@ -438,7 +438,7 @@ async function updateWordRecord(userId, { word_id, actionType }) {
       } else {
         // 创建新记录
         console.log('📖 [DEBUG] 创建新记录:', recordId)
-        await db.collection('word_records').doc(recordId).set({
+        await db.collection('user_word_progresss').doc(recordId).set({
           data: {
             user_id: userId,
             word_id: word_id,
@@ -459,7 +459,7 @@ async function updateWordRecord(userId, { word_id, actionType }) {
       await updateDailyStatsSync(userId, todayString, 'learn')
     } else if (actionType === 'review') {
       const { level: new_level, next_review_date } = calcNextReviewDate(record.level)
-      await db.collection('word_records').doc(recordId).update({
+      await db.collection('user_word_progresss').doc(recordId).update({
         data: {
           level: new_level,
           next_review_date: next_review_date,
@@ -478,7 +478,7 @@ async function updateWordRecord(userId, { word_id, actionType }) {
       const newLevel = handleOverdueWordLevel(record.level, 'remember', overdueDays)
       const { next_review_date } = calcNextReviewDate(newLevel)
 
-      await db.collection('word_records').doc(recordId).update({
+      await db.collection('user_word_progresss').doc(recordId).update({
         data: {
           level: newLevel,
           next_review_date: next_review_date,
@@ -497,7 +497,7 @@ async function updateWordRecord(userId, { word_id, actionType }) {
       // vague情况下使用更短的复习间隔，不提升等级，使用当前等级的复习间隔
       const nextReviewDateString = addDaysToToday(REVIEW_INTERVALS[Math.max(0, newLevel - 1)])
 
-      await db.collection('word_records').doc(recordId).update({
+      await db.collection('user_word_progresss').doc(recordId).update({
         data: {
           level: newLevel,
           next_review_date: nextReviewDateString,
@@ -512,7 +512,7 @@ async function updateWordRecord(userId, { word_id, actionType }) {
       // 重置为第一级
       const { level, next_review_date } = calcNextReviewDate(null)
 
-      await db.collection('word_records').doc(recordId).update({
+      await db.collection('user_word_progresss').doc(recordId).update({
         data: {
           level: level,
           next_review_date: next_review_date,
@@ -547,7 +547,7 @@ async function getWordsByDate(userId, { date, type }) {
 
     if (type === 'learned') {
       // 获取指定日期学习的单词（actual_learn_dates数组包含该日期）
-      query = db.collection('word_records')
+      query = db.collection('user_word_progresss')
         .where({
           user_id: userId,
           actual_learn_dates: db.command.all([date])
@@ -555,7 +555,7 @@ async function getWordsByDate(userId, { date, type }) {
         .orderBy('updated_at', 'asc')
     } else if (type === 'reviewed') {
       // 获取指定日期复习的单词（实际复习日期数组包含该日期）
-      query = db.collection('word_records')
+      query = db.collection('user_word_progresss')
         .where({
           user_id: userId,
           actual_review_dates: db.command.all([date])
@@ -670,7 +670,7 @@ async function updateDailyStatsSync(userId, date, actionType) {
     // 查找或创建当日统计记录
     let existingStats
     try {
-      existingStats = await db.collection('daily_stats').doc(recordId).get()
+      existingStats = await db.collection('user_daily_stats').doc(recordId).get()
     } catch (error) {
       existingStats = { data: null }
     }
@@ -687,7 +687,7 @@ async function updateDailyStatsSync(userId, date, actionType) {
         updateData.reviewed_count = (existingStats.data.reviewed_count || 0) + 1
       }
 
-      await db.collection('daily_stats').doc(recordId).update({
+      await db.collection('user_daily_stats').doc(recordId).update({
         data: updateData
       })
     } else {
@@ -701,7 +701,7 @@ async function updateDailyStatsSync(userId, date, actionType) {
         updated_at: nowTimestamp
       }
 
-      await db.collection('daily_stats').doc(recordId).set({
+      await db.collection('user_daily_stats').doc(recordId).set({
         data: newStats
       })
     }
@@ -731,7 +731,7 @@ async function getDailyStats(userId, { startDate, endDate }) {
       whereCondition.date = db.command.lte(endDate)
     }
 
-    let query = db.collection('daily_stats').where(whereCondition)
+    let query = db.collection('user_daily_stats').where(whereCondition)
 
     // 首先检查集合是否存在
     try {
@@ -745,7 +745,7 @@ async function getDailyStats(userId, { startDate, endDate }) {
     } catch (dbError) {
       // 如果是集合不存在的错误，返回空数据而不是错误
       if (dbError.message && dbError.message.includes('collection')) {
-        console.warn('⚠️ [WARN] daily_stats集合不存在，返回空数据')
+        console.warn('⚠️ [WARN] user_daily_stats集合不存在，返回空数据')
         return {
           success: true,
           data: []
@@ -780,13 +780,13 @@ async function updateDailyStats(userId, { date, learned_count, reviewed_count })
 
     // 尝试更新，如果不存在则创建
     try {
-      await db.collection('daily_stats').doc(recordId).update({
+      await db.collection('user_daily_stats').doc(recordId).update({
         data: statsData
       })
     } catch (error) {
       // 记录不存在，创建新记录
       statsData.created_at = nowTimestamp
-      await db.collection('daily_stats').doc(recordId).set({
+      await db.collection('user_daily_stats').doc(recordId).set({
         data: statsData
       })
     }

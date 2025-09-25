@@ -15,10 +15,9 @@ from wechat_api import WeChatCloudAPI
 class SubtitleAnalysisUploader:
     """字幕解析信息上传服务类"""
     
-    def __init__(self, api_client: WeChatCloudAPI, program_root: str):
+    def __init__(self, api_client: WeChatCloudAPI):
         self.api = api_client
         self.logger = logging.getLogger(__name__)
-        self.program_root = program_root
         
     def parse_analysis_file(self, analysis_file_path: str, book_id: str, chapter_id: str) -> List[Dict]:
         """解析字幕解析JSON文件"""
@@ -60,7 +59,7 @@ class SubtitleAnalysisUploader:
     def get_existing_analysis_records(self, book_id: str, chapter_id: str) -> Dict[int, Dict]:
         """获取现有的字幕解析记录"""
         try:
-            existing_records = self.api.query_all_records('subtitle_analysis', {
+            existing_records = self.api.query_all_records('analysis', {
                 'book_id': book_id,
                 'chapter_id': chapter_id
             })
@@ -85,7 +84,7 @@ class SubtitleAnalysisUploader:
         existing_records = self.get_existing_analysis_records(book_id, chapter_id)
         
         # 分批处理记录
-        batch_size = 20
+        batch_size = 1
         for i in range(0, len(analysis_records), batch_size):
             batch = analysis_records[i:i + batch_size]
             
@@ -109,12 +108,12 @@ class SubtitleAnalysisUploader:
             # 批量添加新记录
             if records_to_add:
                 try:
-                    if self.api.add_database_records('subtitle_analysis', records_to_add):
+                    if self.api.add_database_records('analysis', records_to_add):
                         stats['added'] += len(records_to_add)
                         self.logger.info(f"✅ 新增 {len(records_to_add)} 条字幕解析记录")
                     else:
                         stats['failed'] += len(records_to_add)
-                        self.logger.error(f"❌ 新增字幕解析记录失败")
+                        self.logger.error(f"❌ 新增字幕解析记录失败,records_to_add: {records_to_add}")
                 except Exception as e:
                     stats['failed'] += len(records_to_add)
                     self.logger.error(f"❌ 新增字幕解析记录异常: {e}")
@@ -122,7 +121,7 @@ class SubtitleAnalysisUploader:
             # 批量更新现有记录
             for record in records_to_update:
                 try:
-                    if self.api.update_database_record('subtitle_analysis', record['_id'], record):
+                    if self.api.update_database_record('analysis', record['_id'], record):
                         stats['updated'] += 1
                     else:
                         stats['failed'] += 1
@@ -136,8 +135,8 @@ class SubtitleAnalysisUploader:
     def _needs_update(self, new_record: Dict, existing_record: Dict) -> bool:
         """检查记录是否需要更新"""
         # 比较关键字段
-        key_fields = ['english_text', 'translation', 'sentence_structure', 
-                     'key_words', 'fixed_phrases', 'core_grammar', 'colloquial_expression']
+        key_fields = ['timestamp', 'english_text', 'chinese_text', 'sentence_structure', 
+                     'structure_explanation', 'key_words', 'fixed_phrases', 'colloquial_expression']
         
         for field in key_fields:
             if new_record.get(field) != existing_record.get(field):
@@ -146,7 +145,7 @@ class SubtitleAnalysisUploader:
     
     def process_book_analysis(self, book_dir: str, book_id: str) -> Dict:
         """处理单本书的字幕解析上传"""
-        analysis_dir = os.path.join(book_dir, 'parsed_analysis')
+        analysis_dir = os.path.join(book_dir, 'analysis')
         
         if not os.path.exists(analysis_dir):
             self.logger.info(f"📝 书籍 {book_id} 没有字幕解析目录")
@@ -167,7 +166,7 @@ class SubtitleAnalysisUploader:
                 continue
                 
             # 从文件名提取chapter_id (去掉.json后缀)
-            chapter_id = filename[:-5]
+            chapter_id = os.path.splitext(filename)[0]
             analysis_file_path = os.path.join(analysis_dir, filename)
             
             self.logger.info(f"📝 处理字幕解析文件: {filename}")
@@ -199,7 +198,7 @@ class SubtitleAnalysisUploader:
         """清理孤立的字幕解析数据"""
         try:
             # 查询数据库中该书籍的所有解析记录
-            existing_analysis = self.api.query_all_records('subtitle_analysis', {'book_id': book_id})
+            existing_analysis = self.api.query_all_records('analysis', {'book_id': book_id})
             
             orphaned_records = []
             for record in existing_analysis:
@@ -215,7 +214,7 @@ class SubtitleAnalysisUploader:
             # 批量删除
             success_count = 0
             for record_id in orphaned_records:
-                if self.api.delete_database_record('subtitle_analysis', record_id):
+                if self.api.delete_database_record('analysis', record_id):
                     success_count += 1
                     
             self.logger.info(f"✅ 成功清理 {success_count} 条孤立字幕解析记录")

@@ -15,11 +15,10 @@ from data_parser import DataParser
 class BookUploader:
     """书籍上传服务类"""
     
-    def __init__(self, api_client: WeChatCloudAPI, program_root: str):
+    def __init__(self, api_client: WeChatCloudAPI):
         self.api = api_client
-        self.parser = DataParser(program_root)
+        self.parser = DataParser()
         self.logger = logging.getLogger(__name__)
-        self.program_root = program_root
         
     def upload_book_cover(self, book_dir: str, book_id: str, book_data: Dict) -> str:
         """上传书籍封面"""
@@ -75,7 +74,7 @@ class BookUploader:
             audio_file_id = self.api.upload_file(audio_file_path, cloud_audio_path)
             if audio_file_id:
                 chapter_data["audio_url"] = audio_file_id
-        
+
         # 上传字幕文件
         subtitle_file_path = os.path.join(book_dir, chapter_data.get('local_subtitle_file', ''))
         if chapter_data.get('local_subtitle_file', '') and os.path.exists(subtitle_file_path):
@@ -84,7 +83,9 @@ class BookUploader:
             subtitle_file_id = self.api.upload_file(subtitle_file_path, cloud_subtitle_path)
             if subtitle_file_id:
                 chapter_data["subtitle_url"] = subtitle_file_id
-        
+                
+        del chapter_data["local_audio_file"]
+        del chapter_data["local_subtitle_file"]
         return True
 
     def upload_chapter_if_needed(self, book_dir: str, book_id: str, chapter_data: Dict, existing_chapter: Dict, changed_fields: List[str]) -> bool:

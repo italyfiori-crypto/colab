@@ -20,7 +20,7 @@ class VocabularyUploader:
     
     def __init__(self, api_client: WeChatCloudAPI, program_root: str):
         self.api = api_client
-        self.parser = DataParser(program_root)
+        self.parser = DataParser()
         self.logger = logging.getLogger(__name__)
         self.program_root = program_root
         

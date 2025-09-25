@@ -19,11 +19,11 @@ function getNowTimestamp() {
 async function getTempFileURL(fileList) {
   const files = Array.isArray(fileList) ? fileList : [fileList]
   const validFiles = files.filter(fileId => fileId && typeof fileId === 'string' && fileId.startsWith('cloud://'))
-  
+
   if (validFiles.length === 0) {
     return { fileList: [] }
   }
-  
+
   try {
     const result = await cloud.getTempFileURL({
       fileList: validFiles.map(fileId => ({
@@ -31,7 +31,7 @@ async function getTempFileURL(fileList) {
         maxAge: 86400 // 24小时有效期
       }))
     })
-    
+
     console.log('✅ [DEBUG] 云端获取封面临时链接成功:', result.fileList.length, '个文件')
     return result
   } catch (error) {
@@ -49,12 +49,12 @@ async function getSingleTempFileURL(fileId) {
   if (!fileId || typeof fileId !== 'string') {
     return ''
   }
-  
+
   // 如果不是云存储文件ID，直接返回
   if (!fileId.startsWith('cloud://')) {
     return fileId
   }
-  
+
   const result = await getTempFileURL([fileId])
   if (result.fileList && result.fileList.length > 0) {
     return result.fileList[0].tempFileURL || ''
@@ -71,21 +71,21 @@ async function processBookCovers(books) {
   if (!books || books.length === 0) {
     return books
   }
-  
+
   try {
     // 收集所有需要处理的图片ID
     const coverIds = books
       .map(book => book.cover_url)
       .filter(url => url && url.startsWith('cloud://'))
-    
+
     if (coverIds.length === 0) {
       return books
     }
-    
+
     // 批量获取临时链接
     const tempResult = await getTempFileURL(coverIds)
     const tempUrls = {}
-    
+
     if (tempResult.fileList) {
       tempResult.fileList.forEach(item => {
         if (item.tempFileURL) {
@@ -93,7 +93,7 @@ async function processBookCovers(books) {
         }
       })
     }
-    
+
     // 更新书籍数据中的封面链接
     return books.map(book => {
       if (book.cover_url && tempUrls[book.cover_url]) {
@@ -165,7 +165,7 @@ async function getRecentBooks(user_id) {
     return { code: 0, data: [] }
   }
 
-  const progressResult = await db.collection('user_progress')
+  const progressResult = await db.collection('user_book_progress')
     .where({
       user_id: user_id
     })
@@ -315,13 +315,13 @@ async function addToRecentBooks(user_id, book_id) {
 
     console.log('✅ [DEBUG] 书籍验证通过:', book_id)
 
-    // 2. 检查是否已存在user_progress记录
+    // 2. 检查是否已存在user_book_progress记录
     const progressId = `${user_id}_${book_id}`
     console.log('🔄 [DEBUG] 进度记录ID:', progressId)
 
     // 使用where查询而不是doc.get()，避免文档不存在时的错误
     let existingProgressResult = null
-    await db.collection('user_progress').doc(progressId).get().then(res => {
+    await db.collection('user_book_progress').doc(progressId).get().then(res => {
       existingProgressResult = res
       console.log('✅ [DEBUG] 查询现有进度记录成功:', res)
     }).catch(err => {
@@ -332,7 +332,7 @@ async function addToRecentBooks(user_id, book_id) {
     if (existingProgressResult) {
       // 3. 如果已存在，只更新最后访问时间
       console.log('🔄 [DEBUG] 更新现有进度记录')
-      await db.collection('user_progress')
+      await db.collection('user_book_progress')
         .doc(progressId)
         .update({
           data: {
@@ -346,7 +346,7 @@ async function addToRecentBooks(user_id, book_id) {
     } else {
       // 4. 如果不存在，创建新的进度记录
       console.log('🆕 [DEBUG] 创建新的进度记录')
-      await db.collection('user_progress')
+      await db.collection('user_book_progress')
         .add({
           data: {
             _id: progressId,
@@ -383,7 +383,7 @@ async function cleanupOldRecentBooks(user_id) {
     console.log('🧹 [DEBUG] 开始清理用户旧记录:', user_id)
 
     // 查询该用户的所有进度记录，按更新时间倒序
-    const allProgress = await db.collection('user_progress')
+    const allProgress = await db.collection('user_book_progress')
       .where({
         user_id: user_id
       })
@@ -399,7 +399,7 @@ async function cleanupOldRecentBooks(user_id) {
 
       for (const record of toDelete) {
         console.log('🗑️ [DEBUG] 删除记录:', record._id)
-        await db.collection('user_progress')
+        await db.collection('user_book_progress')
           .doc(record._id)
           .remove()
       }

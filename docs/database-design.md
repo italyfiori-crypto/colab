@@ -10,10 +10,10 @@
   - [2.2 书籍信息表 (books)](#22-书籍信息表-books)
   - [2.3 章节内容表 (chapters)](#23-章节内容表-chapters)
   - [2.4 单词词汇表 (vocabularies)](#24-单词词汇表-vocabularies)
-  - [2.6 字幕解析信息表 (subtitle_analysis)](#26-字幕解析信息表-subtitle_analysis)
-  - [2.7 学习进度表 (user_progress)](#27-学习进度表-user_progress)
-  - [2.8 单词学习记录表 (word_records)](#28-单词学习记录表-word_records)
-  - [2.9 每日学习统计表 (daily_stats)](#29-每日学习统计表-daily_stats)
+  - [2.6 字幕解析信息表 (analysis)](#26-字幕解析信息表-analysis)
+  - [2.7 学习进度表 (user_book_progress)](#27-学习进度表-user_book_progress)
+  - [2.8 单词学习记录表 (user_word_progresss)](#28-单词学习记录表-user_word_progresss)
+  - [2.9 每日学习统计表 (user_daily_stats)](#29-每日学习统计表-user_daily_stats)
 - [3. 数据关系图](#3-数据关系图)
 - [4. 设计优化说明](#4-设计优化说明)
   - [4.1 表结构简化](#41-表结构简化)
@@ -205,7 +205,7 @@
 ];
 ```
 
-### 2.6 字幕解析信息表 (subtitle_analysis)
+### 2.6 字幕解析信息表 (analysis)
 
 **功能**: 存储AI解析的字幕语言学习信息，为每行字幕提供详细的语法、单词、短语分析
 
@@ -214,10 +214,12 @@
   _id: string,                    // 解析记录ID (book_id-chapter_id-subtitle_index)
   book_id: string,                // 书籍ID
   chapter_id: string,             // 章节ID (关联chapters表)
-  subtitle_index: number,         // 字幕索引 (1, 2, 3, ...)
+  subtitle_index: string,         // 字幕索引 ("1", "2", "3", ...)
+  timestamp: string,              // 时间戳 (如: "00:00:00,000 --> 00:00:06,250")
   english_text: string,           // 英文原文
-  translation: string,            // 中文翻译
+  chinese_text: string,           // 中文翻译
   sentence_structure: string,     // 句子结构分析
+  structure_explanation: string,  // 句子结构语法解析
 
   // 重点单词数组
   key_words: [{
@@ -231,12 +233,6 @@
   fixed_phrases: [{
     phrase: string,               // 固定短语
     meaning: string               // 中文含义
-  }],
-
-  // 核心语法点数组
-  core_grammar: [{
-    point: string,                // 语法点名称
-    explanation: string           // 详细解释
   }],
 
   // 口语表达数组
@@ -257,82 +253,11 @@
 [
   { _id: 1 }, // 主键索引
   { book_id: 1, chapter_id: 1, subtitle_index: 1 }, // 主要业务查询（唯一）
-  { book_id: 1 }, // 书籍查询
-  { chapter_id: 1 }, // 章节查询
-  { book_id: 1, chapter_id: 1 }, // 书籍章节查询
-  { subtitle_index: 1 }, // 字幕索引查询
   { created_at: -1 }, // 创建时间查询
 ];
 ```
 
-**数据示例**:
-
-```javascript
-{
-  _id: "peter-001_PETER_BREAKS_THROUGH-1",
-  book_id: "peter",
-  chapter_id: "001_PETER_BREAKS_THROUGH",
-  subtitle_index: 1,
-  english_text: "All children, except one, grow up.",
-  translation: "所有的孩子都会长大，除了一个。",
-  sentence_structure: "主语(All children) + 插入语(except one) + 谓语(grow up)",
-  key_words: [
-    {
-      word: "children",
-      pos: "n.",
-      meaning: "孩子们",
-      pronunciation: "/ˈtʃɪldrən/"
-    },
-    {
-      word: "grow",
-      pos: "v.",
-      meaning: "成长，长大",
-      pronunciation: "/ɡroʊ/"
-    }
-  ],
-  fixed_phrases: [
-    {
-      phrase: "grow up",
-      meaning: "长大，成长"
-    }
-  ],
-  core_grammar: [
-    {
-      point: "一般现在时",
-      explanation: "表示普遍真理或客观事实，所有孩子都会长大是自然规律"
-    },
-    {
-      point: "插入语",
-      explanation: "'except one'作为插入语，起到补充说明的作用，暗示了故事的特殊性"
-    }
-  ],
-  colloquial_expression: [],
-  created_at: 1703232000000,
-  updated_at: 1703232000000
-}
-```
-
-**查询示例**:
-
-```javascript
-// 获取某本书某篇文章的所有字幕解析
-db.subtitle_analysis.find({ 
-  book_id: "peter", 
-  chapter_id: "001_PETER_BREAKS_THROUGH" 
-}).sort({ subtitle_index: 1 })
-
-// 获取特定字幕的解析信息
-db.subtitle_analysis.findOne({ 
-  book_id: "peter",
-  chapter_id: "001_PETER_BREAKS_THROUGH", 
-  subtitle_index: 1 
-})
-
-// 获取某本书的所有解析数据
-db.subtitle_analysis.find({ book_id: "peter" }).sort({ chapter_id: 1, subtitle_index: 1 })
-```
-
-### 2.7 学习进度表 (user_progress)
+### 2.7 学习进度表 (user_book_progress)
 
 **功能**: 记录用户对各书籍的学习进度
 
@@ -366,7 +291,7 @@ db.subtitle_analysis.find({ book_id: "peter" }).sort({ chapter_id: 1, subtitle_i
 ];
 ```
 
-### 2.7 单词学习记录表 (word_records)
+### 2.7 单词学习记录表 (user_word_progresss)
 
 **功能**: 记录用户单词学习状态，专为艾宾浩斯记忆曲线优化
 
@@ -400,7 +325,7 @@ db.subtitle_analysis.find({ book_id: "peter" }).sort({ chapter_id: 1, subtitle_i
 ];
 ```
 
-### 2.9 每日学习统计表 (daily_stats)
+### 2.9 每日学习统计表 (user_daily_stats)
 
 **功能**: 记录用户每日学习统计数据，用于生成 GitHub 风格的学习日历
 
@@ -433,12 +358,12 @@ db.subtitle_analysis.find({ book_id: "peter" }).sort({ chapter_id: 1, subtitle_i
 
 ```
 users (用户)
-├── user_progress (学习进度) ──→ books (书籍)
-├── word_records (单词记录) ──→ vocabularies (单词)
+├── user_book_progress (学习进度) ──→ books (书籍)
+├── user_word_progresss (单词记录) ──→ vocabularies (单词)
 
 books (书籍)
 ├── chapters (章节)
-└── subtitle_analysis (字幕解析) ──→ chapters (章节)
+└── analysis (字幕解析) ──→ chapters (章节)
 ```
 
 ## 4. 设计优化说明
@@ -474,8 +399,8 @@ books (书籍)
 
 - `users._id` (openid)
 - `vocabularies.word` (单词唯一)
-- `user_progress._id` (user_id_book_id)
-- `word_records._id` (user_id_word_id)
+- `user_book_progress._id` (user_id_book_id)
+- `user_word_progresss._id` (user_id_word_id)
 - `daily_plans._id` (user_id_plan_date)
 
 ### 5.3 引用完整性
@@ -520,19 +445,19 @@ books (书籍)
 
 基于代码实际使用情况，识别出以下高频查询模式：
 
-#### word_records 表查询模式
+#### user_word_progresss 表查询模式
 1. **学习统计查询**: `user_id + first_learn_date`
 2. **复习列表查询**: `user_id + level + next_review_date` 
 3. **逾期单词查询**: `user_id + level + next_review_date`
 4. **单词状态查询**: `user_id + word_id`
 
-#### daily_stats 表查询模式
+#### user_daily_stats 表查询模式
 1. **日期范围统计**: `user_id + date`
 2. **单日统计查询**: `user_id + date`（唯一）
 
 ### 7.2 复合索引设计
 
-#### word_records 表索引优化
+#### user_word_progresss 表索引优化
 ```javascript
 [
   // 核心业务查询索引
@@ -549,7 +474,7 @@ books (书籍)
 ]
 ```
 
-#### daily_stats 表索引优化
+#### user_daily_stats 表索引优化
 ```javascript
 [
   // 核心业务查询索引
@@ -582,7 +507,7 @@ books (书籍)
 #### 写入优化考虑
 1. **索引数量平衡**: 避免过度索引影响写入性能
 2. **批量操作**: 使用事务进行批量更新
-3. **异步统计**: 使用后台任务更新daily_stats
+3. **异步统计**: 使用后台任务更新user_daily_stats
 
 #### 监控指标
 - 查询响应时间 < 100ms

@@ -81,7 +81,7 @@ async function getBookDetail(bookId, user_id, page = 1, pageSize = 20) {
   const skip = (currentPage - 1) * limit
 
   console.log('📤 [DEBUG] 查询章节列表:', { bookId, currentPage, limit, skip })
-  
+
   // 查询章节时多取1条用于判断是否还有更多数据
   const chaptersResult = await db.collection('chapters')
     .where({
@@ -97,10 +97,10 @@ async function getBookDetail(bookId, user_id, page = 1, pageSize = 20) {
   const hasMoreChapters = chaptersResult.data.length > limit
   const actualChapters = hasMoreChapters ? chaptersResult.data.slice(0, limit) : chaptersResult.data
 
-  console.log('📥 [DEBUG] 章节查询结果:', { 
-    total: chaptersResult.data.length, 
+  console.log('📥 [DEBUG] 章节查询结果:', {
+    total: chaptersResult.data.length,
     returned: actualChapters.length,
-    hasMore: hasMoreChapters 
+    hasMore: hasMoreChapters
   })
 
   // 3. 获取用户学习进度（如果用户已登录）
@@ -108,7 +108,7 @@ async function getBookDetail(bookId, user_id, page = 1, pageSize = 20) {
   const progressId = `${user_id}_${bookId}`
   console.log('📤 [DEBUG] 查询用户学习进度:', progressId)
 
-  await db.collection('user_progress').doc(progressId).get().then(res => {
+  await db.collection('user_book_progress').doc(progressId).get().then(res => {
     if (res.data) {
       userProgress = res.data
       console.log('📥 [DEBUG] 用户进度查询结果:', {
@@ -154,7 +154,7 @@ async function getBookDetail(bookId, user_id, page = 1, pageSize = 20) {
           maxAge: 86400 // 24小时
         }]
       })
-      
+
       if (tempUrlResult.fileList && tempUrlResult.fileList.length > 0) {
         bookInfo.cover_url = tempUrlResult.fileList[0].tempFileURL
         console.log('✅ [DEBUG] 书籍封面临时链接获取成功')

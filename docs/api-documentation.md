@@ -454,6 +454,46 @@
 }
 ```
 
+### 4.7 获取章节字幕信息
+
+**请求参数**：
+```javascript
+{
+  "type": "getSubtitles",
+  "chapterId": "章节ID"
+}
+```
+
+**返回数据**：
+```javascript
+{
+  "code": 0,
+  "data": {
+    "subtitles": [
+      {
+        "index": 1,
+        "timestamp": "00:00:00,000 --> 00:00:06,250",
+        "english_text": "Alice was beginning to get very tired of sitting by her sister on the bank,",
+        "chinese_text": "爱丽丝开始对坐在姐姐身边的河岸上感到非常疲倦，"
+      },
+      {
+        "index": 2,
+        "timestamp": "00:00:06,250 --> 00:00:09,099",
+        "english_text": "and of having nothing to do:",
+        "chinese_text": "也厌倦了无所事事："
+      }
+    ],
+    "totalCount": 50,        // 字幕总条数
+    "duration": "00:03:52",  // 总时长
+    "chapterInfo": {
+      "chapterId": "章节ID",
+      "title": "章节标题",
+      "book_id": "所属书籍ID"
+    }
+  }
+}
+```
+
 ## 错误处理
 
 ### 常见错误码
@@ -471,6 +511,8 @@
 - "章节不存在" - 指定的章节ID不存在
 - "章节已下架" - 章节状态为非激活
 - "单词不存在" - 指定的单词不存在
+- "字幕文件不存在" - 指定章节的字幕文件不存在
+- "字幕文件格式错误" - 字幕文件格式不正确或损坏
 - "未知操作类型" - 请求的操作类型不支持
 
 ## 用户认证
@@ -482,10 +524,17 @@
 - `books` - 书籍信息
 - `chapters` - 章节信息
 - `vocabularies` - 单词词典
-- `word_records` - 用户单词学习记录
-- `user_progress` - 用户阅读进度
+- `user_word_progresss` - 用户单词学习记录
+- `user_book_progress` - 用户阅读进度
+- `analysis` - 字幕解析信息
 
-### word_records 字段说明
+## 文件系统数据说明
+
+- **字幕数据**: 存储在文件系统中，路径为 `output/{book_name}/subtitles/{chapter_id}.jsonl`
+- **字幕格式**: JSONL格式，每行一个JSON对象，包含index、timestamp、english_text、chinese_text字段
+- **数据访问**: 通过`getSubtitles`接口直接读取文件系统中的字幕文件
+
+### user_word_progresss 字段说明
 
 ```javascript
 {
@@ -513,3 +562,6 @@
 6. 艾宾浩斯复习算法自动计算下次复习时间
 7. `first_learn_date` 仅在首次学习时设置，后续不会更新
 8. `actual_review_dates` 记录每次实际复习的日期，用于学习统计
+9. **字幕数据**：字幕信息直接从JSONL文件读取，不存储在数据库中，提供更高效的数据访问
+10. **字幕解析数据**：`analysis` 表存储AI解析结果，与字幕文件通过章节ID关联
+11. 字幕文件路径固定为 `output/{book_name}/subtitles/{chapter_id}.jsonl` 格式

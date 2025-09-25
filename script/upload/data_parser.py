@@ -16,9 +16,8 @@ from typing import Dict, List, Optional, Tuple
 class DataParser:
     """数据解析和处理类"""
     
-    def __init__(self, program_root: str):
+    def __init__(self):
         self.logger = logging.getLogger(__name__)
-        self.program_root = program_root
     
     def _calculate_file_md5(self, file_path: str) -> str:
         """计算文件MD5值"""
@@ -90,10 +89,6 @@ class DataParser:
             'title', 'duration', 'is_active', 
             'audio_md5', 'subtitle_md5', 'chapter_number'
         ]
-        if existing_data and existing_data.get('subtitle_url') == "":
-            return True, ["subtitle_url"]
-        if existing_data and existing_data.get('audio_url') == "":
-            return True, ["audio_url"]
 
         return self.compare_data(new_data, existing_data, compare_fields)
 

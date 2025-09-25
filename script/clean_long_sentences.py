@@ -22,7 +22,7 @@ class LongSentenceCleaner:
             max_char_length: 最大字符长度阈值
         """
         self.max_char_length = max_char_length
-        self.related_dirs = ['audio', 'parsed_analysis', 'subtitles']
+        self.related_dirs = ['audio', 'analysis', 'subtitles']
     
     def validate_book_dir(self, book_dir: str) -> bool:
         """

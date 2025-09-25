@@ -174,7 +174,7 @@ async function getChapterVocabularies(chapterId, user_id, page = 1, pageSize = 2
     })
 
     // 查询时多取1条用于判断是否还有更多数据
-    const wordRecordsResult = await db.collection('word_records')
+    const wordRecordsResult = await db.collection('user_word_progresss')
       .where({
         'user_id': userIdStr,
         'source_chapter_id': chapterIdStr
@@ -234,7 +234,7 @@ async function getChapterVocabularies(chapterId, user_id, page = 1, pageSize = 2
         level: userRecord ? userRecord.level : 0,
         is_mastered: userRecord ? userRecord.level >= 7 : false,
         last_review_at: userRecord ? userRecord.last_review_at : null,
-        // 收藏状态 - 来自word_records的都是收藏状态
+        // 收藏状态 - 来自user_word_progresss的都是收藏状态
         is_favorited: true
       }
     })
@@ -299,7 +299,7 @@ async function saveChapterProgress(user_id, bookId, chapterId, currentTime, comp
 
     // 获取现有进度记录
     let userProgress = null
-    await db.collection('user_progress').doc(progressId).get().then(res => {
+    await db.collection('user_book_progress').doc(progressId).get().then(res => {
       if (res.data) {
         userProgress = res.data
       }
@@ -320,7 +320,7 @@ async function saveChapterProgress(user_id, bookId, chapterId, currentTime, comp
           completed: completed || false
         }
 
-        await db.collection('user_progress').doc(progressId).update({
+        await db.collection('user_book_progress').doc(progressId).update({
           data: {
             chapter_progress: chapterProgress,
             updated_at: now
@@ -337,7 +337,7 @@ async function saveChapterProgress(user_id, bookId, chapterId, currentTime, comp
         completed: completed || false
       }
 
-      await db.collection('user_progress').add({
+      await db.collection('user_book_progress').add({
         data: {
           _id: progressId,
           user_id: user_id,
@@ -397,11 +397,11 @@ async function getWordDetail(word, user_id, bookId, chapterId) {
     let isCollected = false
     if (user_id) {
       // 查询用户是否在任何章节收藏过这个单词
-      const userWordQuery = await db.collection('word_records').where({
+      const userWordQuery = await db.collection('user_word_progresss').where({
         user_id: user_id,
         word_id: wordInfo._id
       }).limit(1).get()
-      
+
       console.log('📤 [DEBUG] 全局查询用户单词收藏状态:', {
         user_id,
         word_id: wordInfo._id,
@@ -464,7 +464,7 @@ async function addWordToCollection(word, user_id, bookId, chapterId) {
     const now = getNowTimestamp()
 
     // 2. 直接创建或更新记录（使用set覆盖）
-    await db.collection('word_records').doc(recordId).set({
+    await db.collection('user_word_progresss').doc(recordId).set({
       data: {
         user_id: user_id,
         word_id: wordInfo._id,
@@ -511,7 +511,7 @@ async function removeWordFromCollection(wordId, user_id) {
     const recordId = `${user_id}_${wordId}`
 
     // 直接硬删除记录
-    await db.collection('word_records').doc(recordId).remove()
+    await db.collection('user_word_progresss').doc(recordId).remove()
 
     console.log('✅ [DEBUG] 单词从收藏删除成功:', wordId)
 
@@ -588,7 +588,7 @@ async function getSubtitleAnalysis(bookId, chapterId, subtitleIndex) {
     console.log('📤 [DEBUG] 查询字幕解析信息:', query)
 
     // 查询字幕解析数据
-    const analysisResult = await db.collection('subtitle_analysis')
+    const analysisResult = await db.collection('analysis')
       .where(query)
       .limit(1)
       .get()
