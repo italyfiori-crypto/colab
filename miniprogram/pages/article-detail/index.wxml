@@ -358,13 +358,9 @@
               <view class="colloquial-list">
                 <view wx:for="{{analysisData.colloquial_expression}}" wx:key="formal" class="colloquial-card">
                   <view class="expression-comparison">
-                    <view class="formal-expression">
-                      <text class="expression-text formal">{{item.formal}}</text>
-                    </view>
+                    <text class="expression-text formal">{{item.formal}}</text>
                     <view class="arrow">→</view>
-                    <view class="informal-expression">
-                      <text class="expression-text informal">{{item.informal}}</text>
-                    </view>
+                    <text class="expression-text informal">{{item.informal}}</text>
                   </view>
                   <view class="expression-explanation" wx:if="{{item.explanation}}">
                     {{item.explanation}}
