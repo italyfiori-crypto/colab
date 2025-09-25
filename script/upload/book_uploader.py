@@ -64,29 +64,45 @@ class BookUploader:
         return True
 
     def upload_chapter_files(self, book_dir: str, book_id: str, chapter_data: Dict) -> bool:
-        """上传章节音频和字幕文件"""
+        """上传章节音频、字幕和字幕解析文件"""
         chapter_id = chapter_data["chapter_id"]
         
         # 上传音频文件
-        audio_file_path = os.path.join(book_dir, chapter_data.get('local_audio_file', ''))
+        audio_file_path = chapter_data.get('local_audio_file')
         if chapter_data.get('local_audio_file', '') and os.path.exists(audio_file_path):
             audio_filename = os.path.basename(audio_file_path)
             cloud_audio_path = f"books/{book_id}/audio/{audio_filename}"
             audio_file_id = self.api.upload_file(audio_file_path, cloud_audio_path)
             if audio_file_id:
                 chapter_data["audio_url"] = audio_file_id
+        else:
+            self.logger.warning(f"章节音频文件不存在: {audio_file_path}")
 
         # 上传字幕文件
-        subtitle_file_path = os.path.join(book_dir, chapter_data.get('local_subtitle_file', ''))
+        subtitle_file_path = chapter_data.get('local_subtitle_file')
         if chapter_data.get('local_subtitle_file', '') and os.path.exists(subtitle_file_path):
             subtitle_filename = os.path.basename(subtitle_file_path)
             cloud_subtitle_path = f"books/{book_id}/subtitles/{subtitle_filename}"
             subtitle_file_id = self.api.upload_file(subtitle_file_path, cloud_subtitle_path)
             if subtitle_file_id:
                 chapter_data["subtitle_url"] = subtitle_file_id
+        else:
+            self.logger.warning(f"章节字幕文件不存在: {subtitle_file_path}")
+
+        # 上传字幕解析文件
+        analysis_file_path = chapter_data.get('local_analysis_file')
+        if analysis_file_path and os.path.exists(analysis_file_path):
+            analysis_filename = os.path.basename(analysis_file_path)
+            cloud_analysis_path = f"books/{book_id}/analysis/{analysis_filename}"
+            analysis_file_id = self.api.upload_file(analysis_file_path, cloud_analysis_path)
+            if analysis_file_id:
+                chapter_data["analysis_url"] = analysis_file_id
+        else:
+            self.logger.warning(f"章节分析文件不存在: {analysis_file_path}")
                 
         del chapter_data["local_audio_file"]
         del chapter_data["local_subtitle_file"]
+        del chapter_data["local_analysis_file"]
         return True
 
     def upload_chapter_if_needed(self, book_dir: str, book_id: str, chapter_data: Dict, existing_chapter: Dict, changed_fields: List[str]) -> bool:
@@ -99,7 +115,7 @@ class BookUploader:
             return self.api.add_database_records('chapters', [chapter_data])
         elif changed_fields:
             # 更新现有章节
-            if any(field in changed_fields for field in ['audio_md5', 'subtitle_md5', 'audio_url', 'subtitle_url']):
+            if any(field in changed_fields for field in ['audio_md5', 'subtitle_md5', 'analysis_md5', 'audio_url', 'subtitle_url', 'analysis_url']):
                 self.upload_chapter_files(book_dir, book_id, chapter_data)
             
             # 更新数据库记录

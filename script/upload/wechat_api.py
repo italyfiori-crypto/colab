@@ -34,6 +34,7 @@ class WeChatCloudAPI:
         self.database_query_url = "https://api.weixin.qq.com/tcb/databasequery"
         self.database_update_url = "https://api.weixin.qq.com/tcb/databaseupdate"
         self.database_delete_url = "https://api.weixin.qq.com/tcb/databasedelete"
+        self.cloud_function_url = "https://api.weixin.qq.com/tcb/invokecloudfunction"
         
         self.logger = logging.getLogger(__name__)
         
@@ -177,17 +178,14 @@ class WeChatCloudAPI:
             token = self.get_access_token()
             
             # 转换数据格式并处理特殊字符
-            cleaned_records = []
+            formatted_records = []
             for record in records:
-                if collection == 'vocabulary':
-                    cleaned_records.append(self.clean_vocabulary_data(record))
-                else:
-                    cleaned_records.append(record)
+                # 针对词汇数据进行字段级清理
+                cleaned_record = self.clean_vocabulary_data(record)
+                record_str = json.dumps(cleaned_record, ensure_ascii=False, separators=(',', ':'))
+                formatted_records.append(record_str)
             
-            # 将整个记录列表序列化为JSON数组
-            records_json_str = json.dumps(cleaned_records, ensure_ascii=False)
-            
-            query_str = f"db.collection('{collection}').add({{data: {records_json_str}}})"
+            query_str = f"db.collection('{collection}').add({{data: [{','.join(formatted_records)}]}})"
             
             data = {
                 "env": self.env_id,
@@ -400,3 +398,63 @@ class WeChatCloudAPI:
         except Exception as e:
             self.logger.error(f"删除云存储文件失败: {e}")
             return False
+
+    def invoke_cloud_function(self, function_name: str, function_params: Dict) -> Optional[Dict]:
+        """调用云函数"""
+        try:
+            token = self.get_access_token()
+            
+            # 按照微信官方API规范：env和name通过URL参数传递，参数直接作为请求体
+            url = f"{self.cloud_function_url}?access_token={token}&env={self.env_id}&name={function_name}"
+            
+            self.logger.info(f"调用云函数: {function_name}, 参数: {function_params}")
+            self.logger.info(f"请求URL: {url}")
+            
+            # 请求体直接是参数的JSON字符串
+            response = requests.post(
+                url,
+                data=json.dumps(function_params),
+                headers={'Content-Type': 'application/json'},
+                timeout=60  # 云函数可能需要更长时间处理
+            )
+            
+            result = response.json()
+            self.logger.info(f"云函数响应: {result}")
+            
+            if result.get('errcode') != 0:
+                self.logger.error(f"调用云函数失败: {result}")
+                return None
+            
+            # 解析云函数返回结果
+            resp_data = result.get('resp_data')
+            if resp_data:
+                try:
+                    return json.loads(resp_data)
+                except json.JSONDecodeError:
+                    self.logger.error(f"云函数返回数据JSON解析失败: {resp_data}")
+                    return None
+            
+            return result
+            
+        except Exception as e:
+            self.logger.error(f"调用云函数异常: {e}")
+            return None
+
+    def process_analysis_via_cloud_function(self, file_id: str, book_id: str, chapter_id: str) -> Dict:
+        """通过云函数处理字幕解析文件"""
+        params = {
+            'action': 'processAnalysisFile',
+            'fileId': file_id,
+            'bookId': book_id,
+            'chapterId': chapter_id
+        }
+        
+        self.logger.info(f"调用云函数处理字幕解析文件: {chapter_id}")
+        result = self.invoke_cloud_function('upload', params)
+        
+        if result and result.get('success'):
+            return result.get('stats', {})
+        else:
+            error_msg = result.get('error', '云函数调用失败') if result else '云函数调用返回空结果'
+            self.logger.error(f"云函数处理字幕解析失败: {error_msg}")
+            return {'processed': 0, 'added': 0, 'updated': 0, 'skipped': 0, 'failed': 1}

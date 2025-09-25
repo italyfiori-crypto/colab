@@ -93,16 +93,20 @@ class DataParser:
         """比较章节数据"""
         compare_fields = [
             'title', 'duration', 'is_active', 
-            'audio_md5', 'subtitle_md5', 'chapter_number'
+            'audio_md5', 'subtitle_md5', 'analysis_md5', 'chapter_number'
         ]
 
         needs_update, changed_fields = self.compare_data(new_data, existing_data, compare_fields)
-        if existing_data and existing_data.get('audio_url') == "":
+        
+        if existing_data and not existing_data.get('audio_url'):
             needs_update = True
             changed_fields.append('audio_url')
-        if existing_data and existing_data.get('subtitle_url') == "":
+        if existing_data and not existing_data.get('subtitle_url'):
             needs_update = True
             changed_fields.append('subtitle_url')
+        if existing_data and not existing_data.get('analysis_url'):
+            needs_update = True
+            changed_fields.append('analysis_url')
 
         return needs_update, changed_fields
 
@@ -134,6 +138,10 @@ class DataParser:
             audio_filename = os.path.basename(chapter_info.get('local_audio_file', ''))
             subchapter_name = os.path.splitext(audio_filename)[0]  # 去掉扩展名
             
+            # 计算字幕解析文件MD5
+            analysis_file_path = os.path.join(book_dir, chapter_info.get('local_analysis_file', ''))
+            analysis_md5 = self._calculate_file_md5(analysis_file_path)
+            
             chapter_data = {
                 '_id': f"{book_id}_{subchapter_name}",
                 'book_id': book_id,
@@ -146,8 +154,11 @@ class DataParser:
                 'audio_md5': audio_md5,
                 'subtitle_url': '',  # 稍后上传字幕后填充
                 'subtitle_md5': subtitle_md5,
+                'analysis_url': '',  # 稍后上传字幕解析文件后填充
+                'analysis_md5': analysis_md5,
                 'local_audio_file': audio_file_path,
                 'local_subtitle_file': subtitle_file_path,
+                'local_analysis_file': analysis_file_path,
                 'created_at': int(time.time() * 1000),
                 'updated_at': int(time.time() * 1000)
             }
