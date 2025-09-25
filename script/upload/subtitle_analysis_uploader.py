@@ -33,17 +33,28 @@ class SubtitleAnalysisUploader:
                     continue
                     
                 try:
-                    analysis_data = json.loads(line)
-                    
-                    # 添加book_id字段和时间戳
-                    analysis_data['book_id'] = book_id
-                    analysis_data['chapter_id'] = chapter_id
-                    analysis_data['created_at'] = int(time.time() * 1000)
-                    analysis_data['updated_at'] = int(time.time() * 1000)
-                    
-                    # 生成唯一ID：book_id-chapter_id-subtitle_index
-                    analysis_data['_id'] = f"{book_id}-{chapter_id}-{analysis_data['subtitle_index']}"
-                    
+                    analysis_data_local = json.loads(line)
+
+                    analysis_data = {
+                        '_id': f"{book_id}-{chapter_id}-{analysis_data_local.get('subtitle_index')}",
+                        'book_id': book_id,
+                        'chapter_id': chapter_id,
+                        'subtitle_index': analysis_data_local.get('subtitle_index'),
+                        
+                        'timestamp': analysis_data_local.get('timestamp'),
+                        'english_text': analysis_data_local.get('english_text', ''),
+                        'chinese_text': analysis_data_local.get('chinese_text', ''),
+
+                        'sentence_structure': analysis_data_local.get('sentence_structure', ''),
+                        'structure_explanation': analysis_data_local.get('structure_explanation', ''),
+                        'key_words': analysis_data_local.get('key_words', []),
+                        'fixed_phrases': analysis_data_local.get('fixed_phrases', []),
+                        'colloquial_expression': analysis_data_local.get('colloquial_expression', []),
+
+                        'created_at': int(time.time() * 1000),
+                        'updated_at': int(time.time() * 1000),
+                    }
+                                        
                     analysis_records.append(analysis_data)
                     
                 except json.JSONDecodeError as e:
@@ -139,7 +150,20 @@ class SubtitleAnalysisUploader:
                      'structure_explanation', 'key_words', 'fixed_phrases', 'colloquial_expression']
         
         for field in key_fields:
-            if new_record.get(field) != existing_record.get(field):
+            new_value = new_record.get(field)
+            existing_value = existing_record.get(field)
+
+            # 对于存储为JSON字符串的字段，需要先解析再比较
+            if field in ['key_words', 'fixed_phrases', 'colloquial_expression']:
+                try:
+                    new_value = json.loads(new_value) if isinstance(new_value, str) else new_value
+                    existing_value = json.loads(existing_value) if isinstance(existing_value, str) else existing_value
+                except json.JSONDecodeError:
+                    self.logger.warning(f"⚠️ JSON解析失败，字段: {field}, new_value: {new_value}, existing_value: {existing_value}")
+                    # 如果解析失败，则按原始值比较
+                    pass
+
+            if new_value != existing_value:
                 return True
         return False
     

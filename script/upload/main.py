@@ -140,7 +140,7 @@ def process_single_book(book_dir: str, book_id: str, content_types: set,
                 else:
                     print(f"🔄 更新书籍: {book_title} (变化: {', '.join(changed_fields)})")
                     
-                if not book_uploader.upload_book_if_needed(book_dir, book_data, existing_book, changed_fields):
+                if not book_uploader.upload_book_if_needed(book_data, existing_book, changed_fields):
                     print(f"❌ 书籍处理失败: {book_title}")
                     return stats
             else:

@@ -81,7 +81,13 @@ class DataParser:
             'total_chapters', 'total_duration', 'is_active', 
             'cover_md5', 'tags'
         ]
-        return self.compare_data(new_data, existing_data, compare_fields)
+        needs_update, changed_fields = self.compare_data(new_data, existing_data, compare_fields)
+
+        if existing_data and not existing_data.get('cover_url'):
+            needs_update = True
+            changed_fields.append('cover_url')
+
+        return needs_update, changed_fields
 
     def compare_chapter_data(self, new_data: Dict, existing_data: Dict) -> Tuple[bool, List[str]]:
         """比较章节数据"""
@@ -90,7 +96,15 @@ class DataParser:
             'audio_md5', 'subtitle_md5', 'chapter_number'
         ]
 
-        return self.compare_data(new_data, existing_data, compare_fields)
+        needs_update, changed_fields = self.compare_data(new_data, existing_data, compare_fields)
+        if existing_data and existing_data.get('audio_url') == "":
+            needs_update = True
+            changed_fields.append('audio_url')
+        if existing_data and existing_data.get('subtitle_url') == "":
+            needs_update = True
+            changed_fields.append('subtitle_url')
+
+        return needs_update, changed_fields
 
     def parse_book_data(self, book_dir: str, book_id: str) -> Tuple[Dict, List[Dict]]:
         """解析单本书的数据"""

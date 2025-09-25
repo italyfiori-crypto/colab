@@ -177,14 +177,17 @@ class WeChatCloudAPI:
             token = self.get_access_token()
             
             # 转换数据格式并处理特殊字符
-            formatted_records = []
+            cleaned_records = []
             for record in records:
-                # 针对词汇数据进行字段级清理
-                cleaned_record = self.clean_vocabulary_data(record)
-                record_str = json.dumps(cleaned_record, ensure_ascii=False, separators=(',', ':'))
-                formatted_records.append(record_str)
+                if collection == 'vocabulary':
+                    cleaned_records.append(self.clean_vocabulary_data(record))
+                else:
+                    cleaned_records.append(record)
             
-            query_str = f"db.collection('{collection}').add({{data: [{','.join(formatted_records)}]}})"
+            # 将整个记录列表序列化为JSON数组
+            records_json_str = json.dumps(cleaned_records, ensure_ascii=False)
+            
+            query_str = f"db.collection('{collection}').add({{data: {records_json_str}}})"
             
             data = {
                 "env": self.env_id,

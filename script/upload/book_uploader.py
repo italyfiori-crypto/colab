@@ -20,33 +20,34 @@ class BookUploader:
         self.parser = DataParser()
         self.logger = logging.getLogger(__name__)
         
-    def upload_book_cover(self, book_dir: str, book_id: str, book_data: Dict) -> str:
+    def upload_book_cover(self, book_id: str, book_data: Dict) -> str:
         """上传书籍封面"""
-        cover_file_path = os.path.join(book_dir, book_data.get('local_cover_file', ''))
-        if not book_data.get('local_cover_file', '') or not os.path.exists(cover_file_path):
+        cover_file_path = book_data.get('local_cover_file', '')
+        if not os.path.exists(cover_file_path):
             return ""
             
         cloud_path = f"books/{book_id}/cover.jpg"
         file_id = self.api.upload_file(cover_file_path, cloud_path)
+        print(f"upload_book_cover return field_id:{file_id}")
         
         if file_id:
             return file_id
         return ""
 
-    def upload_book_if_needed(self, book_dir: str, book_data: Dict, existing_book: Dict, changed_fields: List[str]) -> bool:
+    def upload_book_if_needed(self, book_data: Dict, existing_book: Dict, changed_fields: List[str]) -> bool:
         """根据需要上传或更新书籍"""
         book_id = book_data["_id"]
         
         if not existing_book:
             # 新书籍，上传封面
-            cover_file_id = self.upload_book_cover(book_dir, book_id, book_data)
+            cover_file_id = self.upload_book_cover(book_id, book_data)
             if cover_file_id:
                 book_data["cover_url"] = cover_file_id
             return self.api.add_database_records('books', [book_data])
         elif changed_fields:
             # 更新现有书籍
-            if 'cover_md5' in changed_fields:
-                cover_file_id = self.upload_book_cover(book_dir, book_id, book_data)
+            if 'cover_md5' in changed_fields or 'cover_url' in changed_fields:
+                cover_file_id = self.upload_book_cover(book_id, book_data)
                 if cover_file_id:
                     book_data["cover_url"] = cover_file_id
                 else:
@@ -98,7 +99,7 @@ class BookUploader:
             return self.api.add_database_records('chapters', [chapter_data])
         elif changed_fields:
             # 更新现有章节
-            if any(field in changed_fields for field in ['audio_md5', 'subtitle_md5']):
+            if any(field in changed_fields for field in ['audio_md5', 'subtitle_md5', 'audio_url', 'subtitle_url']):
                 self.upload_chapter_files(book_dir, book_id, chapter_data)
             
             # 更新数据库记录

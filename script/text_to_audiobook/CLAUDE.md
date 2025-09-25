@@ -89,7 +89,7 @@ output/<book_name>/
 ├── sentences/        # 句子文件
 ├── audio/           # 音频文件（暂未实现）
 ├── subtitles/       # 中英文字幕文件
-├── parsed_analysis/ # 字幕语言学解析JSON文件
+├── analysis/ # 字幕语言学解析JSON文件
 ├── compressed_audio/ # 压缩音频（暂未实现）
 ├── vocabulary/      # 词汇文件（暂未实现）
 └── meta.json        # 统计信息
