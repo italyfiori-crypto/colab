@@ -4,7 +4,8 @@ const settingsUtils = require('../../utils/settingsUtils.js');
 Page({
     data: {
         // 章节信息
-        chapterId: null,
+        bookChapterId: null,    // chapters表_id字段（URL传参）
+        chapterId: null,        // chapters表chapter_id字段（业务ID）
         bookId: null,
         chapterData: {},
         title: '',
@@ -58,16 +59,18 @@ Page({
     },
 
     async onLoad(options) {
-        const chapterId = options.chapterId;
         const bookId = options.bookId;
+        const chapterId = options.chapterId
+        const bookChapterId = bookId + "_" + chapterId
         const chapterTitle = options.chapterTitle ? decodeURIComponent(options.chapterTitle) : '';
 
         // 加载用户设置并初始化页面
         await this.loadUserSettings();
 
         this.setData({
-            chapterId,
             bookId,
+            chapterId,
+            bookChapterId,
             title: chapterTitle
         });
 
@@ -156,7 +159,7 @@ Page({
                 name: 'articleDetailData',
                 data: {
                     type: 'getChapterDetail',
-                    chapterId: this.data.chapterId
+                    bookChapterId: this.data.bookChapterId  // 传入chapters表_id
                 }
             });
 
@@ -165,9 +168,9 @@ Page({
             if (result.result.code === 0) {
                 const chapterData = result.result.data;
 
+                // 缓存bookChapterId和chapterId，避免后续重复查询
                 this.setData({
                     chapterData,
-                    title: chapterData.title,
                     duration: chapterData.duration,
                     loading: false
                 });
@@ -178,16 +181,7 @@ Page({
                 });
 
                 // 立即加载字幕数据
-                if (chapterData.subtitle_url) {
-                    this.loadSubtitlesFromCloud(chapterData.subtitle_url);
-                } else {
-                    // 如果没有字幕URL，提示用户
-                    wx.showToast({
-                        title: '该章节暂无字幕数据',
-                        icon: 'none',
-                        duration: 2000
-                    });
-                }
+                this.loadSubtitles();
 
                 // 音频URL存储，播放时再加载
                 this.audioUrl = chapterData.audio_url;
@@ -214,125 +208,62 @@ Page({
         }
     },
 
-    // 从云存储加载字幕数据
-    loadSubtitlesFromCloud(subtitleUrl) {
-        if (!subtitleUrl) {
-            console.error('字幕URL为空');
-            wx.showToast({
-                title: '字幕数据不存在',
-                icon: 'none',
-                duration: 2000
-            });
-            return;
-        }
 
-        console.log('开始从云存储加载字幕数据:', subtitleUrl);
+    // 加载字幕数据（通过云函数）
+    async loadSubtitles() {
+        console.log('开始通过云函数加载字幕数据');
 
         wx.showLoading({
             title: '加载字幕中...'
         });
 
-        // 从云存储下载SRT文件
-        wx.cloud.downloadFile({
-            fileID: subtitleUrl,
-            success: res => {
-                wx.hideLoading();
-                console.log('字幕文件下载成功:', res.tempFilePath);
-
-                // 解析SRT文件内容
-                this.parseSRTFile(res.tempFilePath);
-            },
-            fail: err => {
-                wx.hideLoading();
-                console.error('字幕文件下载失败:', err);
-                wx.showToast({
-                    title: '字幕加载失败',
-                    icon: 'none',
-                    duration: 2000
-                });
-            }
-        });
-    },
-
-    // 解析SRT文件
-    parseSRTFile(filePath) {
-        console.log('开始解析SRT文件:', filePath);
-
-        const fs = wx.getFileSystemManager();
-
         try {
-            // 读取文件内容
-            const fileContent = fs.readFileSync(filePath, 'utf8');
-            console.log('SRT文件内容读取成功');
+            // 调用云函数获取字幕数据
+            const result = await wx.cloud.callFunction({
+                name: 'articleDetailData',
+                data: {
+                    type: 'getSubtitles',
+                    bookId: this.data.bookId,
+                    bookChapterId: this.data.bookChapterId  // 字幕数据从chapters表获取，使用bookChapterId
+                }
+            });
 
-            // 解析SRT格式内容
-            const subtitles = this.parseSRTContent(fileContent);
+            wx.hideLoading();
 
-            if (subtitles && subtitles.length > 0) {
+            if (result.result.code === 0) {
+                const subtitles = result.result.data.map(subtitle => ({
+                    ...subtitle,
+                    englishWords: this.parseEnglishWords(subtitle.english || '')
+                }));
                 this.setData({ subtitles });
-                console.log('字幕解析完成:', subtitles.length, '条');
+                console.log('字幕数据加载成功:', subtitles.length, '条');
             } else {
-                this.setData({ subtitles: [] });
+                console.error('字幕数据加载失败:', result.result.message);
                 wx.showToast({
-                    title: '字幕文件格式错误',
+                    title: result.result.message || '字幕加载失败',
                     icon: 'none',
                     duration: 2000
                 });
             }
+
         } catch (error) {
-            console.error('SRT文件解析失败:', error);
-            this.setData({ subtitles: [] });
+            wx.hideLoading();
+            console.error('调用字幕云函数失败:', error);
             wx.showToast({
-                title: '字幕文件解析失败',
+                title: '网络异常，请重试',
                 icon: 'none',
                 duration: 2000
             });
         }
     },
 
-    // 解析SRT内容
-    parseSRTContent(content) {
-        if (!content || typeof content !== 'string') {
-            return [];
-        }
+    // 将秒转换为显示时间格式
+    formatSecondsToTime(seconds) {
+        if (seconds == null || seconds < 0) return '0:00';
 
-        console.log('解析SRT内容，长度:', content.length);
-
-        const subtitles = [];
-        const blocks = content.trim().split(/\n\s*\n/); // 按空行分割字幕块
-
-        for (let i = 0; i < blocks.length; i++) {
-            const block = blocks[i].trim();
-            if (!block) continue;
-
-            const lines = block.split('\n');
-            if (lines.length < 3) continue;
-
-            try {
-                const index = parseInt(lines[0]); // 字幕序号
-                const timeRange = lines[1]; // 时间范围
-                const english = lines[2] || ''; // 英文内容
-                const chinese = lines[3] || ''; // 中文内容（可选）
-
-                // 解析开始时间
-                const startTime = this.parseSRTTimeToSeconds(timeRange.split(' --> ')[0]);
-
-                if (startTime !== null) {
-                    subtitles.push({
-                        index,
-                        timeText: this.formatSecondsToTime(startTime),
-                        time: startTime,
-                        english: english.trim(),
-                        chinese: chinese.trim(),
-                        englishWords: this.parseEnglishWords(english.trim()) // 分解英文单词
-                    });
-                }
-            } catch (error) {
-                console.warn('解析字幕块失败:', block, error);
-            }
-        }
-
-        return subtitles;
+        const minutes = Math.floor(seconds / 60);
+        const secs = Math.floor(seconds % 60);
+        return `${minutes}:${secs.toString().padStart(2, '0')}`;
     },
 
     // 分解英文句子为可点击的单词和标点符号
@@ -366,34 +297,6 @@ Page({
         }
 
         return words;
-    },
-
-    // 将SRT时间格式转换为秒 (HH:MM:SS,mmm)
-    parseSRTTimeToSeconds(timeStr) {
-        if (!timeStr) return null;
-
-        try {
-            const parts = timeStr.split(':');
-            const hours = parseInt(parts[0]) || 0;
-            const minutes = parseInt(parts[1]) || 0;
-            const secondsParts = parts[2].split(',');
-            const seconds = parseInt(secondsParts[0]) || 0;
-            const milliseconds = parseInt(secondsParts[1]) || 0;
-
-            return hours * 3600 + minutes * 60 + seconds + milliseconds / 1000;
-        } catch (error) {
-            console.warn('时间格式解析失败:', timeStr, error);
-            return null;
-        }
-    },
-
-    // 将秒转换为显示时间格式
-    formatSecondsToTime(seconds) {
-        if (seconds == null || seconds < 0) return '0:00';
-
-        const minutes = Math.floor(seconds / 60);
-        const secs = Math.floor(seconds % 60);
-        return `${minutes}:${secs.toString().padStart(2, '0')}`;
     },
 
     // 创建音频上下文
@@ -713,7 +616,7 @@ Page({
                 data: {
                     type: 'getSubtitleAnalysis',
                     bookId: this.data.bookId,
-                    chapterId: this.data.chapterId,
+                    chapterId: this.data.chapterId,  // 使用缓存的业务chapterId
                     subtitleIndex: index + 1 // 数据库中的索引从1开始
                 }
             });
@@ -944,7 +847,7 @@ Page({
         this.setData({ isFavorited });
 
         // 保存收藏状态到本地存储
-        wx.setStorageSync(`favorite_${this.data.chapterId}`, isFavorited);
+        wx.setStorageSync(`favorite_${this.data.bookChapterId}`, isFavorited);
 
         wx.showToast({
             title: isFavorited ? '已收藏' : '已取消收藏',
@@ -955,7 +858,7 @@ Page({
 
     // 加载收藏状态
     loadFavoriteStatus() {
-        const isFavorited = wx.getStorageSync(`favorite_${this.data.chapterId}`) || false;
+        const isFavorited = wx.getStorageSync(`favorite_${this.data.bookChapterId}`) || false;
         this.setData({ isFavorited });
     },
 
@@ -990,6 +893,7 @@ Page({
                 name: 'articleDetailData',
                 data: {
                     type: 'getChapterVocabularies',
+                    bookId: this.data.bookId,
                     chapterId: this.data.chapterId,
                     page: page,
                     pageSize: 20
@@ -1012,7 +916,7 @@ Page({
                         ...word,
                         translation: word.translation ? word.translation.slice(0, 3) : []
                     };
-                    
+
                     // 根据用户设置选择音标和音频
                     const voiceType = this.data.userSettings.learning_settings?.voice_type || '美式发音';
                     if (voiceType === '美式发音') {
@@ -1022,7 +926,7 @@ Page({
                         baseWord.displayPhonetic = word.phonetic_uk || word.phonetic_us || '';
                         baseWord.audioUrl = word.audio_url_uk || word.audio_url_us || '';
                     }
-                    
+
                     return baseWord;
                 });
 
@@ -1121,7 +1025,7 @@ Page({
         // 使用预处理好的音频URL，或者作为备用方案根据用户设置确定
         let audioUrl = word.audioUrl;
         let audioType = null;
-        
+
         if (!audioUrl) {
             // 备用逻辑：如果没有预处理的audioUrl，重新根据用户设置选择
             const voiceType = this.data.userSettings.learning_settings?.voice_type || '美式发音';
@@ -1382,15 +1286,15 @@ Page({
                     // 如果音频对象已存在，先暂停再应用速度，然后恢复播放
                     if (this.audioContext) {
                         const wasPlaying = isPlaying;
-                        
+
                         // 暂停音频
                         if (wasPlaying) {
                             this.audioContext.pause();
                         }
-                        
+
                         // 应用新的播放速度
                         this.audioContext.playbackRate = newSpeed;
-                        
+
                         // 如果之前在播放，则重新播放
                         if (wasPlaying) {
                             this.audioContext.play();

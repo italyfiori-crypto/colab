@@ -11,7 +11,7 @@ function getNowTimestamp() {
 }
 
 exports.main = async (event, context) => {
-  const { type, chapterId, bookId, currentTime, completed, word, wordId, page, pageSize, subtitleIndex } = event
+  const { type, bookChapterId, chapterId, bookId, currentTime, completed, word, wordId, page, pageSize, subtitleIndex } = event
   const { OPENID } = cloud.getWXContext()
   const user_id = OPENID
 
@@ -20,7 +20,9 @@ exports.main = async (event, context) => {
   try {
     switch (type) {
       case 'getChapterDetail':
-        return await getChapterDetail(chapterId, user_id)
+        return await getChapterDetail(bookChapterId, user_id)
+      case 'getSubtitles':
+        return await getSubtitles(bookId, bookChapterId)
       case 'getChapterVocabularies':
         return await getChapterVocabularies(chapterId, user_id, page, pageSize)
       case 'saveChapterProgress':
@@ -51,11 +53,11 @@ exports.main = async (event, context) => {
 }
 
 // 获取章节详情
-async function getChapterDetail(chapterId, user_id) {
-  console.log('🔄 [DEBUG] 开始获取章节详情:', { chapterId, user_id })
+async function getChapterDetail(bookChapterId, user_id) {
+  console.log('🔄 [DEBUG] 开始获取章节详情:', { bookChapterId, user_id })
 
   // 参数验证
-  if (!chapterId) {
+  if (!bookChapterId) {
     console.log('❌ [DEBUG] 参数验证失败: 缺少章节ID')
     return {
       code: -1,
@@ -65,11 +67,11 @@ async function getChapterDetail(chapterId, user_id) {
 
   try {
     // 1. 获取章节基本信息
-    console.log('📤 [DEBUG] 查询章节基本信息:', chapterId)
-    const chapterResult = await db.collection('chapters').doc(chapterId).get()
+    console.log('📤 [DEBUG] 查询章节基本信息:', bookChapterId)
+    const chapterResult = await db.collection('chapters').doc(bookChapterId).get()
 
     if (!chapterResult.data) {
-      console.log('❌ [DEBUG] 章节不存在:', chapterId)
+      console.log('❌ [DEBUG] 章节不存在:', bookChapterId)
       return {
         code: -1,
         message: '章节不存在'
@@ -77,7 +79,7 @@ async function getChapterDetail(chapterId, user_id) {
     }
 
     if (!chapterResult.data.is_active) {
-      console.log('❌ [DEBUG] 章节已下架:', chapterId)
+      console.log('❌ [DEBUG] 章节已下架:', bookChapterId)
       return {
         code: -1,
         message: '章节已下架'
@@ -87,9 +89,10 @@ async function getChapterDetail(chapterId, user_id) {
     const chapter = chapterResult.data
     console.log('✅ [DEBUG] 获取到章节信息:', chapter)
 
-    // 直接返回章节数据，不需要额外查询
+    // 直接返回章节数据，chapter_id就是_id字段值
     const result = {
-      ...chapter
+      ...chapter,
+      chapter_id: chapter._id  // 显式添加chapter_id字段，值与_id相同
     }
 
     console.log('✅ [DEBUG] 章节详情数据处理完成')
@@ -564,6 +567,156 @@ async function batchQueryVocabularies(wordIds) {
   return vocabularies
 }
 
+// 获取字幕数据（从解析文件）
+async function getSubtitles(bookId, bookChapterId) {
+  console.log('🔄 [DEBUG] 开始获取字幕数据:', { bookId, bookChapterId })
+
+  // 参数验证
+  if (!bookId || !bookChapterId) {
+    console.log('❌ [DEBUG] 参数验证失败:', { bookId, bookChapterId })
+    return {
+      code: -1,
+      message: '缺少必要参数：书籍ID或章节ID'
+    }
+  }
+
+  try {
+    // 1. 获取章节信息，获取解析文件URL
+    const chapterResult = await db.collection('chapters').doc(bookChapterId).get()
+
+    if (!chapterResult.data) {
+      console.log('❌ [DEBUG] 章节不存在:', bookChapterId)
+      return {
+        code: -1,
+        message: '章节不存在'
+      }
+    }
+
+    const chapter = chapterResult.data
+    const analysisUrl = chapter.analysis_url
+
+    if (!analysisUrl) {
+      console.log('❌ [DEBUG] 章节没有解析文件:', bookChapterId)
+      return {
+        code: -1,
+        message: '该章节暂无字幕解析文件'
+      }
+    }
+
+    console.log('📤 [DEBUG] 开始下载解析文件:', analysisUrl)
+
+    // 2. 从云存储下载解析文件
+    const downloadResult = await cloud.downloadFile({
+      fileID: analysisUrl
+    })
+
+    const fileBuffer = downloadResult.fileContent
+    const fileContent = fileBuffer.toString('utf-8')
+    
+    console.log('📥 [DEBUG] 解析文件下载成功，开始解析内容')
+
+    // 3. 解析JSON内容，提取字幕数据
+    const subtitles = []
+    const lines = fileContent.split('\n')
+
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i].trim()
+      if (!line) continue
+
+      try {
+        const analysisData = JSON.parse(line)
+        
+        // 提取字幕时间和文本信息
+        const timeInSeconds = parseSRTTimestamp(analysisData.timestamp)
+        const subtitle = {
+          index: analysisData.subtitle_index || (i + 1),
+          time: timeInSeconds,
+          timeText: formatSecondsToTime(timeInSeconds),
+          english: analysisData.english_text || '',
+          chinese: analysisData.chinese_text || '',
+          // words解析移至前端处理
+        }
+        
+        console.log('📝 [DEBUG] 字幕项解析完成:', {
+          索引: subtitle.index,
+          原始时间戳: analysisData.timestamp,
+          解析时间: timeInSeconds,
+          格式化时间: subtitle.timeText,
+          英文长度: subtitle.english.length,
+          中文长度: subtitle.chinese.length
+        })
+        
+        subtitles.push(subtitle)
+      } catch (parseError) {
+        console.warn(`⚠️ [DEBUG] 跳过无效JSON行 ${i + 1}:`, parseError.message)
+        continue
+      }
+    }
+
+    // 按时间戳排序
+    subtitles.sort((a, b) => a.time - b.time)
+
+    console.log('✅ [DEBUG] 字幕数据解析完成:', subtitles.length, '条字幕')
+
+    return {
+      code: 0,
+      data: subtitles
+    }
+
+  } catch (error) {
+    console.error('❌ [DEBUG] 获取字幕数据失败:', error)
+    return {
+      code: -1,
+      message: '获取字幕数据失败: ' + error.message
+    }
+  }
+}
+
+// 将秒转换为显示时间格式
+function formatSecondsToTime(seconds) {
+  if (seconds == null || seconds < 0) return '0:00'
+  
+  const minutes = Math.floor(seconds / 60)
+  const secs = Math.floor(seconds % 60)
+  return `${minutes}:${secs.toString().padStart(2, '0')}`
+}
+
+// 解析SRT时间戳格式（如："00:00:00,000 --> 00:00:06,250"）
+function parseSRTTimestamp(timestamp) {
+  console.log('🕒 [DEBUG] 解析SRT时间戳:', timestamp)
+  
+  if (!timestamp || typeof timestamp !== 'string') {
+    console.log('⚠️ [DEBUG] 时间戳格式无效:', timestamp)
+    return 0
+  }
+  
+  // 提取起始时间（箭头前的部分）
+  const startTime = timestamp.split(' --> ')[0]
+  if (!startTime) {
+    console.log('⚠️ [DEBUG] 无法提取起始时间:', timestamp)
+    return 0
+  }
+  
+  // 解析时间格式: HH:MM:SS,mmm
+  const timeMatch = startTime.match(/(\d{2}):(\d{2}):(\d{2}),(\d{3})/)
+  if (!timeMatch) {
+    console.log('⚠️ [DEBUG] 时间格式不匹配:', startTime)
+    return 0
+  }
+  
+  const [, hours, minutes, seconds, milliseconds] = timeMatch
+  const totalSeconds = parseInt(hours) * 3600 + parseInt(minutes) * 60 + parseInt(seconds) + parseInt(milliseconds) / 1000
+  
+  console.log('✅ [DEBUG] 时间戳解析成功:', { 
+    原始: timestamp, 
+    提取: startTime, 
+    解析结果: totalSeconds 
+  })
+  
+  return totalSeconds
+}
+
+
 // 获取字幕解析信息
 async function getSubtitleAnalysis(bookId, chapterId, subtitleIndex) {
   console.log('🔄 [DEBUG] 开始获取字幕解析信息:', { bookId, chapterId, subtitleIndex })
@@ -582,10 +735,16 @@ async function getSubtitleAnalysis(bookId, chapterId, subtitleIndex) {
     const query = {
       book_id: bookId,
       chapter_id: chapterId,
-      subtitle_index: parseInt(subtitleIndex)
+      subtitle_index: String(subtitleIndex)
     }
 
-    console.log('📤 [DEBUG] 查询字幕解析信息:', query)
+    console.log('📤 [DEBUG] 查询字幕解析信息:', {
+      查询条件: query,
+      bookId_类型: typeof bookId,
+      chapterId_类型: typeof chapterId,
+      subtitleIndex_类型: typeof subtitleIndex,
+      转换后_subtitle_index: query.subtitle_index
+    })
 
     // 查询字幕解析数据
     const analysisResult = await db.collection('analysis')
@@ -593,10 +752,47 @@ async function getSubtitleAnalysis(bookId, chapterId, subtitleIndex) {
       .limit(1)
       .get()
 
-    console.log('📥 [DEBUG] 查询结果:', analysisResult.data.length)
+    console.log('📥 [DEBUG] 查询结果详情:', {
+      结果数量: analysisResult.data.length,
+      总数据条数: analysisResult.data.length > 0 ? 1 : 0,
+      第一条数据: analysisResult.data.length > 0 ? {
+        _id: analysisResult.data[0]._id,
+        book_id: analysisResult.data[0].book_id,
+        chapter_id: analysisResult.data[0].chapter_id,
+        subtitle_index: analysisResult.data[0].subtitle_index
+      } : null
+    })
 
     if (!analysisResult.data || analysisResult.data.length === 0) {
-      console.log('❌ [DEBUG] 未找到字幕解析信息:', query)
+      console.log('❌ [DEBUG] 未找到字幕解析信息:', {
+        查询条件: query,
+        查询结果: analysisResult,
+        建议检查: [
+          '数据库中是否存在该数据',
+          'book_id和chapter_id是否匹配',
+          'subtitle_index类型是否为字符串'
+        ]
+      })
+      
+      // 进一步检查：查询该章节的所有analysis数据
+      try {
+        const chapterAnalysisResult = await db.collection('analysis')
+          .where({
+            book_id: bookId,
+            chapter_id: chapterId
+          })
+          .limit(5)
+          .get()
+        
+        console.log('🔍 [DEBUG] 该章节存在的analysis数据示例:', chapterAnalysisResult.data.map(item => ({
+          _id: item._id,
+          subtitle_index: item.subtitle_index,
+          subtitle_index_类型: typeof item.subtitle_index
+        })))
+      } catch (checkError) {
+        console.log('⚠️ [DEBUG] 检查章节数据时出错:', checkError.message)
+      }
+      
       return {
         code: -1,
         message: '未找到该字幕的解析信息'
@@ -604,7 +800,14 @@ async function getSubtitleAnalysis(bookId, chapterId, subtitleIndex) {
     }
 
     const analysisData = analysisResult.data[0]
-    console.log('✅ [DEBUG] 获取字幕解析信息成功')
+    console.log('✅ [DEBUG] 获取字幕解析信息成功:', {
+      _id: analysisData._id,
+      字幕索引: analysisData.subtitle_index,
+      英文文本长度: analysisData.english_text?.length || 0,
+      中文文本长度: analysisData.chinese_text?.length || 0,
+      关键词数量: analysisData.key_words?.length || 0,
+      句子结构: analysisData.sentence_structure ? '已分析' : '未分析'
+    })
 
     return {
       code: 0,
@@ -619,3 +822,4 @@ async function getSubtitleAnalysis(bookId, chapterId, subtitleIndex) {
     }
   }
 }
+

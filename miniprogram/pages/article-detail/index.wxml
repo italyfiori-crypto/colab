@@ -256,97 +256,120 @@
       
       <!-- 弹窗头部 -->
       <view class="ai-analysis-header">
-        <text class="ai-analysis-title">AI 语言解析</text>
+        <view class="header-left">
+          <text class="ai-analysis-title">智能解析</text>
+        </view>
         <view class="close-btn" bindtap="onCloseAiAnalysis">
-          ✕
+          <text class="close-icon">✕</text>
         </view>
       </view>
       
       <!-- 解析内容 -->
       <scroll-view class="ai-analysis-content" scroll-y="{{true}}">
-        <view wx:if="{{analysisLoading}}" class="loading-container">
-          <view class="loading-spinner"></view>
-          <text class="loading-text">AI正在解析中...</text>
+        <!-- 加载状态 -->
+        <view wx:if="{{analysisLoading}}" class="status-container loading-container">
+          <view class="status-icon">
+            <view class="loading-spinner"></view>
+          </view>
+          <text class="status-text">AI正在分析语句...</text>
         </view>
         
-        <view wx:elif="{{analysisError}}" class="error-container">
-          <text class="error-text">{{analysisError}}</text>
-          <view class="retry-btn" bindtap="onRetryAnalysis">重新获取</view>
+        <!-- 错误状态 -->
+        <view wx:elif="{{analysisError}}" class="status-container error-container">
+          <view class="status-icon">❌</view>
+          <text class="status-text">{{analysisError}}</text>
+          <view class="retry-btn" bindtap="onRetryAnalysis">
+            <text>重新获取</text>
+          </view>
         </view>
         
-        <view wx:else class="analysis-sections">
-          <!-- 原文和翻译 -->
-          <view class="analysis-section">
-            <view class="section-header">
-              <text class="section-title">原文翻译</text>
+        <!-- 解析结果 -->
+        <view wx:else class="analysis-content-wrapper">
+          <!-- 原文翻译 -->
+          <view class="analysis-card">
+            <view class="card-header">
+              <text class="card-title">原文翻译</text>
             </view>
-            <view class="original-text">{{analysisData.english_text}}</view>
-            <view class="translation-text">{{analysisData.translation}}</view>
+            <view class="card-content">
+              <view class="text-pair">
+                <view class="original-text">{{analysisData.english_text}}</view>
+                <view class="translation-text">{{analysisData.chinese_text}}</view>
+              </view>
+            </view>
           </view>
           
           <!-- 句子结构 -->
-          <view class="analysis-section" wx:if="{{analysisData.sentence_structure}}">
-            <view class="section-header">
-              <text class="section-title">句子结构</text>
+          <view class="analysis-card" wx:if="{{analysisData.sentence_structure}}">
+            <view class="card-header">
+              <text class="card-title">句子结构</text>
             </view>
-            <view class="structure-text">{{analysisData.sentence_structure}}</view>
+            <view class="card-content">
+              <view class="structure-text">{{analysisData.sentence_structure}}</view>
+              <view class="structure-explanation" wx:if="{{analysisData.structure_explanation}}">
+                {{analysisData.structure_explanation}}
+              </view>
+            </view>
           </view>
           
           <!-- 重点单词 -->
-          <view class="analysis-section" wx:if="{{analysisData.key_words && analysisData.key_words.length > 0}}">
-            <view class="section-header">
-              <text class="section-title">重点单词</text>
+          <view class="analysis-card" wx:if="{{analysisData.key_words && analysisData.key_words.length > 0}}">
+            <view class="card-header">
+              <text class="card-title">重点单词</text>
+              <view class="count-badge">{{analysisData.key_words.length}}</view>
             </view>
-            <view class="key-words-list">
-              <view wx:for="{{analysisData.key_words}}" wx:key="word" class="key-word-item">
-                <view class="word-info">
-                  <text class="word">{{item.word}}</text>
-                  <text class="pos">{{item.pos}}</text>
-                  <text class="pronunciation">{{item.pronunciation}}</text>
+            <view class="card-content">
+              <view class="key-words-grid">
+                <view wx:for="{{analysisData.key_words}}" wx:key="word" class="key-word-card">
+                  <view class="word-info-inline">
+                    <text class="word-text">{{item.word}}</text>
+                    <text class="word-pos">{{item.pos}}</text>
+                    <text class="word-meaning">{{item.meaning}}</text>
+                  </view>
                 </view>
-                <view class="word-meaning">{{item.meaning}}</view>
               </view>
             </view>
           </view>
           
           <!-- 固定短语 -->
-          <view class="analysis-section" wx:if="{{analysisData.fixed_phrases && analysisData.fixed_phrases.length > 0}}">
-            <view class="section-header">
-              <text class="section-title">固定短语</text>
+          <view class="analysis-card" wx:if="{{analysisData.fixed_phrases && analysisData.fixed_phrases.length > 0}}">
+            <view class="card-header">
+              <text class="card-title">固定短语</text>
+              <view class="count-badge">{{analysisData.fixed_phrases.length}}</view>
             </view>
-            <view class="phrases-list">
-              <view wx:for="{{analysisData.fixed_phrases}}" wx:key="phrase" class="phrase-item">
-                <text class="phrase">{{item.phrase}}</text>
-                <text class="phrase-meaning">{{item.meaning}}</text>
-              </view>
-            </view>
-          </view>
-          
-          <!-- 核心语法 -->
-          <view class="analysis-section" wx:if="{{analysisData.core_grammar && analysisData.core_grammar.length > 0}}">
-            <view class="section-header">
-              <text class="section-title">核心语法</text>
-            </view>
-            <view class="grammar-list">
-              <view wx:for="{{analysisData.core_grammar}}" wx:key="point" class="grammar-item">
-                <view class="grammar-point">{{item.point}}</view>
-                <view class="grammar-explanation">{{item.explanation}}</view>
+            <view class="card-content">
+              <view class="phrases-list">
+                <view wx:for="{{analysisData.fixed_phrases}}" wx:key="phrase" class="phrase-card">
+                  <view class="phrase-info-inline">
+                    <text class="phrase-text">{{item.phrase}}</text>
+                    <text class="phrase-meaning">{{item.meaning}}</text>
+                  </view>
+                </view>
               </view>
             </view>
           </view>
           
           <!-- 口语表达 -->
-          <view class="analysis-section" wx:if="{{analysisData.colloquial_expression && analysisData.colloquial_expression.length > 0}}">
-            <view class="section-header">
-              <text class="section-title">口语表达</text>
+          <view class="analysis-card" wx:if="{{analysisData.colloquial_expression && analysisData.colloquial_expression.length > 0}}">
+            <view class="card-header">
+              <text class="card-title">口语表达</text>
+              <view class="count-badge">{{analysisData.colloquial_expression.length}}</view>
             </view>
-            <view class="colloquial-list">
-              <view wx:for="{{analysisData.colloquial_expression}}" wx:key="formal" class="colloquial-item">
-                <view class="expression-pair">
-                  <view class="formal">正式：{{item.formal}}</view>
-                  <view class="informal">口语：{{item.informal}}</view>
+            <view class="card-content">
+              <view class="colloquial-list">
+                <view wx:for="{{analysisData.colloquial_expression}}" wx:key="formal" class="colloquial-card">
+                  <view class="expression-comparison">
+                    <view class="formal-expression">
+                      <text class="expression-text formal">{{item.formal}}</text>
+                    </view>
+                    <view class="arrow">→</view>
+                    <view class="informal-expression">
+                      <text class="expression-text informal">{{item.informal}}</text>
+                    </view>
+                  </view>
+                  <view class="expression-explanation" wx:if="{{item.explanation}}">
+                    {{item.explanation}}
+                  </view>
                 </view>
-                <view class="expression-explanation">{{item.explanation}}</view>
               </view>
             </view>
           </view>

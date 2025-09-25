@@ -47,7 +47,7 @@ Page({
       // 调用云函数获取数据
       const result = await wx.cloud.callFunction({
         name: 'bookDetailData',
-        data: { 
+        data: {
           bookId,
           page: requestPage,
           pageSize: pageSize
@@ -70,7 +70,7 @@ Page({
           this.setData({
             bookInfo: convertedBookInfo,
             chapters: convertedChapters,
-            allChapters: convertedChapters, 
+            allChapters: convertedChapters,
             filterOptions,
             hasMoreChapters,
             currentPage: 1,
@@ -80,7 +80,7 @@ Page({
           // 分页加载
           const existingChapters = this.data.chapters;
           const allChapters = [...this.data.allChapters, ...convertedChapters];
-          
+
           this.setData({
             chapters: [...existingChapters, ...convertedChapters],
             allChapters: allChapters,
@@ -96,9 +96,9 @@ Page({
           icon: 'none',
           duration: 2000
         });
-        this.setData({ 
+        this.setData({
           loading: isFirstLoad ? false : this.data.loading,
-          loadingMore: false 
+          loadingMore: false
         });
       }
 
@@ -112,9 +112,9 @@ Page({
         icon: 'none',
         duration: 2000
       });
-      this.setData({ 
+      this.setData({
         loading: isFirstLoad ? false : this.data.loading,
-        loadingMore: false 
+        loadingMore: false
       });
     }
   },
@@ -134,7 +134,7 @@ Page({
 
     // 跳转到learning页面
     wx.navigateTo({
-      url: `/pages/article-detail/index?chapterId=${chapter._id}&bookId=${this.data.bookInfo._id}&chapterTitle=${encodeURIComponent(chapter.title)}`
+      url: `/pages/article-detail/index?chapterId=${chapter.chapter_id}&bookId=${this.data.bookInfo._id}&chapterTitle=${encodeURIComponent(chapter.title)}`
     });
   },
 
@@ -183,7 +183,7 @@ Page({
     console.log('📄 [DEBUG] 滚动到底部，加载更多章节');
     const nextPage = this.data.currentPage + 1;
     this.setData({ currentPage: nextPage });
-    
+
     await this.loadBookDetail(bookInfo._id, false);
   },
 
