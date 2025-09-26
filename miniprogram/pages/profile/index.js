@@ -282,9 +282,6 @@ Page({
           'userInfo.avatarUrl': uploadResult.avatarUrl
         });
 
-        // 保存到云端
-        await this.saveCurrentSettings();
-
         wx.showToast({
           title: '头像更新成功',
           icon: 'success'

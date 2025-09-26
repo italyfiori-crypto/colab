@@ -92,8 +92,6 @@ exports.main = async (event, context) => {
         return await getUserInfo(userId)
       case 'updateUserInfo':
         return await updateUserInfo(userId, params)
-      case 'uploadAvatar':
-        return await uploadAvatar(userId, params)
       case 'updateAvatar':
         return await updateAvatar(userId, params)
       default:
@@ -300,52 +298,6 @@ async function updateUserInfo(userId, { userInfo }) {
     return {
       success: false,
       message: error.message
-    }
-  }
-}
-
-/**
- * 上传头像到云存储
- */
-async function uploadAvatar(userId, { fileContent, fileName }) {
-  console.log('📷 [DEBUG] 开始上传头像:', { userId, fileName })
-
-  try {
-    // 生成云存储路径
-    const cloudPath = `user-avatars/${userId}/${Date.now()}_${fileName || 'avatar.jpg'}`
-
-    // 上传到云存储
-    const uploadResult = await cloud.uploadFile({
-      cloudPath: cloudPath,
-      fileContent: Buffer.from(fileContent, 'base64')
-    })
-
-    console.log('📤 [DEBUG] 头像上传成功:', uploadResult.fileID)
-
-    // 获取临时访问链接
-    const tempUrl = await getSingleTempFileURL(uploadResult.fileID)
-    console.log('🔗 [DEBUG] 获取头像临时链接:', tempUrl)
-
-    // 更新用户表中的头像URL
-    await db.collection('users').doc(userId).update({
-      data: {
-        avatar_url: uploadResult.fileID, // 保存fileID用于数据库
-        updated_at: Date.now()
-      }
-    })
-
-    console.log('✅ [DEBUG] 用户头像更新成功')
-    return {
-      success: true,
-      avatarUrl: tempUrl || uploadResult.fileID, // 返回临时链接用于显示
-      fileID: uploadResult.fileID, // 也返回原始fileID
-      message: '头像上传成功'
-    }
-  } catch (error) {
-    console.error('❌ [DEBUG] 头像上传失败:', error)
-    return {
-      success: false,
-      message: '头像上传失败: ' + error.message
     }
   }
 }
