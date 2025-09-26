@@ -171,10 +171,6 @@ Page({
     // 加载学习统计数据
     console.log('📅 [DEBUG] 生成的初始日历数据:', calendarDays);
     await this.loadCalendarStats(year, month, calendarDays);
-
-    console.log('📅 [DEBUG] loadCalendarStats执行后的日历数据:', calendarDays);
-    // 移除重复的setData，因为loadCalendarStats内部已经正确设置了数据
-    console.log('💾 [DEBUG] generateCalendar完成，当前页面数据:', this.data.monthInfo.calendarDays);
   },
 
   // 格式化日期为YYYY-MM-DD
@@ -234,21 +230,17 @@ Page({
 
         // 更新日历天数的强度等级
         if (calendarDays && calendarDays.length > 0) {
-          console.log('🔄 [DEBUG] 开始更新日历数据，原始calendarDays数量:', calendarDays.length);
           const updatedDays = calendarDays.map(day => {
             if (day.fullDate && dateToIntensityMap[day.fullDate]) {
               const updatedDay = { ...day, intensityLevel: dateToIntensityMap[day.fullDate], hasStudy: true };
-              console.log(`🔄 [DEBUG] 更新日期 ${day.fullDate}: intensity=${dateToIntensityMap[day.fullDate]}`);
               return updatedDay;
             }
             return day;
           });
 
-          console.log('🔄 [DEBUG] 更新完成的日历数据:', updatedDays);
           this.setData({
             'monthInfo.calendarDays': updatedDays
           });
-          console.log('💾 [DEBUG] setData后的页面数据:', this.data.monthInfo.calendarDays);
         }
       }
     } catch (error) {
@@ -276,7 +268,7 @@ Page({
 
     // 取最大值
     const intensityLevel = Math.max(learnIntensity, reviewIntensity);
-    
+
     console.log(`🎯 [DEBUG] calculateIntensityLevel: learned=${learnedCount}(${learnIntensity}), reviewed=${reviewedCount}(${reviewIntensity}) -> intensity=${intensityLevel}`);
     return intensityLevel;
   },
