@@ -470,23 +470,19 @@ async function updateWordRecord(userId, { word_id, actionType }) {
       await updateDailyStatsSync(userId, todayString, 'review')
 
       console.log('✅ [DEBUG] 复习单词成功 - 数据库更新完成')
-    } else if (actionType === 'remember') {
+    } else if (actionType === 'remember' || actionType == 'forgot') {
       const record = existingRecord.data
       const overdueDays = calculateOverdueDays(record.next_review_date)
-      const newLevel = handleOverdueWordLevel(record.level, 'remember', overdueDays)
+      const newLevel = handleOverdueWordLevel(record.level, actionType, overdueDays)
       const { next_review_date } = calcNextReviewDate(newLevel)
 
       await db.collection('user_word_progress').doc(recordId).update({
         data: {
           level: newLevel,
           next_review_date: next_review_date,
-          actual_review_dates: db.command.push(todayString),
           updated_at: nowTimestamp
         }
       })
-
-      // 同步更新每日学习统计
-      await updateDailyStatsSync(userId, todayString, 'review')
     } else if (actionType === 'reset') {
       // 重置为第一级
       const { level, next_review_date } = calcNextReviewDate(null)
