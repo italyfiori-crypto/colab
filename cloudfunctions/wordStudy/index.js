@@ -111,8 +111,6 @@ function handleOverdueWordLevel(originalLevel, action, overdueDays) {
       } else {
         return Math.max(1, originalLevel - 1) // 降1级
       }
-    case 'vague': // 模糊
-      return Math.max(1, originalLevel - 1) // 降1级
     case 'forgot': // 忘记了
       return 1 // 重置为第一级
     default:
@@ -489,25 +487,6 @@ async function updateWordRecord(userId, { word_id, actionType }) {
 
       // 同步更新每日学习统计
       await updateDailyStatsSync(userId, todayString, 'review')
-    } else if (actionType === 'vague') {
-      const record = existingRecord.data
-      const overdueDays = calculateOverdueDays(record.next_review_date)
-      const newLevel = handleOverdueWordLevel(record.level, 'vague', overdueDays)
-
-      // vague情况下使用更短的复习间隔，不提升等级，使用当前等级的复习间隔
-      const nextReviewDateString = addDaysToToday(REVIEW_INTERVALS[Math.max(0, newLevel - 1)])
-
-      await db.collection('user_word_progress').doc(recordId).update({
-        data: {
-          level: newLevel,
-          next_review_date: nextReviewDateString,
-          actual_review_dates: db.command.push(todayString),
-          updated_at: nowTimestamp
-        }
-      })
-
-      // 同步更新每日学习统计
-      await updateDailyStatsSync(userId, todayString, 'review')
     } else if (actionType === 'reset') {
       // 重置为第一级
       const { level, next_review_date } = calcNextReviewDate(null)
@@ -615,8 +594,10 @@ async function getWordsByDate(userId, { date, type }) {
           id: record._id,
           word_id: record.word_id,  // 添加word_id字段
           word: vocab.word,
-          phonetic: vocab.phonetic_us || vocab.phonetic_uk || vocab.phonetic,
-          audioUrl: vocab.audio_url_us || vocab.audio_url || vocab.audio_url_uk,
+          phonetic_uk: vocab.phonetic_uk,
+          phonetic_us: vocab.phonetic_us,
+          audio_url_uk: vocab.audio_url_uk,
+          audio_url_us: vocab.audio_url_us,
           translations: vocab.translation.slice(0, 3).map(t => ({
             partOfSpeech: t.type,
             meaning: t.meaning

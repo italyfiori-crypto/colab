@@ -159,9 +159,66 @@ Component({
     },
 
     // 处理逾期单词
-    onHandleOverdue(e) {
+    async onHandleOverdue(e) {
       const { index, action } = e.currentTarget.dataset;
-      this.triggerEvent('overdueHandle', { index, action });
+      
+      // 如果是删除操作，直接调用articleDetailData云函数
+      if (action === 'delete') {
+        const word = this.data.words[index];
+        if (!word) {
+          console.error('❌ 单词不存在:', index);
+          return;
+        }
+        
+        try {
+          console.log('🗑️ [DEBUG] 开始删除单词:', word.word);
+          
+          // 显示确认对话框
+          wx.showModal({
+            title: '确认删除',
+            content: `确定要删除单词 "${word.word}" 吗？此操作不可恢复。`,
+            success: async (res) => {
+              if (res.confirm) {
+                // 调用articleDetailData云函数删除单词
+                const result = await wx.cloud.callFunction({
+                  name: 'articleDetailData',
+                  data: {
+                    type: 'removeWordFromCollection',
+                    word: word.word,
+                    user_id: wx.getStorageSync('userId') || 'default_user'
+                  }
+                });
+                
+                if (result.result.code === 0) {
+                  console.log('✅ [DEBUG] 单词删除成功:', word.word);
+                  wx.showToast({
+                    title: '删除成功',
+                    icon: 'success'
+                  });
+                  
+                  // 通知父组件移除单词
+                  this.triggerEvent('overdueHandle', { index, action: 'delete' });
+                } else {
+                  console.error('❌ [DEBUG] 单词删除失败:', result.result.message);
+                  wx.showToast({
+                    title: '删除失败',
+                    icon: 'none'
+                  });
+                }
+              }
+            }
+          });
+        } catch (error) {
+          console.error('❌ [DEBUG] 删除单词出错:', error);
+          wx.showToast({
+            title: '删除失败',
+            icon: 'none'
+          });
+        }
+      } else {
+        // 其他操作（还记得、忘记了）继续走原有逻辑
+        this.triggerEvent('overdueHandle', { index, action });
+      }
     },
 
     // 收藏按钮点击事件

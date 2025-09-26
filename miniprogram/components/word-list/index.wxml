@@ -75,11 +75,11 @@
           <view class="overdue-btn remember-btn" bindtap="onHandleOverdue" data-index="{{index}}" data-action="remember">
             还记得
           </view>
-          <view class="overdue-btn vague-btn" bindtap="onHandleOverdue" data-index="{{index}}" data-action="vague">
-            模糊
-          </view>
           <view class="overdue-btn forgot-btn" bindtap="onHandleOverdue" data-index="{{index}}" data-action="forgot">
             忘记了
+          </view>
+          <view class="overdue-btn delete-btn" bindtap="onHandleOverdue" data-index="{{index}}" data-action="delete">
+            删除
           </view>
         </view>
       </view>

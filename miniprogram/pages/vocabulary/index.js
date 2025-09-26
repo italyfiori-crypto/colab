@@ -404,6 +404,13 @@ Page({
                 索引: index
             });
 
+            // 如果是删除操作，直接移除单词（组件中已处理删除逻辑）
+            if (action === 'delete') {
+                this.handleOverdueSuccess(index, 'delete');
+                return;
+            }
+
+            // 其他操作继续走云函数逻辑
             const result = await this.updateWordRecord(word.word_id, action);
 
             if (result.success) {
@@ -429,13 +436,17 @@ Page({
         const actionText = {
             remember: '还记得',
             vague: '有点模糊',
-            forgot: '忘记了'
+            forgot: '忘记了',
+            delete: '已删除'
         };
 
-        wx.showToast({
-            title: `已标记为${actionText[action]}`,
-            icon: 'success'
-        });
+        // 删除操作不显示toast，组件中已经处理
+        if (action !== 'delete') {
+            wx.showToast({
+                title: `已标记为${actionText[action]}`,
+                icon: 'success'
+            });
+        }
 
         // 延迟移除单词，让动画完成
         setTimeout(() => {
