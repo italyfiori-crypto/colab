@@ -10,7 +10,7 @@ const CACHE_DURATION = 24 * 60 * 60 * 1000; // 24小时缓存时间
  * @param {boolean} forceRefresh - 是否强制从云端刷新
  * @returns {Promise<Object>} 完整的用户信息对象
  */
-function getCompleteUserInfo(forceRefresh = false) {
+async function getCompleteUserInfo(forceRefresh = false) {
   console.log('🔍 [DEBUG] 开始获取完整用户信息');
 
   // 1. 检查本地缓存（除非强制刷新）
@@ -257,9 +257,62 @@ function chooseAvatar() {
       count: 1,
       sizeType: ['compressed'],
       sourceType: ['album', 'camera'],
-      success: (res) => {
-        const tempFilePath = res.tempFilePaths[0];
-        resolve(tempFilePath);
+      success: async (res) => {
+        const originalPath = res.tempFilePaths[0];
+        console.log('📸 [DEBUG] 选择图片成功:', originalPath);
+
+        try {
+          // 获取文件信息
+          const fileManager = wx.getFileSystemManager();
+          const fileStats = fileManager.statSync(originalPath);
+          console.log('📋 [DEBUG] 原始图片信息:', {
+            路径: originalPath,
+            大小: fileStats.size,
+            大小MB: (fileStats.size / 1024 / 1024).toFixed(2)
+          });
+
+          // 如果文件小于500KB，直接使用
+          if (fileStats.size < 200 * 1024) {
+            console.log('✅ [DEBUG] 图片大小合适，直接使用');
+            resolve(originalPath);
+            return;
+          }
+
+          // 大图片需要压缩
+          console.log('🔄 [DEBUG] 开始压缩图片...');
+          wx.compressImage({
+            src: originalPath,
+            quality: 70, // 压缩质量
+            success: (compressRes) => {
+              console.log('✅ [DEBUG] 图片压缩成功:', compressRes.tempFilePath);
+
+              // 检查压缩后大小
+              try {
+                const compressedStats = fileManager.statSync(compressRes.tempFilePath);
+                console.log('📊 [DEBUG] 压缩后图片信息:', {
+                  路径: compressRes.tempFilePath,
+                  大小: compressedStats.size,
+                  大小MB: (compressedStats.size / 1024 / 1024).toFixed(2),
+                  压缩比: ((fileStats.size - compressedStats.size) / fileStats.size * 100).toFixed(1) + '%'
+                });
+
+                resolve(compressRes.tempFilePath);
+              } catch (statError) {
+                console.warn('⚠️ [DEBUG] 获取压缩后文件信息失败，使用压缩文件:', statError);
+                resolve(compressRes.tempFilePath);
+              }
+            },
+            fail: (compressError) => {
+              console.warn('⚠️ [DEBUG] 图片压缩失败，使用原图:', compressError);
+              // 压缩失败时使用原图（可能在某些设备上发生）
+              resolve(originalPath);
+            }
+          });
+
+        } catch (error) {
+          console.warn('⚠️ [DEBUG] 处理图片时出错，使用原图:', error);
+          resolve(originalPath);
+        }
       },
       fail: reject
     });
@@ -274,161 +327,126 @@ function chooseAvatar() {
 function uploadAvatar(tempFilePath, retryCount = 0) {
   console.log('📤 [DEBUG] 开始上传头像，文件路径:', tempFilePath, '重试次数:', retryCount);
 
-  try {
+  return new Promise(async (resolve, reject) => {
     // 验证文件路径
     if (!tempFilePath || typeof tempFilePath !== 'string') {
       console.error('❌ [DEBUG] 文件路径无效:', tempFilePath);
-      return Promise.resolve({
+      resolve({
         success: false,
         message: '文件路径无效'
       });
+      return;
     }
 
-    // 读取文件内容
-    const fileManager = wx.getFileSystemManager();
-    let fileContent;
-    let fileStats;
-    
+    // 获取用户ID用于生成文件路径
+    let userId = 'anonymous';
     try {
-      // 获取文件信息
-      fileStats = fileManager.statSync(tempFilePath);
-      console.log('📋 [DEBUG] 文件信息:', {
-        路径: tempFilePath,
-        大小: fileStats.size,
-        是否文件: fileStats.isFile(),
-        最后修改: new Date(fileStats.lastModifiedTime)
-      });
-
-      if (!fileStats.isFile()) {
-        throw new Error('路径不是一个有效文件');
-      }
-
-      if (fileStats.size === 0) {
-        throw new Error('文件大小为0');
-      }
-
-      if (fileStats.size > 10 * 1024 * 1024) { // 10MB限制
-        throw new Error('文件过大，超过10MB限制');
-      }
-
-      fileContent = fileManager.readFileSync(tempFilePath, 'base64');
-      console.log('✅ [DEBUG] 文件读取成功:', {
-        内容长度: fileContent.length,
-        Base64前缀: fileContent.substring(0, 50) + '...'
-      });
-    } catch (readError) {
-      console.error('❌ [DEBUG] 文件读取失败:', {
-        错误: readError.message,
-        错误码: readError.code,
-        文件路径: tempFilePath
-      });
-      return Promise.resolve({
-        success: false,
-        message: '文件读取失败: ' + readError.message
-      });
+      const userInfo = await getCompleteUserInfo();
+      userId = userInfo.user_id || 'anonymous';
+    } catch (error) {
+      console.warn('⚠️ [DEBUG] 获取用户ID失败，使用匿名用户:', error);
     }
-
-    if (!fileContent) {
-      console.error('❌ [DEBUG] 文件内容为空');
-      return Promise.resolve({
-        success: false,
-        message: '文件内容为空'
-      });
-    }
-
-    // 调用云函数上传
-    const fileName = `avatar_${Date.now()}.jpg`;
-    const cloudData = {
-      action: 'uploadAvatar',
-      fileContent: fileContent,
-      fileName: fileName
-    };
     
-    console.log('☁️ [DEBUG] 准备调用云函数:', {
-      函数名: 'userManager',
-      操作: cloudData.action,
-      文件名: cloudData.fileName,
-      内容大小: cloudData.fileContent.length
+    const timestamp = Date.now();
+    const cloudPath = `avatars/${userId}_${timestamp}.jpg`;
+
+    console.log('☁️ [DEBUG] 准备上传到云存储:', {
+      本地路径: tempFilePath,
+      云存储路径: cloudPath
     });
 
-    return wx.cloud.callFunction({
-      name: 'userManager',
-      data: cloudData,
-      timeout: 30000 // 30秒超时
-    }).then(result => {
-      console.log('☁️ [DEBUG] 云函数调用完整结果:', {
-        完整结果: result,
-        结果类型: typeof result,
-        result字段: result.result,
-        result类型: typeof result.result,
-        requestID: result.requestID,
-        errMsg: result.errMsg
-      });
-      
-      if (result.result && result.result.success) {
-        console.log('✅ [DEBUG] 头像上传成功:', {
-          头像URL: result.result.avatarUrl,
-          文件ID: result.result.fileID
+    // 直接上传到云存储
+    wx.cloud.uploadFile({
+      cloudPath: cloudPath,
+      filePath: tempFilePath,
+      success: async (uploadResult) => {
+        console.log('✅ [DEBUG] 云存储上传成功:', {
+          fileID: uploadResult.fileID,
+          statusCode: uploadResult.statusCode
         });
-        return {
-          success: true,
-          avatarUrl: result.result.avatarUrl
-        };
-      } else {
-        const errorMsg = result.result ? result.result.message : '云函数返回结果异常';
-        console.error('❌ [DEBUG] 头像上传失败:', {
-          错误信息: errorMsg,
-          完整结果: result.result,
-          云函数状态: result.errMsg
-        });
-        
-        // 如果是特定错误且可以重试
-        if (retryCount < 2 && shouldRetryUpload(error || result)) {
-          console.log('🔄 [DEBUG] 准备重试上传，重试次数:', retryCount + 1);
-          return new Promise(resolve => {
+
+        try {
+          // 调用云函数更新用户头像信息
+          const updateResult = await wx.cloud.callFunction({
+            name: 'userManager',
+            data: {
+              action: 'updateAvatar',
+              fileID: uploadResult.fileID
+            },
+            timeout: 10000 // 10秒超时
+          });
+
+          console.log('☁️ [DEBUG] 云函数更新头像信息:', updateResult.result);
+
+          if (updateResult.result && updateResult.result.success) {
+            resolve({
+              success: true,
+              avatarUrl: updateResult.result.avatarUrl || uploadResult.fileID
+            });
+          } else {
+            const errorMsg = updateResult.result ? updateResult.result.message : '更新用户信息失败';
+            console.error('❌ [DEBUG] 更新头像信息失败:', errorMsg);
+
+            // 更新失败时，清理已上传的文件
+            try {
+              await wx.cloud.deleteFile({
+                fileList: [uploadResult.fileID]
+              });
+              console.log('🗑️ [DEBUG] 已清理失败的上传文件');
+            } catch (deleteError) {
+              console.warn('⚠️ [DEBUG] 清理文件失败:', deleteError);
+            }
+
+            resolve({
+              success: false,
+              message: errorMsg
+            });
+          }
+        } catch (updateError) {
+          console.error('❌ [DEBUG] 调用云函数更新头像失败:', updateError);
+
+          // 清理已上传的文件
+          try {
+            await wx.cloud.deleteFile({
+              fileList: [uploadResult.fileID]
+            });
+            console.log('🗑️ [DEBUG] 已清理失败的上传文件');
+          } catch (deleteError) {
+            console.warn('⚠️ [DEBUG] 清理文件失败:', deleteError);
+          }
+
+          // 重试逻辑
+          if (retryCount < 2) {
+            console.log('🔄 [DEBUG] 准备重试上传，重试次数:', retryCount + 1);
             setTimeout(() => {
-              resolve(uploadAvatar(tempFilePath, retryCount + 1));
-            }, 1000 * (retryCount + 1)); // 递增延迟
+              uploadAvatar(tempFilePath, retryCount + 1).then(resolve).catch(reject);
+            }, 1000 * (retryCount + 1));
+          } else {
+            resolve({
+              success: false,
+              message: '更新头像信息失败: ' + updateError.message
+            });
+          }
+        }
+      },
+      fail: (uploadError) => {
+        console.error('❌ [DEBUG] 云存储上传失败:', uploadError);
+
+        // 重试逻辑
+        if (retryCount < 2 && shouldRetryUpload(uploadError)) {
+          console.log('🔄 [DEBUG] 准备重试上传，重试次数:', retryCount + 1);
+          setTimeout(() => {
+            uploadAvatar(tempFilePath, retryCount + 1).then(resolve).catch(reject);
+          }, 1000 * (retryCount + 1));
+        } else {
+          resolve({
+            success: false,
+            message: '上传失败: ' + (uploadError.errMsg || '网络异常')
           });
         }
-        
-        return {
-          success: false,
-          message: errorMsg
-        };
       }
-    }).catch(error => {
-      console.error('❌ [DEBUG] 云函数调用异常:', {
-        错误对象: error,
-        错误消息: error.message,
-        错误码: error.code,
-        错误堆栈: error.stack,
-        错误类型: typeof error,
-        原始错误: error
-      });
-      
-      // 如果是网络错误或特定错误码且可以重试
-      if (retryCount < 2 && shouldRetryUpload(error)) {
-        console.log('🔄 [DEBUG] 网络错误，准备重试上传，重试次数:', retryCount + 1);
-        return new Promise(resolve => {
-          setTimeout(() => {
-            resolve(uploadAvatar(tempFilePath, retryCount + 1));
-          }, 1000 * (retryCount + 1)); // 递增延迟
-        });
-      }
-      
-      return {
-        success: false,
-        message: `云函数调用失败: ${error.message || error.errMsg || '未知错误'} (重试${retryCount}次后仍失败)`
-      };
     });
-  } catch (error) {
-    console.error('❌ [DEBUG] 头像上传函数异常:', error);
-    return Promise.resolve({
-      success: false,
-      message: '头像上传异常: ' + error.message
-    });
-  }
+  });
 }
 
 /**
@@ -438,7 +456,7 @@ function uploadAvatar(tempFilePath, retryCount = 0) {
  */
 function shouldRetryUpload(error) {
   if (!error) return false;
-  
+
   // 检查错误消息中是否包含可重试的错误
   const retryableErrors = [
     'empty poll result',
@@ -450,18 +468,18 @@ function shouldRetryUpload(error) {
     '超时',
     '连接失败'
   ];
-  
+
   const errorMessage = (error.message || error.errMsg || '').toLowerCase();
-  const shouldRetry = retryableErrors.some(retryableError => 
+  const shouldRetry = retryableErrors.some(retryableError =>
     errorMessage.includes(retryableError.toLowerCase())
   );
-  
+
   console.log('🤔 [DEBUG] 判断是否重试:', {
     错误信息: errorMessage,
     应该重试: shouldRetry,
     错误码: error.code
   });
-  
+
   return shouldRetry;
 }
 

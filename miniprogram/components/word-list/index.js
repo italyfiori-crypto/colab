@@ -185,7 +185,7 @@ Component({
                   data: {
                     type: 'removeWordFromCollection',
                     word: word.word,
-                    user_id: wx.getStorageSync('userId') || 'default_user'
+                    user_id: this.getCurrentUserId()
                   }
                 });
                 
@@ -337,6 +337,18 @@ Component({
         playing: index === playingIndex
       }));
       this.setData({ words });
+    },
+
+    // 获取当前用户ID
+    async getCurrentUserId() {
+      try {
+        const settingsUtils = require('../../utils/settingsUtils.js');
+        const userInfo = await settingsUtils.getCompleteUserInfo();
+        return userInfo.user_id || null;
+      } catch (error) {
+        console.error('❌ [DEBUG] 获取当前用户ID失败:', error);
+        return null;
+      }
     }
   },
 
