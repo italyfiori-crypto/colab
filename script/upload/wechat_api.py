@@ -407,9 +407,6 @@ class WeChatCloudAPI:
             # 按照微信官方API规范：env和name通过URL参数传递，参数直接作为请求体
             url = f"{self.cloud_function_url}?access_token={token}&env={self.env_id}&name={function_name}"
             
-            self.logger.info(f"调用云函数: {function_name}, 参数: {function_params}")
-            self.logger.info(f"请求URL: {url}")
-            
             # 请求体直接是参数的JSON字符串
             response = requests.post(
                 url,
@@ -419,7 +416,6 @@ class WeChatCloudAPI:
             )
             
             result = response.json()
-            self.logger.info(f"云函数响应: {result}")
             
             if result.get('errcode') != 0:
                 self.logger.error(f"调用云函数失败: {result}")

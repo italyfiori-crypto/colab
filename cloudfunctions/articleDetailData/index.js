@@ -724,7 +724,6 @@ async function getSubtitleAnalysis(bookId, chapterId, subtitleIndex) {
   try {
     // 构建查询条件
     const query = {
-      book_id: bookId,
       chapter_id: chapterId,
       subtitle_index: subtitleIndex
     }
