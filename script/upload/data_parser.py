@@ -31,7 +31,7 @@ class DataParser:
                     hash_md5.update(chunk)
             return hash_md5.hexdigest()
         except Exception as e:
-            self.logger.error(f"计算MD5失败 {file_path}: {e}")
+            self.logger.error(f"计算MD5失败 {file_path}:  {e}")
             return ""
         
     def compare_data(self, new_data: Dict, existing_data: Dict, compare_fields: List[str]) -> Tuple[bool, List[str]]:
@@ -139,8 +139,10 @@ class DataParser:
             subchapter_name = os.path.splitext(audio_filename)[0]  # 去掉扩展名
             
             # 计算字幕解析文件MD5
-            analysis_file_path = os.path.join(book_dir, chapter_info.get('local_analysis_file', ''))
-            analysis_md5 = self._calculate_file_md5(analysis_file_path)
+            analysis_file_path, analysis_md5 = "", ""
+            if os.path.exists(analysis_file_path):
+                analysis_file_path = os.path.join(book_dir, chapter_info.get('local_analysis_file', ''))
+                analysis_md5 = self._calculate_file_md5(analysis_file_path)
             
             chapter_data = {
                 '_id': f"{book_id}_{subchapter_name}",

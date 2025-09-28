@@ -112,19 +112,12 @@ async function processBookCovers(books) {
 
 // 写死的分类列表（后期可调整为数据库读取）
 const CATEGORY_LIST = [
-  { name: '文学名著', active: true },
+  { name: '儿童故事', active: true },
+  { name: '文学名著', active: false },
   { name: '商务英语', active: false },
   { name: '影视剧本', active: false },
   { name: '新闻', active: false }
 ]
-
-// 分类名称到数据库字段的映射
-const CATEGORY_MAPPING = {
-  '文学名著': 'literature',
-  '商务英语': 'business',
-  '影视剧本': 'script',
-  '新闻': 'news'
-}
 
 // 最近阅读列表最大长度
 const MAX_RECENT_BOOKS = 10

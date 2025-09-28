@@ -16,7 +16,6 @@ class ChapterPattern:
     name: str
     multiline_regex: str
     title_line_index: int
-    content_start_offset: int
 
 
 @dataclass
