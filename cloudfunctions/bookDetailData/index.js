@@ -103,7 +103,29 @@ async function getBookDetail(bookId, user_id, page = 1, pageSize = 20) {
     hasMore: hasMoreChapters
   })
 
-  // 3. 获取用户学习进度（如果用户已登录）
+  // 3. 获取用户会员状态
+  let membershipInfo = null
+  console.log('📤 [DEBUG] 查询用户会员状态:', user_id)
+  
+  await db.collection('user_memberships').doc(user_id).get().then(res => {
+    if (res.data) {
+      membershipInfo = res.data
+      console.log('📥 [DEBUG] 用户会员状态查询结果:', {
+        expire_time: membershipInfo.expire_time,
+        is_active: membershipInfo.expire_time && membershipInfo.expire_time > Date.now()
+      })
+    } else {
+      console.log('📥 [DEBUG] 用户无会员记录，视为免费用户')
+    }
+  }).catch(err => {
+    console.log('📥 [DEBUG] 用户会员状态查询失败，视为免费用户:', err.message)
+  })
+
+  // 判断用户是否为付费会员
+  const isPremiumUser = membershipInfo && membershipInfo.expire_time && membershipInfo.expire_time > Date.now()
+  console.log('👤 [DEBUG] 用户会员判断:', { isPremiumUser })
+
+  // 4. 获取用户学习进度（如果用户已登录）
   let userProgress = null
   const progressId = `${user_id}_${bookId}`
   console.log('📤 [DEBUG] 查询用户学习进度:', progressId)
@@ -122,7 +144,7 @@ async function getBookDetail(bookId, user_id, page = 1, pageSize = 20) {
     console.log('📥 [DEBUG] 用户学习进度不存在，使用默认值:', err.message)
   })
 
-  // 4. 计算用户进度 - 基于已完成的章节数量
+  // 5. 计算用户进度 - 基于已完成的章节数量
   let completedChaptersCount = 0
   if (userProgress && userProgress.chapter_progress) {
     completedChaptersCount = Object.values(userProgress.chapter_progress)
@@ -139,13 +161,13 @@ async function getBookDetail(bookId, user_id, page = 1, pageSize = 20) {
     percent: progressPercent
   })
 
-  // 5. 为书籍添加进度信息，保持原有字段
+  // 6. 为书籍添加进度信息，保持原有字段
   const bookInfo = {
     ...book,
     progress: progressPercent
   }
 
-  // 6. 处理书籍封面临时链接
+  // 7. 处理书籍封面临时链接
   if (book.cover_url && book.cover_url.startsWith('cloud://')) {
     try {
       const tempUrlResult = await cloud.getTempFileURL({
@@ -164,38 +186,51 @@ async function getBookDetail(bookId, user_id, page = 1, pageSize = 20) {
     }
   }
 
-  // 7. 为章节添加学习状态 - 使用新的chapter_progress结构
-  console.log('🔄 [DEBUG] 开始处理章节状态')
-  const chapters = actualChapters.map(chapter => {
+  // 8. 为章节添加学习状态和权限控制 - 使用新的chapter_progress结构
+  console.log('🔄 [DEBUG] 开始处理章节状态和权限')
+  const chapters = actualChapters.map((chapter, index) => {
     const chapterProgress = userProgress && userProgress.chapter_progress
       ? userProgress.chapter_progress[chapter._id]
       : null
 
     let status, progress = 0
+    let is_accessible = true
+    let lock_reason = null
 
-    if (chapterProgress) {
-      if (chapterProgress.completed) {
-        status = 'completed'
-        progress = 100
-      } else if (chapterProgress.time > 0) {
-        status = 'in-progress'
-        // 计算真实进度百分比
-        progress = chapter.duration > 0
-          ? Math.round((chapterProgress.time / chapter.duration) * 100)
-          : 0
+    // 权限控制：免费用户只能访问前2章
+    if (!isPremiumUser && chapter.chapter_number > 2) {
+      is_accessible = false
+      lock_reason = '需要会员权限'
+      status = 'locked'
+      progress = 0
+    } else {
+      // 有权限访问的章节，根据学习进度设置状态
+      if (chapterProgress) {
+        if (chapterProgress.completed) {
+          status = 'completed'
+          progress = 100
+        } else if (chapterProgress.time > 0) {
+          status = 'in-progress'
+          // 计算真实进度百分比
+          progress = chapter.duration > 0
+            ? Math.round((chapterProgress.time / chapter.duration) * 100)
+            : 0
+        } else {
+          status = 'available'
+          progress = 0
+        }
       } else {
         status = 'available'
         progress = 0
       }
-    } else {
-      status = 'available'
-      progress = 0
     }
 
     return {
       ...chapter,
       status,
-      progress
+      progress,
+      is_accessible,
+      lock_reason
     }
   })
 
@@ -218,7 +253,15 @@ async function getBookDetail(bookId, user_id, page = 1, pageSize = 20) {
       filterOptions: FILTER_OPTIONS,
       hasMoreChapters,
       currentPage,
-      pageSize: limit
+      pageSize: limit,
+      // 添加用户会员信息
+      membershipInfo: {
+        is_premium: isPremiumUser,
+        expire_time: membershipInfo ? membershipInfo.expire_time : null,
+        days_remaining: isPremiumUser && membershipInfo 
+          ? Math.ceil((membershipInfo.expire_time - Date.now()) / (24 * 60 * 60 * 1000))
+          : 0
+      }
     }
   }
 }

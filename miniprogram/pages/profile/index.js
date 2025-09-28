@@ -6,7 +6,16 @@ Page({
     userInfo: {},
     readingSettings: {},
     learningSettings: {},
-    loading: true
+    membershipInfo: {
+      is_premium: false,
+      expire_time: null,
+      days_remaining: 0
+    },
+    loading: true,
+    // 会员码相关
+    showMembershipModal: false,
+    codeInput: '',
+    activating: false
   },
 
   async onLoad() {
@@ -14,6 +23,7 @@ Page({
       title: '设置'
     });
     await this.loadCompleteUserInfo();
+    await this.loadMembershipInfo();
   },
 
   async onShow() {
@@ -400,6 +410,131 @@ Page({
       this.setData({
         'userInfo.avatarUrl': '/resource/icons/avatar.svg'
       });
+    }
+  },
+
+  /**
+   * 加载会员信息
+   */
+  async loadMembershipInfo() {
+    try {
+      console.log('🔄 [DEBUG] 开始加载会员信息');
+      
+      const result = await wx.cloud.callFunction({
+        name: 'membershipManager',
+        data: { action: 'checkMembership' }
+      });
+
+      if (result.result.success) {
+        const membershipData = result.result.data;
+        console.log('✅ [DEBUG] 会员信息加载成功:', membershipData);
+        
+        this.setData({
+          membershipInfo: {
+            is_premium: membershipData.is_premium,
+            expire_time: membershipData.expire_time,
+            days_remaining: membershipData.days_remaining
+          }
+        });
+      } else {
+        console.error('❌ [DEBUG] 加载会员信息失败:', result.result.message);
+      }
+    } catch (error) {
+      console.error('❌ [DEBUG] 会员信息请求异常:', error);
+    }
+  },
+
+  /**
+   * 点击会员操作按钮
+   */
+  onMembershipAction() {
+    this.setData({
+      showMembershipModal: true,
+      codeInput: ''
+    });
+  },
+
+  /**
+   * 关闭会员码输入弹窗
+   */
+  onCloseMembershipModal() {
+    this.setData({
+      showMembershipModal: false,
+      codeInput: '',
+      activating: false
+    });
+  },
+
+  /**
+   * 会员码输入
+   */
+  onCodeInput(e) {
+    const value = e.detail.value.toUpperCase();
+    this.setData({
+      codeInput: value
+    });
+  },
+
+  /**
+   * 激活会员码
+   */
+  async onActivateCode() {
+    if (!this.data.codeInput || this.data.codeInput.length !== 12) {
+      wx.showToast({
+        title: '请输入12位会员码',
+        icon: 'none'
+      });
+      return;
+    }
+
+    this.setData({ activating: true });
+
+    try {
+      console.log('🔄 [DEBUG] 开始激活会员码:', this.data.codeInput);
+      
+      const result = await wx.cloud.callFunction({
+        name: 'membershipManager',
+        data: { 
+          action: 'activateCode',
+          code: this.data.codeInput 
+        }
+      });
+
+      if (result.result.success) {
+        // 激活成功
+        console.log('✅ [DEBUG] 会员码激活成功:', result.result);
+        
+        wx.showToast({
+          title: '激活成功！',
+          icon: 'success'
+        });
+
+        // 关闭弹窗
+        this.setData({
+          showMembershipModal: false,
+          codeInput: ''
+        });
+
+        // 重新加载会员信息
+        await this.loadMembershipInfo();
+
+      } else {
+        // 激活失败
+        console.error('❌ [DEBUG] 会员码激活失败:', result.result.message);
+        wx.showToast({
+          title: result.result.message,
+          icon: 'none',
+          duration: 3000
+        });
+      }
+    } catch (error) {
+      console.error('❌ [DEBUG] 激活会员码请求异常:', error);
+      wx.showToast({
+        title: '网络错误，请稍后重试',
+        icon: 'none'
+      });
+    } finally {
+      this.setData({ activating: false });
     }
   },
 

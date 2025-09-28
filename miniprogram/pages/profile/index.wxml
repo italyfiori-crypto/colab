@@ -15,6 +15,40 @@
     </view>
   </view>
 
+  <!-- 会员信息卡片 -->
+  <view class="membership-card">
+    <view class="membership-header">
+      <text class="membership-icon">{{membershipInfo.is_premium ? '💎' : '🔓'}}</text>
+      <view class="membership-info">
+        <text class="membership-status">{{membershipInfo.is_premium ? '会员用户' : '免费用户'}}</text>
+        <text class="membership-desc" wx:if="{{membershipInfo.is_premium && membershipInfo.days_remaining > 0}}">
+          还有{{membershipInfo.days_remaining}}天到期
+        </text>
+        <text class="membership-desc" wx:elif="{{!membershipInfo.is_premium}}">
+          升级会员享受完整内容
+        </text>
+        <text class="membership-desc" wx:else>会员已过期</text>
+      </view>
+      <view class="membership-action" bindtap="onMembershipAction">
+        <text class="action-text">{{membershipInfo.is_premium ? '续费' : '激活'}}</text>
+      </view>
+    </view>
+    <view class="membership-benefits" wx:if="{{!membershipInfo.is_premium}}">
+      <view class="benefit-item">
+        <text class="benefit-icon">📚</text>
+        <text class="benefit-text">解锁所有书籍章节</text>
+      </view>
+      <view class="benefit-item">
+        <text class="benefit-icon">🎧</text>
+        <text class="benefit-text">高质量音频内容</text>
+      </view>
+      <view class="benefit-item">
+        <text class="benefit-icon">📊</text>
+        <text class="benefit-text">详细学习统计</text>
+      </view>
+    </view>
+  </view>
+
   <!-- 阅读设置 -->
   <view class="settings-section">
     <view class="settings-list">
@@ -114,6 +148,41 @@
         <view class="setting-right">
           <text class="setting-value">v1.0.0</text>
         </view>
+      </view>
+    </view>
+  </view>
+
+  <!-- 会员码输入弹窗 -->
+  <view class="membership-modal-overlay" wx:if="{{showMembershipModal}}" bindtap="onCloseMembershipModal">
+    <view class="membership-modal" catchtap="">
+      <view class="modal-header">
+        <text class="modal-title">激活会员码</text>
+        <text class="modal-close" bindtap="onCloseMembershipModal">✕</text>
+      </view>
+      <view class="modal-content">
+        <view class="input-section">
+          <text class="input-label">请输入12位会员码</text>
+          <input class="code-input" 
+                 placeholder="请输入会员码" 
+                 value="{{codeInput}}"
+                 bindinput="onCodeInput"
+                 maxlength="12"
+                 auto-focus="{{showMembershipModal}}"/>
+        </view>
+        <view class="modal-tips">
+          <text class="tip-text">• 会员码不区分大小写</text>
+          <text class="tip-text">• 激活后立即生效</text>
+          <text class="tip-text">• 可叠加使用延长有效期</text>
+        </view>
+      </view>
+      <view class="modal-actions">
+        <button class="cancel-btn" bindtap="onCloseMembershipModal">取消</button>
+        <button class="confirm-btn" 
+                bindtap="onActivateCode" 
+                disabled="{{activating || codeInput.length !== 12}}"
+                loading="{{activating}}">
+          {{activating ? '激活中...' : '激活'}}
+        </button>
       </view>
     </view>
   </view>

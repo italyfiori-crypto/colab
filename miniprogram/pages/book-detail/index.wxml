@@ -99,8 +99,16 @@
           </block>
           
           <!-- 锁定状态 -->
+          <block wx:elif="{{item.status === 'locked'}}">
+            <view class="lock-status">
+              <text class="lock-badge">会员专享</text>
+              <icon type="safe" size="16" color="#ff9500"></icon>
+            </view>
+          </block>
+          
+          <!-- 其他状态 -->
           <block wx:else>
-            <icon type="safe" size="16" color="#ccc"></icon>
+            <icon type="info" size="16" color="#ccc"></icon>
           </block>
         </view>
       </view>
@@ -137,6 +145,45 @@
         <text>{{item.label}}</text>
         <icon wx:if="{{currentFilter === item.value}}" type="success" size="16" color="#007AFF"></icon>
       </view>
+    </view>
+  </view>
+</view>
+
+<!-- 会员码激活弹窗 -->
+<view class="membership-modal-overlay" wx:if="{{showMembershipModal}}" bindtap="onCloseMembershipModal">
+  <view class="membership-modal" catchtap="">
+    <view class="modal-header">
+      <text class="modal-title">解锁会员内容</text>
+      <text class="modal-close" bindtap="onCloseMembershipModal">✕</text>
+    </view>
+    <view class="modal-content">
+      <view class="locked-chapter-info">
+        <text class="locked-title">{{lockedChapterTitle}}</text>
+        <text class="locked-desc">此章节需要会员权限才能访问</text>
+      </view>
+      <view class="input-section">
+        <text class="input-label">请输入12位会员码</text>
+        <input class="code-input" 
+               placeholder="请输入会员码" 
+               value="{{codeInput}}"
+               bindinput="onCodeInput"
+               maxlength="12"
+               auto-focus="{{showMembershipModal}}"/>
+      </view>
+      <view class="membership-tips">
+        <text class="tip-text">• 激活后可访问所有章节</text>
+        <text class="tip-text">• 会员码不区分大小写</text>
+        <text class="tip-text">• 激活后立即生效</text>
+      </view>
+    </view>
+    <view class="modal-actions">
+      <button class="cancel-btn" bindtap="onCloseMembershipModal">取消</button>
+      <button class="confirm-btn" 
+              bindtap="onActivateCode" 
+              disabled="{{activating || codeInput.length !== 12}}"
+              loading="{{activating}}">
+        {{activating ? '激活中...' : '立即激活'}}
+      </button>
     </view>
   </view>
 </view>

@@ -15,6 +15,16 @@ Page({
     pageSize: 20,
     hasMoreChapters: true,
     loadingMore: false,
+    // 会员相关
+    membershipInfo: {
+      is_premium: false,
+      expire_time: null,
+      days_remaining: 0
+    },
+    showMembershipModal: false,
+    codeInput: '',
+    activating: false,
+    lockedChapterTitle: ''
   },
 
   onLoad(options) {
@@ -59,7 +69,7 @@ Page({
       }
 
       if (result.result.code === 0) {
-        const { bookInfo, chapters, filterOptions, hasMoreChapters } = result.result.data;
+        const { bookInfo, chapters, filterOptions, hasMoreChapters, membershipInfo } = result.result.data;
 
         // 转换时长格式：秒 -> 小时+分钟
         const convertedBookInfo = this.convertDurationFormat(bookInfo);
@@ -74,7 +84,13 @@ Page({
             filterOptions,
             hasMoreChapters,
             currentPage: 1,
-            loading: false
+            loading: false,
+            // 更新会员信息
+            membershipInfo: membershipInfo || {
+              is_premium: false,
+              expire_time: null,
+              days_remaining: 0
+            }
           });
         } else {
           // 分页加载
@@ -124,10 +140,11 @@ Page({
     const chapter = e.currentTarget.dataset.chapter;
 
     if (chapter.status === 'locked') {
-      wx.showToast({
-        title: '需要激活会员解锁章节',
-        icon: 'none',
-        duration: 1500
+      // 显示会员码输入弹窗
+      this.setData({
+        showMembershipModal: true,
+        lockedChapterTitle: `第${chapter.chapter_number}章 - ${chapter.title}`,
+        codeInput: ''
       });
       return;
     }
@@ -255,5 +272,94 @@ Page({
       title: `正在学习《${this.data.bookInfo.title}》`,
       imageUrl: this.data.bookInfo.cover_url
     };
+  },
+
+  /**
+   * 关闭会员码输入弹窗
+   */
+  onCloseMembershipModal() {
+    this.setData({
+      showMembershipModal: false,
+      codeInput: '',
+      activating: false,
+      lockedChapterTitle: ''
+    });
+  },
+
+  /**
+   * 会员码输入
+   */
+  onCodeInput(e) {
+    const value = e.detail.value.toUpperCase();
+    this.setData({
+      codeInput: value
+    });
+  },
+
+  /**
+   * 激活会员码
+   */
+  async onActivateCode() {
+    if (!this.data.codeInput || this.data.codeInput.length !== 12) {
+      wx.showToast({
+        title: '请输入12位会员码',
+        icon: 'none'
+      });
+      return;
+    }
+
+    this.setData({ activating: true });
+
+    try {
+      console.log('🔄 [DEBUG] 开始激活会员码:', this.data.codeInput);
+      
+      const result = await wx.cloud.callFunction({
+        name: 'membershipManager',
+        data: { 
+          action: 'activateCode',
+          code: this.data.codeInput 
+        }
+      });
+
+      if (result.result.success) {
+        // 激活成功
+        console.log('✅ [DEBUG] 会员码激活成功:', result.result);
+        
+        wx.showToast({
+          title: '激活成功！',
+          icon: 'success'
+        });
+
+        // 关闭弹窗
+        this.setData({
+          showMembershipModal: false,
+          codeInput: '',
+          lockedChapterTitle: ''
+        });
+
+        // 重新加载书籍数据以更新章节权限
+        const bookId = this.data.bookInfo._id;
+        if (bookId) {
+          await this.loadBookDetail(bookId, true);
+        }
+
+      } else {
+        // 激活失败
+        console.error('❌ [DEBUG] 会员码激活失败:', result.result.message);
+        wx.showToast({
+          title: result.result.message,
+          icon: 'none',
+          duration: 3000
+        });
+      }
+    } catch (error) {
+      console.error('❌ [DEBUG] 激活会员码请求异常:', error);
+      wx.showToast({
+        title: '网络错误，请稍后重试',
+        icon: 'none'
+      });
+    } finally {
+      this.setData({ activating: false });
+    }
   }
 });

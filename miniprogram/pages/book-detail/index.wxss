@@ -399,3 +399,178 @@ page {
     align-items: center;
   }
 }
+
+/* 锁定状态样式 */
+.chapter-item.locked {
+  opacity: 0.6;
+}
+
+.lock-status {
+  display: flex;
+  align-items: center;
+  gap: 8rpx;
+}
+
+.lock-badge {
+  background: linear-gradient(45deg, #ff9500, #ffad33);
+  color: #ffffff;
+  font-size: 20rpx;
+  padding: 4rpx 12rpx;
+  border-radius: 12rpx;
+  font-weight: 500;
+  box-shadow: 0 2rpx 8rpx rgba(255, 149, 0, 0.3);
+}
+
+/* 会员码弹窗样式 */
+.membership-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 40rpx;
+  box-sizing: border-box;
+}
+
+.membership-modal {
+  background: #ffffff;
+  border-radius: 24rpx;
+  width: 100%;
+  max-width: 600rpx;
+  box-shadow: 0 24rpx 48rpx rgba(0, 0, 0, 0.2);
+}
+
+.modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 32rpx 32rpx 24rpx;
+  border-bottom: 2rpx solid #f0f0f0;
+}
+
+.modal-title {
+  font-size: 32rpx;
+  font-weight: 600;
+  color: #333333;
+}
+
+.modal-close {
+  font-size: 32rpx;
+  color: #999999;
+  padding: 8rpx;
+}
+
+.modal-content {
+  padding: 32rpx;
+}
+
+.locked-chapter-info {
+  background: #fff3e0;
+  border: 2rpx solid #ffe0b2;
+  border-radius: 12rpx;
+  padding: 24rpx;
+  margin-bottom: 32rpx;
+  text-align: center;
+}
+
+.locked-title {
+  display: block;
+  font-size: 28rpx;
+  font-weight: 600;
+  color: #e65100;
+  margin-bottom: 8rpx;
+}
+
+.locked-desc {
+  display: block;
+  font-size: 24rpx;
+  color: #ef6c00;
+}
+
+.input-section {
+  margin-bottom: 32rpx;
+}
+
+.input-label {
+  display: block;
+  font-size: 28rpx;
+  color: #333333;
+  margin-bottom: 16rpx;
+  font-weight: 500;
+}
+
+.code-input {
+  width: 100%;
+  height: 88rpx;
+  background: #f8f9fa;
+  border: 2rpx solid #e9ecef;
+  border-radius: 12rpx;
+  padding: 0 24rpx;
+  font-size: 32rpx;
+  font-family: 'Courier New', monospace;
+  text-align: center;
+  letter-spacing: 4rpx;
+  color: #333333;
+  box-sizing: border-box;
+}
+
+.code-input:focus {
+  border-color: #007AFF;
+  background: #ffffff;
+}
+
+.membership-tips {
+  background: #f8f9fa;
+  border-radius: 12rpx;
+  padding: 24rpx;
+}
+
+.tip-text {
+  display: block;
+  font-size: 24rpx;
+  color: #666666;
+  line-height: 1.5;
+  margin-bottom: 8rpx;
+}
+
+.tip-text:last-child {
+  margin-bottom: 0;
+}
+
+.modal-actions {
+  display: flex;
+  gap: 16rpx;
+  padding: 24rpx 32rpx 32rpx;
+}
+
+.cancel-btn {
+  flex: 1;
+  height: 80rpx;
+  background: #f8f9fa;
+  color: #666666;
+  border: none;
+  border-radius: 12rpx;
+  font-size: 28rpx;
+  font-weight: 500;
+}
+
+.confirm-btn {
+  flex: 1;
+  height: 80rpx;
+  background: #007AFF;
+  color: #ffffff;
+  border: none;
+  border-radius: 12rpx;
+  font-size: 28rpx;
+  font-weight: 500;
+}
+
+.confirm-btn:disabled {
+  background: #cccccc;
+  color: #999999;
+}
