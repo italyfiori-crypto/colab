@@ -9,7 +9,9 @@ Page({
     membershipInfo: {
       is_premium: false,
       expire_time: null,
-      days_remaining: 0
+      days_remaining: 0,
+      expire_date_str: '',
+      status: 'free'
     },
     loading: true,
     // 会员码相关
@@ -429,11 +431,28 @@ Page({
         const membershipData = result.result.data;
         console.log('✅ [DEBUG] 会员信息加载成功:', membershipData);
         
+        // 计算到期日期字符串和会员状态
+        let expireDateStr = ''
+        let membershipStatus = 'free' // free, active, expired
+        
+        if (membershipData.expire_time) {
+          const expireDate = new Date(membershipData.expire_time)
+          expireDateStr = `${expireDate.getFullYear()}年${expireDate.getMonth() + 1}月${expireDate.getDate()}日`
+          
+          if (membershipData.is_premium) {
+            membershipStatus = 'active'
+          } else {
+            membershipStatus = 'expired'
+          }
+        }
+        
         this.setData({
           membershipInfo: {
             is_premium: membershipData.is_premium,
             expire_time: membershipData.expire_time,
-            days_remaining: membershipData.days_remaining
+            days_remaining: membershipData.days_remaining,
+            expire_date_str: expireDateStr,
+            status: membershipStatus
           }
         });
       } else {

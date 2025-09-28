@@ -16,21 +16,37 @@
   </view>
 
   <!-- 会员信息卡片 -->
-  <view class="membership-card">
+  <view class="membership-card" data-status="{{membershipInfo.status}}">
     <view class="membership-header">
-      <text class="membership-icon">{{membershipInfo.is_premium ? '💎' : '🔓'}}</text>
       <view class="membership-info">
-        <text class="membership-status">{{membershipInfo.is_premium ? '会员用户' : '免费用户'}}</text>
-        <text class="membership-desc" wx:if="{{membershipInfo.is_premium && membershipInfo.days_remaining > 0}}">
+        <view class="membership-status-row">
+          <!-- 根据会员状态显示不同图标 -->
+          <text class="membership-icon" wx:if="{{membershipInfo.status === 'active'}}">💎</text>
+          <text class="membership-icon" wx:elif="{{membershipInfo.status === 'expired'}}">⏰</text>
+          <text class="membership-icon" wx:else>🔓</text>
+          
+          <!-- 根据会员状态显示不同文本 -->
+          <text class="membership-status" wx:if="{{membershipInfo.status === 'active'}}">会员用户</text>
+          <text class="membership-status" wx:elif="{{membershipInfo.status === 'expired'}}">会员已过期</text>
+          <text class="membership-status" wx:else>免费用户</text>
+        </view>
+        
+        <!-- 根据会员状态显示不同描述 -->
+        <text class="membership-desc" wx:if="{{membershipInfo.status === 'active' && membershipInfo.expire_date_str}}">
+          到期时间：{{membershipInfo.expire_date_str}}
+        </text>
+        <text class="membership-desc" wx:elif="{{membershipInfo.status === 'active' && membershipInfo.days_remaining > 0}}">
           还有{{membershipInfo.days_remaining}}天到期
         </text>
-        <text class="membership-desc" wx:elif="{{!membershipInfo.is_premium}}">
+        <text class="membership-desc" wx:elif="{{membershipInfo.status === 'expired' && membershipInfo.expire_date_str}}">
+          已于{{membershipInfo.expire_date_str}}过期
+        </text>
+        <text class="membership-desc" wx:else>
           升级会员享受完整内容
         </text>
-        <text class="membership-desc" wx:else>会员已过期</text>
       </view>
       <view class="membership-action" bindtap="onMembershipAction">
-        <text class="action-text">{{membershipInfo.is_premium ? '续费' : '激活'}}</text>
+        <text class="action-text">{{membershipInfo.status === 'active' ? '续费' : '激活'}}</text>
       </view>
     </view>
     <view class="membership-benefits" wx:if="{{!membershipInfo.is_premium}}">
