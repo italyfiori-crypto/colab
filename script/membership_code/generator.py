@@ -19,6 +19,8 @@ import csv
 import random
 import string
 import time
+import os
+import glob
 from datetime import datetime
 from typing import List, Set
 
@@ -39,6 +41,10 @@ class MembershipCodeGenerator:
     
     def __init__(self):
         self.generated_codes: Set[str] = set()
+        # 初始化随机种子，提升随机性
+        random.seed(int(time.time() * 1000) + os.getpid())
+        # 加载已有的会员码进行去重
+        self._load_existing_codes()
     
     def _generate_checksum(self, code: str) -> str:
         """生成2位校验码"""
@@ -58,8 +64,15 @@ class MembershipCodeGenerator:
             # 生成类型前缀 (2位)
             prefix = self.TYPE_PREFIXES[code_type]
             
-            # 生成随机字符 (8位)
-            random_chars = ''.join(random.choices(self.CHARSET, k=8))
+            # 生成随机字符 (8位) - 优化随机性
+            # 使用更好的随机分布，避免连续重复字符
+            random_chars = ''
+            for _ in range(8):
+                # 确保不与前一个字符相同
+                available_chars = self.CHARSET
+                if random_chars:
+                    available_chars = [c for c in self.CHARSET if c != random_chars[-1]]
+                random_chars += random.choice(available_chars)
             
             # 计算校验码 (2位)
             base_code = prefix + random_chars
@@ -110,9 +123,15 @@ class MembershipCodeGenerator:
         """保存会员码到CSV文件"""
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         type_name = self.TYPE_PREFIXES[code_type]
-        filename = f"membership_codes_{type_name}_{timestamp}.csv"
         
-        with open(filename, 'w', newline='', encoding='utf-8') as csvfile:
+        # 确保data目录存在
+        data_dir = os.path.join(os.path.dirname(__file__), 'data')
+        os.makedirs(data_dir, exist_ok=True)
+        
+        filename = f"membership_codes_{type_name}_{timestamp}.csv"
+        filepath = os.path.join(data_dir, filename)
+        
+        with open(filepath, 'w', newline='', encoding='utf-8') as csvfile:
             fieldnames = ['_id', 'code_type', 'use_status', 'active', 'created_at']
             writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
             
@@ -128,7 +147,7 @@ class MembershipCodeGenerator:
                 }
                 writer.writerow(csv_row)
         
-        return filename
+        return filepath
     
     def validate_code(self, code: str) -> dict:
         """验证会员码格式和校验码"""
@@ -172,6 +191,29 @@ class MembershipCodeGenerator:
         result['valid'] = True
         result['code_type'] = code_type
         return result
+    
+    def _load_existing_codes(self):
+        """加载data目录下所有CSV文件中的已有会员码"""
+        data_dir = os.path.join(os.path.dirname(__file__), 'data')
+        if not os.path.exists(data_dir):
+            return
+        
+        csv_files = glob.glob(os.path.join(data_dir, '*.csv'))
+        loaded_count = 0
+        
+        for csv_file in csv_files:
+            try:
+                with open(csv_file, 'r', encoding='utf-8') as f:
+                    reader = csv.DictReader(f)
+                    for row in reader:
+                        if '_id' in row and row['_id']:
+                            self.generated_codes.add(row['_id'].strip())
+                            loaded_count += 1
+            except Exception as e:
+                print(f"警告: 无法读取文件 {csv_file}: {e}")
+        
+        if loaded_count > 0:
+            print(f"已加载 {loaded_count} 个已有会员码用于去重检查")
 
 
 def main():

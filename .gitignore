@@ -5,3 +5,4 @@ script/modules/__pycache__/
 *.pyc
 node_modules/
 ECDICT/
+__pycache__/

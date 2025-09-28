@@ -86,19 +86,23 @@ class MembershipCodeUploader:
         
         self.logger.info("检查数据库中已存在的会员码...")
         
-        # 分批查询，避免查询过大
-        batch_size = 50
+        # 使用IN语法进行批量查询，避免单个查询循环
+        batch_size = 50  # 微信云数据库IN查询建议不超过50个
         for i in range(0, len(code_ids), batch_size):
             batch_ids = code_ids[i:i + batch_size]
             
-            for code_id in batch_ids:
-                existing_records = self.api.query_database(
-                    self.collection_name,
-                    {'_id': code_id},
-                    limit=1
-                )
-                if existing_records:
-                    existing_codes.append(code_id)
+            # 使用$in操作符进行批量查询
+            query_filter = {'_id': {'$in': batch_ids}}
+            existing_records = self.api.query_database(
+                self.collection_name,
+                query_filter,
+                limit=batch_size
+            )
+            
+            # 提取已存在的会员码ID
+            for record in existing_records:
+                if '_id' in record:
+                    existing_codes.append(record['_id'])
         
         # 过滤出需要插入的新会员码
         new_codes = [code for code in codes if code['_id'] not in existing_codes]
