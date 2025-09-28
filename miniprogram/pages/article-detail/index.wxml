@@ -20,7 +20,7 @@
           <view class="time-marker" bindtap="onTimeClick" data-time="{{item.time}}" data-index="{{index}}">
             {{item.timeText}}
           </view>
-          <view class="ai-analysis-btn" bindtap="onAnalysisClick" data-index="{{index}}">
+          <view wx:if="{{item.has_analysis == true}}" class="ai-analysis-btn" bindtap="onAnalysisClick" data-index="{{index}}">
             解析
           </view>
         </view>

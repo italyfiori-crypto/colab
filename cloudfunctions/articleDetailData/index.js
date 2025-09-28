@@ -584,9 +584,9 @@ async function getSubtitles(bookId, chapterId) {
     }
 
     const chapter = chapterResult.data
-    const analysisUrl = chapter.analysis_url
+    const subtitleUrl = chapter.subtitle_url
 
-    if (!analysisUrl) {
+    if (!subtitleUrl) {
       console.log('❌ [DEBUG] 章节没有解析文件:', chapterId)
       return {
         code: -1,
@@ -594,11 +594,11 @@ async function getSubtitles(bookId, chapterId) {
       }
     }
 
-    console.log('📤 [DEBUG] 开始下载解析文件:', analysisUrl)
+    console.log('📤 [DEBUG] 开始下载解析文件:', subtitleUrl)
 
     // 2. 从云存储下载解析文件
     const downloadResult = await cloud.downloadFile({
-      fileID: analysisUrl
+      fileID: subtitleUrl
     })
 
     const fileBuffer = downloadResult.fileContent
@@ -615,22 +615,22 @@ async function getSubtitles(bookId, chapterId) {
       if (!line) continue
 
       try {
-        const analysisData = JSON.parse(line)
+        const subtitleData = JSON.parse(line)
 
         // 提取字幕时间和文本信息
-        const timeInSeconds = parseSRTTimestamp(analysisData.timestamp)
+        const timeInSeconds = parseSRTTimestamp(subtitleData.timestamp)
         const subtitle = {
-          index: analysisData.subtitle_index || (i + 1),
+          index: subtitleData.subtitle_index || (i + 1),
           time: timeInSeconds,
           timeText: formatSecondsToTime(timeInSeconds),
-          english: analysisData.english_text || '',
-          chinese: analysisData.chinese_text || '',
-          // words解析移至前端处理
+          english: subtitleData.english_text || '',
+          chinese: subtitleData.chinese_text || '',
+          has_analysis: subtitleData.has_analysis || false,
         }
 
         console.log('📝 [DEBUG] 字幕项解析完成:', {
           索引: subtitle.index,
-          原始时间戳: analysisData.timestamp,
+          原始时间戳: subtitleData.timestamp,
           解析时间: timeInSeconds,
           格式化时间: subtitle.timeText,
           英文长度: subtitle.english.length,
