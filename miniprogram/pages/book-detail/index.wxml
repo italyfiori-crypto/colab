@@ -153,27 +153,25 @@
 <view class="membership-modal-overlay" wx:if="{{showMembershipModal}}" bindtap="onCloseMembershipModal">
   <view class="membership-modal" catchtap="">
     <view class="modal-header">
-      <text class="modal-title">解锁会员内容</text>
+      <text class="modal-title">解锁会员专享内容</text>
       <text class="modal-close" bindtap="onCloseMembershipModal">✕</text>
     </view>
     <view class="modal-content">
       <view class="locked-chapter-info">
         <text class="locked-title">{{lockedChapterTitle}}</text>
-        <text class="locked-desc">此章节需要会员权限才能访问</text>
+        <text class="locked-desc">解锁后可阅读全部章节内容</text>
       </view>
       <view class="input-section">
-        <text class="input-label">请输入12位会员码</text>
         <input class="code-input" 
-               placeholder="请输入会员码" 
+               placeholder="请输入12位激活码" 
                value="{{codeInput}}"
                bindinput="onCodeInput"
                maxlength="12"
                auto-focus="{{showMembershipModal}}"/>
       </view>
       <view class="membership-tips">
-        <text class="tip-text">• 激活后可访问所有章节</text>
-        <text class="tip-text">• 会员码不区分大小写</text>
         <text class="tip-text">• 激活后立即生效</text>
+        <text class="tip-text">• 会员时长自动叠加</text>
       </view>
     </view>
     <view class="modal-actions">

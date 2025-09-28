@@ -302,7 +302,7 @@ Page({
   async onActivateCode() {
     if (!this.data.codeInput || this.data.codeInput.length !== 12) {
       wx.showToast({
-        title: '请输入12位会员码',
+        title: '请输入12位激活码',
         icon: 'none'
       });
       return;
@@ -312,19 +312,19 @@ Page({
 
     try {
       console.log('🔄 [DEBUG] 开始激活会员码:', this.data.codeInput);
-      
+
       const result = await wx.cloud.callFunction({
         name: 'membershipManager',
-        data: { 
+        data: {
           action: 'activateCode',
-          code: this.data.codeInput 
+          code: this.data.codeInput
         }
       });
 
       if (result.result.success) {
         // 激活成功
         console.log('✅ [DEBUG] 会员码激活成功:', result.result);
-        
+
         wx.showToast({
           title: '激活成功！',
           icon: 'success'

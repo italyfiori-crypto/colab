@@ -27,8 +27,8 @@
           
           <!-- 根据会员状态显示不同文本 -->
           <text class="membership-status" wx:if="{{membershipInfo.status === 'active'}}">会员用户</text>
-          <text class="membership-status" wx:elif="{{membershipInfo.status === 'expired'}}">会员已过期</text>
-          <text class="membership-status" wx:else>免费用户</text>
+          <text class="membership-status" wx:elif="{{membershipInfo.status === 'expired'}}">会员已到期</text>
+          <text class="membership-status" wx:else>体验用户</text>
         </view>
         
         <!-- 根据会员状态显示不同描述 -->
@@ -42,25 +42,25 @@
           已于{{membershipInfo.expire_date_str}}过期
         </text>
         <text class="membership-desc" wx:else>
-          升级会员享受完整内容
+          激活会员享受完整内容
         </text>
       </view>
       <view class="membership-action" bindtap="onMembershipAction">
-        <text class="action-text">{{membershipInfo.status === 'active' ? '续费' : '激活'}}</text>
+        <text class="action-text">{{membershipInfo.status === 'active' ? '续期' : '激活'}}</text>
       </view>
     </view>
     <view class="membership-benefits" wx:if="{{!membershipInfo.is_premium}}">
       <view class="benefit-item">
         <text class="benefit-icon">📚</text>
-        <text class="benefit-text">解锁所有书籍章节</text>
+        <text class="benefit-text">丰富的学习资源，助你拓展阅读量</text>
       </view>
       <view class="benefit-item">
-        <text class="benefit-icon">🎧</text>
-        <text class="benefit-text">高质量音频内容</text>
+        <text class="benefit-icon">🧠</text>
+        <text class="benefit-text">AI句子智能解析，助你掌握重难点句子</text>
       </view>
       <view class="benefit-item">
-        <text class="benefit-icon">📊</text>
-        <text class="benefit-text">详细学习统计</text>
+        <text class="benefit-icon">🔬</text>
+        <text class="benefit-text">科学单词学习法，助你高效记忆单词</text>
       </view>
     </view>
   </view>
@@ -177,18 +177,16 @@
       </view>
       <view class="modal-content">
         <view class="input-section">
-          <text class="input-label">请输入12位会员码</text>
           <input class="code-input" 
-                 placeholder="请输入会员码" 
+                 placeholder="请输入12位激活码" 
                  value="{{codeInput}}"
                  bindinput="onCodeInput"
                  maxlength="12"
                  auto-focus="{{showMembershipModal}}"/>
         </view>
         <view class="modal-tips">
-          <text class="tip-text">• 会员码不区分大小写</text>
           <text class="tip-text">• 激活后立即生效</text>
-          <text class="tip-text">• 可叠加使用延长有效期</text>
+          <text class="tip-text">• 会员时长自动叠加</text>
         </view>
       </view>
       <view class="modal-actions">

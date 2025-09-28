@@ -500,7 +500,7 @@ Page({
   async onActivateCode() {
     if (!this.data.codeInput || this.data.codeInput.length !== 12) {
       wx.showToast({
-        title: '请输入12位会员码',
+        title: '请输入12位激活码',
         icon: 'none'
       });
       return;
@@ -524,7 +524,7 @@ Page({
         console.log('✅ [DEBUG] 会员码激活成功:', result.result);
         
         wx.showToast({
-          title: '激活成功！',
+          title: '解锁成功！',
           icon: 'success'
         });
 

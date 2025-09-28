@@ -270,10 +270,6 @@ async function updateUserInfo(userId, { userInfo }) {
     updateData.nickname = userInfo.nickname.trim()
   }
 
-  if (userInfo.avatar_url) {
-    updateData.avatar_url = userInfo.avatar_url
-  }
-
   // 处理用户设置信息
   if (userInfo.reading_settings) {
     updateData.reading_settings = userInfo.reading_settings

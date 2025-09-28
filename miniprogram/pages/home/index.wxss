@@ -128,31 +128,9 @@ page {
   white-space: nowrap;
 }
 
-.book-progress {
-  display: flex;
-  align-items: center;
-}
 
-.progress-bar {
-  flex: 1;
-  height: 3px;
-  background-color: #e0e0e0;
-  border-radius: 2px;
-  overflow: hidden;
-  margin-right: 8px;
-}
 
-.progress {
-  height: 100%;
-  background-color: rgb(52, 152, 219);
-  border-radius: 2px;
-}
 
-.progress-text {
-  font-size: 12px;
-  color: rgb(52, 152, 219);
-  font-weight: 500;
-}
 
 /* 分类书籍区域 */
 .category-section {

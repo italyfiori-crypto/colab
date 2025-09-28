@@ -75,7 +75,19 @@ Page({
         playSpeed: 1.0,
 
         // 用户设置
-        userSettings: {}
+        userSettings: {},
+
+        // 会员权限控制
+        showMembershipMask: false,
+        membershipInfo: {
+            is_premium: false,
+            status: 'free'
+        },
+
+        // 会员激活弹窗
+        showMembershipModal: false,
+        codeInput: '',
+        activating: false
     },
 
     /**
@@ -88,8 +100,16 @@ Page({
 
         // 加载用户设置
         await this.loadUserSettings();
+
+        // 检查会员权限
+        await this.checkMembershipStatus();
+
         this.initializePage(type, config);
-        this.loadWordsByType(type);
+
+        // 只有会员才能加载单词
+        if (this.data.membershipInfo.is_premium) {
+            this.loadWordsByType(type);
+        }
     },
 
     /**
@@ -104,10 +124,57 @@ Page({
         const userInfo = await settingsUtils.getCompleteUserInfo();
         // 从用户设置中获取播放速度，默认为1.0
         const playSpeed = userInfo.learning_settings?.playback_speed || 1.0;
-        this.setData({ 
+        this.setData({
             userSettings: userInfo,
             playSpeed: playSpeed
         });
+    },
+
+    /**
+     * 检查会员状态
+     */
+    async checkMembershipStatus() {
+        try {
+            console.log('🔄 [DEBUG] 检查单词本会员权限');
+
+            const result = await wx.cloud.callFunction({
+                name: 'membershipManager',
+                data: { action: 'checkMembership' }
+            });
+
+            if (result.result.success) {
+                const membershipData = result.result.data;
+                console.log('✅ [DEBUG] 会员信息:', membershipData);
+
+                // 计算会员状态
+                let membershipStatus = 'free'
+                if (membershipData.expire_time) {
+                    membershipStatus = membershipData.is_premium ? 'active' : 'expired'
+                }
+
+                this.setData({
+                    membershipInfo: {
+                        is_premium: membershipData.is_premium,
+                        expire_time: membershipData.expire_time,
+                        days_remaining: membershipData.days_remaining,
+                        status: membershipStatus
+                    },
+                    showMembershipMask: !membershipData.is_premium
+                });
+            } else {
+                console.error('❌ [DEBUG] 会员检查失败:', result.result.message);
+                // 检查失败时默认显示蒙板
+                this.setData({
+                    showMembershipMask: true
+                });
+            }
+        } catch (error) {
+            console.error('❌ [DEBUG] 会员检查异常:', error);
+            // 异常时默认显示蒙板
+            this.setData({
+                showMembershipMask: true
+            });
+        }
     },
 
     initializePage(type, config) {
@@ -156,7 +223,7 @@ Page({
     async fetchWordList(type) {
         const { userSettings } = this.data;
         const learningSettings = userSettings.learning_settings || {};
-        
+
         // 准备云函数参数
         const cloudFunctionData = {
             action: 'getWordList',
@@ -168,7 +235,7 @@ Page({
         if (type === 'new') {
             // 新学单词需要每日上限参数和排序参数
             cloudFunctionData.dailyWordLimit = learningSettings.daily_word_limit;
-            cloudFunctionData.sortOrder = settingsUtils.mapNewWordSortOrder(learningSettings.new_word_sort || '优先新词');
+            cloudFunctionData.sortOrder = settingsUtils.mapNewWordSortOrder(learningSettings.new_word_sort || learningSettings.newWordSort || '优先新词');
         } else if (type === 'review' || type === 'overdue') {
             // 复习和逾期单词需要排序参数
             cloudFunctionData.sortOrder = settingsUtils.mapReviewSortOrder('优先新词'); // 暂时使用固定值，因为已移除复习排序设置
@@ -178,7 +245,7 @@ Page({
         console.log('📋 [DEBUG] 用户设置详情:', {
             learningSettings: learningSettings,
             daily_word_limit: learningSettings.daily_word_limit,
-            new_word_sort: learningSettings.new_word_sort,
+            new_word_sort: learningSettings.new_word_sort || learningSettings.newWordSort,
             传递的dailyWordLimit: cloudFunctionData.dailyWordLimit,
             传递的sortOrder: cloudFunctionData.sortOrder
         });
@@ -205,7 +272,7 @@ Page({
     handleLoadSuccess(wordsData, type) {
         const { userSettings } = this.data;
         const voiceType = userSettings.learning_settings?.voice_type || '美式发音';
-        
+
         const words = wordsData.map(word => {
             // 根据用户设置选择音标和音频
             let displayPhonetic, audioUrl;
@@ -216,7 +283,7 @@ Page({
                 displayPhonetic = word.phonetic_uk || word.phonetic_us || '';
                 audioUrl = word.audio_url_uk || word.audio_url_us || '';
             }
-            
+
             return {
                 ...word,
                 displayPhonetic,
@@ -598,5 +665,97 @@ Page({
             icon: 'none',
             duration: 2500
         });
+    },
+
+    /**
+     * 显示会员激活弹窗
+     */
+    onActivateMembership() {
+        this.setData({
+            showMembershipModal: true,
+            codeInput: ''
+        });
+    },
+
+    /**
+     * 关闭会员激活弹窗
+     */
+    onCloseMembershipModal() {
+        this.setData({
+            showMembershipModal: false,
+            codeInput: '',
+            activating: false
+        });
+    },
+
+    /**
+     * 处理会员码输入
+     */
+    onCodeInput(e) {
+        this.setData({
+            codeInput: e.detail.value.toUpperCase() // 自动转换为大写
+        });
+    },
+
+    /**
+     * 激活会员码
+     */
+    async onActivateCode() {
+        const code = this.data.codeInput.trim();
+
+        if (!code || code.length !== 12) {
+            wx.showToast({
+                title: '请输入12位激活码',
+                icon: 'none'
+            });
+            return;
+        }
+
+        this.setData({ activating: true });
+
+        try {
+            const result = await wx.cloud.callFunction({
+                name: 'membershipManager',
+                data: {
+                    action: 'activateMembershipCode',
+                    code: code
+                }
+            });
+
+            if (result.result.success) {
+                // 激活成功
+                wx.showToast({
+                    title: '激活成功！',
+                    icon: 'success',
+                    duration: 2000
+                });
+
+                // 关闭弹窗
+                this.onCloseMembershipModal();
+
+                // 重新检查会员状态
+                await this.checkMembershipStatus();
+
+                // 如果现在是会员，开始加载单词
+                if (this.data.membershipInfo.is_premium) {
+                    this.loadWordsByType(this.data.wordType);
+                }
+            } else {
+                // 激活失败
+                wx.showToast({
+                    title: result.result.message || '激活失败',
+                    icon: 'none',
+                    duration: 3000
+                });
+            }
+        } catch (error) {
+            console.error('激活会员码异常:', error);
+            wx.showToast({
+                title: '激活失败，请重试',
+                icon: 'none'
+            });
+        } finally {
+            this.setData({ activating: false });
+        }
     }
 });

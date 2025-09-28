@@ -69,12 +69,6 @@
           <view class="book-info">
             <text class="book-title">{{item.title}}</text>
             <text class="book-author">{{item.author}}</text>
-            <view class="book-progress">
-              <view class="progress-bar">
-                <view class="progress" style="width: {{item.progress}}%"></view>
-              </view>
-              <text class="progress-text">{{item.progress}}%</text>
-            </view>
           </view>
         </view>
       </view>
