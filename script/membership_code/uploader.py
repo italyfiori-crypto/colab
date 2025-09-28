@@ -151,36 +151,6 @@ class MembershipCodeUploader:
         
         return stats
     
-    def generate_summary_report(self, file_path: str, stats: Dict, existing_codes: List[str]) -> str:
-        """生成上传摘要报告"""
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        report_file = f"upload_report_{timestamp}.txt"
-        
-        with open(report_file, 'w', encoding='utf-8') as f:
-            f.write("=== 会员码上传报告 ===\n\n")
-            f.write(f"上传时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
-            f.write(f"源文件: {file_path}\n\n")
-            
-            f.write("=== 统计信息 ===\n")
-            f.write(f"总计会员码数量: {stats['total']}\n")
-            f.write(f"成功上传数量: {stats['uploaded']}\n")
-            f.write(f"上传失败数量: {stats['failed']}\n")
-            f.write(f"数据库已存在: {len(existing_codes)}\n")
-            f.write(f"上传批次数: {stats['batches']}\n\n")
-            
-            if existing_codes:
-                f.write("=== 已存在的会员码 ===\n")
-                for code in existing_codes[:10]:  # 只显示前10个
-                    f.write(f"{code}\n")
-                if len(existing_codes) > 10:
-                    f.write(f"... 还有 {len(existing_codes) - 10} 个\n")
-                f.write("\n")
-            
-            success_rate = (stats['uploaded'] / stats['total']) * 100 if stats['total'] > 0 else 0
-            f.write(f"上传成功率: {success_rate:.1f}%\n")
-        
-        return report_file
-    
     def upload_from_csv(self, file_path: str, batch_size: int = 20, skip_existing: bool = True) -> Dict:
         """从CSV文件上传会员码"""
         try:
@@ -197,10 +167,6 @@ class MembershipCodeUploader:
             stats = self.upload_codes_batch(codes, batch_size)
             stats['existing'] = len(existing_codes)
             
-            # 生成报告
-            report_file = self.generate_summary_report(file_path, stats, existing_codes)
-            stats['report_file'] = report_file
-            
             return stats
             
         except Exception as e:
@@ -212,8 +178,8 @@ def main():
     parser = argparse.ArgumentParser(description='会员码上传器')
     parser.add_argument('--file', type=str, required=True,
                         help='CSV文件路径')
-    parser.add_argument('--batch-size', type=int, default=20,
-                        help='批次大小 (默认: 20)')
+    parser.add_argument('--batch-size', type=int, default=100,
+                        help='批次大小 (默认: 100)')
     parser.add_argument('--force', action='store_true',
                         help='强制上传，不跳过已存在的记录')
     
@@ -256,9 +222,6 @@ def main():
         
         success_rate = (stats['uploaded'] / stats['total']) * 100 if stats['total'] > 0 else 0
         print(f"   成功率: {success_rate:.1f}%")
-        
-        if 'report_file' in stats:
-            print(f"\n📄 详细报告: {stats['report_file']}")
         
         if stats['failed'] > 0:
             print("\n⚠️  部分会员码上传失败，请检查日志和网络连接")

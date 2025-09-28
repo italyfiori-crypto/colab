@@ -57,7 +57,7 @@ class MembershipCodeGenerator:
         if code_type not in self.TYPE_PREFIXES:
             raise ValueError(f"不支持的会员码类型: {code_type}")
         
-        max_attempts = 10000
+        max_attempts = 1000
         attempts = 0
         
         while attempts < max_attempts:
