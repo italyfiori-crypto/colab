@@ -97,6 +97,7 @@ class StatisticsService:
                 chapter_info = {
                     "local_subtitle_file": os.path.join(OUTPUT_DIRECTORIES['subtitles'], f'{filekey}.jsonl'),
                     "local_audio_file": os.path.join(OUTPUT_DIRECTORIES['compressed_audio'], f'{filekey}.mp3'),
+                    "local_analysis_file": os.path.join(OUTPUT_DIRECTORIES['analysis'], f'{filekey}.jsonl'),
                     "chapter_number": i + 1,
                     "title": title,
                     "subtitle_url": "",

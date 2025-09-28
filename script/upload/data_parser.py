@@ -139,9 +139,9 @@ class DataParser:
             subchapter_name = os.path.splitext(audio_filename)[0]  # 去掉扩展名
             
             # 计算字幕解析文件MD5
-            analysis_file_path, analysis_md5 = "", ""
+            analysis_md5 = ""
+            analysis_file_path = os.path.join(book_dir, chapter_info.get('local_analysis_file', ''))
             if os.path.exists(analysis_file_path):
-                analysis_file_path = os.path.join(book_dir, chapter_info.get('local_analysis_file', ''))
                 analysis_md5 = self._calculate_file_md5(analysis_file_path)
             
             chapter_data = {

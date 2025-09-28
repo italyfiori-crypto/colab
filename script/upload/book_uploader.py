@@ -100,7 +100,6 @@ class BookUploader:
                 
         del chapter_data["local_audio_file"]
         del chapter_data["local_subtitle_file"]
-        del chapter_data["local_analysis_file"]
         return True
 
     def upload_chapter_if_needed(self, book_dir: str, book_id: str, chapter_data: Dict, existing_chapter: Dict, changed_fields: List[str]) -> bool:
