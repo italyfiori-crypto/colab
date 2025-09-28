@@ -84,7 +84,7 @@
     <!-- 分类标签 -->
     <scroll-view class="category-tabs-scroll" scroll-x="true" show-scrollbar="false">
       <view class="category-tabs">
-        <button 
+        <view 
           wx:for="{{categories}}" 
           wx:key="name"
           class="category-tab {{item.active ? 'active' : ''}}"
@@ -92,7 +92,7 @@
           data-category="{{item.name}}"
         >
           {{item.name}}
-        </button>
+        </view>
       </view>
     </scroll-view>
     

@@ -5,7 +5,7 @@ Page({
     recentBooks: [],
     categories: [],
     currentCategoryBooks: [],
-    currentCategory: '文学名著',
+    currentCategory: '儿童故事',
     currentTab: 'home',
     // 搜索结果相关
     searchResults: [],
@@ -282,17 +282,17 @@ Page({
   onBookCoverError(e) {
     const index = e.currentTarget.dataset.index;
     const currentUrl = e.currentTarget.dataset.src;
-    
+
     console.error('❌ [DEBUG] 书籍封面加载失败:', { index, currentUrl });
-    
+
     // 获取设置工具
     const settingsUtils = require('../../utils/settingsUtils.js');
-    
+
     // 尝试使用代理服务
     if (currentUrl && !currentUrl.includes('images.weserv.nl')) {
       const proxyUrl = settingsUtils.getProxyImageUrl(currentUrl);
       console.log('🔄 [DEBUG] 使用代理URL加载封面:', proxyUrl);
-      
+
       // 更新对应的书籍封面URL
       if (this.data.showSearchResults) {
         this.setData({
