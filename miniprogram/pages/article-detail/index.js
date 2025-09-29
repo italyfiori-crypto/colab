@@ -915,7 +915,7 @@ Page({
                     };
 
                     // 根据用户设置选择音标和音频
-                    const voiceType = this.data.userSettings.learning_settings?.voice_type || '美式发音';
+                    const voiceType = this.data.userSettings.learning_settings?.voice_type || '英式发音';
                     if (voiceType === '美式发音') {
                         baseWord.displayPhonetic = word.phonetic_us || word.phonetic_uk || '';
                         baseWord.audioUrl = word.audio_url_us || word.audio_url_uk || '';
@@ -1025,7 +1025,7 @@ Page({
 
         if (!audioUrl) {
             // 备用逻辑：如果没有预处理的audioUrl，重新根据用户设置选择
-            const voiceType = this.data.userSettings.learning_settings?.voice_type || '美式发音';
+            const voiceType = this.data.userSettings.learning_settings?.voice_type || '英式发音';
             if (voiceType === '美式发音') {
                 if (word.audio_url_us) {
                     audioUrl = word.audio_url_us;

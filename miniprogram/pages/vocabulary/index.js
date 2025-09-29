@@ -271,7 +271,7 @@ Page({
      */
     handleLoadSuccess(wordsData, type) {
         const { userSettings } = this.data;
-        const voiceType = userSettings.learning_settings?.voice_type || '美式发音';
+        const voiceType = userSettings.learning_settings?.voice_type || '英式发音';
 
         const words = wordsData.map(word => {
             // 根据用户设置选择音标和音频

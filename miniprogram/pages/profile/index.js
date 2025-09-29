@@ -105,7 +105,6 @@ Page({
       const completeInfo = {
         user_id: this.data.userInfo.userId,
         nickname: this.data.userInfo.nickName,
-        avatar_url: this.data.userInfo.avatarUrl,
         reading_settings: {
           subtitle_lang: this.data.readingSettings.subtitleLang,
           playback_speed: this.data.readingSettings.playbackSpeed
@@ -210,24 +209,6 @@ Page({
   },
 
 
-  // 选择语音类型
-  onSelectVoiceType() {
-    const options = ['美式发音', '英式发音'];
-    const current = this.data.learningSettings.voiceType;
-    const currentIndex = options.indexOf(current);
-
-    wx.showActionSheet({
-      itemList: options,
-      success: (res) => {
-        if (res.tapIndex !== currentIndex) {
-          this.setData({
-            'learningSettings.voiceType': options[res.tapIndex]
-          });
-          this.saveCurrentSettings();
-        }
-      }
-    });
-  },
 
   // 设置每日单词上限
   onSetDailyWordLimit() {
@@ -421,7 +402,7 @@ Page({
   async loadMembershipInfo() {
     try {
       console.log('🔄 [DEBUG] 开始加载会员信息');
-      
+
       const result = await wx.cloud.callFunction({
         name: 'membershipManager',
         data: { action: 'checkMembership' }
@@ -430,22 +411,22 @@ Page({
       if (result.result.success) {
         const membershipData = result.result.data;
         console.log('✅ [DEBUG] 会员信息加载成功:', membershipData);
-        
+
         // 计算到期日期字符串和会员状态
         let expireDateStr = ''
         let membershipStatus = 'free' // free, active, expired
-        
+
         if (membershipData.expire_time) {
           const expireDate = new Date(membershipData.expire_time)
           expireDateStr = `${expireDate.getFullYear()}年${expireDate.getMonth() + 1}月${expireDate.getDate()}日`
-          
+
           if (membershipData.is_premium) {
             membershipStatus = 'active'
           } else {
             membershipStatus = 'expired'
           }
         }
-        
+
         this.setData({
           membershipInfo: {
             is_premium: membershipData.is_premium,
@@ -510,19 +491,19 @@ Page({
 
     try {
       console.log('🔄 [DEBUG] 开始激活会员码:', this.data.codeInput);
-      
+
       const result = await wx.cloud.callFunction({
         name: 'membershipManager',
-        data: { 
+        data: {
           action: 'activateCode',
-          code: this.data.codeInput 
+          code: this.data.codeInput
         }
       });
 
       if (result.result.success) {
         // 激活成功
         console.log('✅ [DEBUG] 会员码激活成功:', result.result);
-        
+
         wx.showToast({
           title: '解锁成功！',
           icon: 'success'

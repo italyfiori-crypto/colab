@@ -96,16 +96,6 @@
   <!-- 学习设置 -->
   <view class="settings-section">
     <view class="settings-list">
-      <!-- 语音类型 -->
-      <view class="setting-item" bindtap="onSelectVoiceType">
-        <view class="setting-left">
-          <text class="setting-icon">🔊</text>
-          <text class="setting-label">语音类型</text>
-        </view>
-        <view class="setting-right">
-          <text class="setting-value">{{learningSettings.voiceType}}</text>
-        </view>
-      </view>
       
       <!-- 每日新学上限 -->
       <view class="setting-item" bindtap="onSetDailyWordLimit">

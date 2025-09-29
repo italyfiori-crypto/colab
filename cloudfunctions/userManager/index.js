@@ -226,7 +226,7 @@ async function createDefaultUser(userId) {
 
     // 学习设置
     learning_settings: {
-      voice_type: '美式发音',
+      voice_type: '英式发音',
       daily_word_limit: 20,
       new_word_sort: '优先新词'
     },

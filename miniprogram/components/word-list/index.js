@@ -73,7 +73,7 @@ Component({
     // 根据用户设置选择音频和音标
     getAudioAndPhonetic(word) {
       const { userSettings } = this.data;
-      const voiceType = userSettings.learning_settings?.voice_type || '美式发音';
+      const voiceType = userSettings.learning_settings?.voice_type || '英式发音';
       
       if (voiceType === '美式发音') {
         return {

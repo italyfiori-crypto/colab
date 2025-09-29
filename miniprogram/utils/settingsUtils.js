@@ -1,7 +1,7 @@
 // 设置工具类 - 统一管理用户设置
 const SETTINGS_KEY = 'userSettings';
 const USER_INFO_KEY = 'userCompleteInfo';
-const CACHE_DURATION = 24 * 60 * 60 * 1000; // 24小时缓存时间
+const CACHE_DURATION = 8 * 60 * 1000; // 24小时缓存时间
 
 // 移除硬编码默认值，所有数据都从云端获取
 
@@ -346,7 +346,7 @@ function uploadAvatar(tempFilePath, retryCount = 0) {
     } catch (error) {
       console.warn('⚠️ [DEBUG] 获取用户ID失败，使用匿名用户:', error);
     }
-    
+
     const timestamp = Date.now();
     const cloudPath = `avatars/${userId}_${timestamp}.jpg`;
 
@@ -502,11 +502,11 @@ function mapVoiceTypeToPriority(voiceType) {
       fallback: 'audio_url_us'
     };
   }
-  // 默认美式发音
+  // 默认英式发音
   return {
-    primary: 'audio_url_us',
+    primary: 'audio_url_uk',
     secondary: 'audio_url',
-    fallback: 'audio_url_uk'
+    fallback: 'audio_url_us'
   };
 }
 
