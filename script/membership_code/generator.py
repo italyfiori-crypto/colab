@@ -90,7 +90,7 @@ class MembershipCodeGenerator:
         
         raise RuntimeError(f"生成会员码失败，尝试了{max_attempts}次仍有重复")
     
-    def generate_codes(self, code_type: int, count: int) -> List[dict]:
+    def generate_codes(self, code_type: int, tag: str, count: int) -> List[dict]:
         """批量生成会员码"""
         if count <= 0:
             raise ValueError("生成数量必须大于0")
@@ -105,6 +105,7 @@ class MembershipCodeGenerator:
             codes.append({
                 '_id': code,
                 'code_type': str(code_type),
+                'tag': tag,
                 'use_status': 'unused',
                 'active': True,
                 'used_at': None,
@@ -119,7 +120,7 @@ class MembershipCodeGenerator:
         
         return codes
     
-    def save_to_csv(self, codes: List[dict], code_type: int) -> str:
+    def save_to_csv(self, codes: List[dict], code_type: int, tag: str) -> str:
         """保存会员码到CSV文件"""
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         type_name = self.TYPE_PREFIXES[code_type]
@@ -128,11 +129,11 @@ class MembershipCodeGenerator:
         data_dir = os.path.join(os.path.dirname(__file__), 'data')
         os.makedirs(data_dir, exist_ok=True)
         
-        filename = f"membership_codes_{type_name}_{timestamp}.csv"
+        filename = f"membership_codes_{type_name}_{tag}_{timestamp}.csv"
         filepath = os.path.join(data_dir, filename)
         
         with open(filepath, 'w', newline='', encoding='utf-8') as csvfile:
-            fieldnames = ['_id', 'code_type', 'use_status', 'active', 'created_at']
+            fieldnames = ['_id', 'code_type', 'tag', 'use_status', 'active', 'created_at']
             writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
             
             writer.writeheader()
@@ -141,6 +142,7 @@ class MembershipCodeGenerator:
                 csv_row = {
                     '_id': code['_id'],
                     'code_type': code['code_type'], 
+                    'tag': code['tag'],
                     'use_status': code['use_status'],
                     'active': code['active'],
                     'created_at': code['created_at']
@@ -221,10 +223,9 @@ def main():
     parser.add_argument('--type', type=int, required=True,
                         choices=[1, 2, 5, 99],
                         help='会员码类型: 1(1年) 2(2年) 5(5年) 99(终身)')
-    parser.add_argument('--count', type=int, required=True,
-                        help='生成数量')
-    parser.add_argument('--validate', type=str,
-                        help='验证指定的会员码格式')
+    parser.add_argument('--count', type=int, required=True, help='生成数量')
+    parser.add_argument('--tag', type=str, required=True, help='会员码tag')
+    parser.add_argument('--validate', type=str, help='验证指定的会员码格式')
     
     args = parser.parse_args()
     
@@ -244,10 +245,10 @@ def main():
     # 生成模式
     try:
         # 生成会员码
-        codes = generator.generate_codes(args.type, args.count)
+        codes = generator.generate_codes(args.type, args.tag, args.count)
         
         # 保存到CSV
-        filename = generator.save_to_csv(codes, args.type)
+        filename = generator.save_to_csv(codes, args.type, args.tag)
         
         type_name = generator.TYPE_PREFIXES[args.type]
         print(f"\n✅ 成功生成 {args.count} 个 {type_name} 类型会员码")

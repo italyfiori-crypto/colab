@@ -176,12 +176,9 @@ class MembershipCodeUploader:
 
 def main():
     parser = argparse.ArgumentParser(description='会员码上传器')
-    parser.add_argument('--file', type=str, required=True,
-                        help='CSV文件路径')
-    parser.add_argument('--batch-size', type=int, default=100,
-                        help='批次大小 (默认: 100)')
-    parser.add_argument('--force', action='store_true',
-                        help='强制上传，不跳过已存在的记录')
+    parser.add_argument('file', type=str, help='CSV文件路径')
+    parser.add_argument('--batch-size', type=int, default=100, help='批次大小 (默认: 100)')
+    parser.add_argument('--force', action='store_true', help='强制上传，不跳过已存在的记录')
     
     args = parser.parse_args()
     
