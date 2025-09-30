@@ -86,7 +86,7 @@ class WorkflowExecutor:
             print(f"❌ 句子拆分失败: {e}")
             raise
     
-    def execute_audio_processing(self, sentence_files: List[str], output_dir: str, voice: str = "af_bella", speed: float = 0.8, verbose: bool = False) -> Tuple[List[str], List[str], float]:
+    def execute_audio_processing(self, sentence_files: List[str], output_dir: str, voice: str, speed: float, verbose: bool = False) -> Tuple[List[str], List[str], float]:
         """
         执行音频处理流程
         

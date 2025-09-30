@@ -30,7 +30,10 @@
       "WebFetch(domain:pypi.org)",
       "Bash(chmod:*)",
       "WebFetch(domain:docs.anthropic.com)",
-      "Bash(awk:*)"
+      "Bash(awk:*)",
+      "Bash(pip install:*)",
+      "Bash(pip3 uninstall:*)",
+      "Bash(pip3 cache:*)"
     ],
     "deny": []
   }

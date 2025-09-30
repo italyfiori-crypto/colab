@@ -473,7 +473,7 @@ def main():
     # 音频生成参数
     parser.add_argument('--audio', action='store_true', help='启用音频生成')
     parser.add_argument('--voice', default='af_bella', help='语音模型 (默认: af_bella)')
-    parser.add_argument('--speed', type=float, default=0.8, help='语音速度 (默认: 1.0)')
+    parser.add_argument('--speed', type=float, default=0.8, help='语音速度 (默认: 0.8)')
     
     # 翻译和分析参数
     parser.add_argument('--analysis', action='store_true', help='启用语言学分析')

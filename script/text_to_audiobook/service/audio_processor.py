@@ -12,6 +12,7 @@ from dataclasses import dataclass
 from infra import FileManager
 from infra.config_loader import AppConfig
 from util import OUTPUT_DIRECTORIES
+from .edge_tts_processor import EdgeTTSProcessor
 
 # 音频处理依赖
 try:
@@ -48,6 +49,9 @@ class AudioProcessor:
         self.file_manager = FileManager()
         self.audio_config = AudioProcessingConfig()
         
+        # 初始化Edge TTS处理器
+        self.edge_tts_processor = EdgeTTSProcessor(config)
+        
         # 初始化Kokoro TTS
         if AUDIO_AVAILABLE:
             try:
@@ -60,7 +64,7 @@ class AudioProcessor:
             self.tts_pipeline = None
             print("⚠️ 音频依赖不可用，音频功能将被跳过")
     
-    def generate_audio_files(self, sentence_files: List[str], output_dir: str, voice: str = "af_bella", speed: float = 0.8) -> Tuple[List[str], List[str]]:
+    def generate_audio_files(self, sentence_files: List[str], output_dir: str, voice: str, speed: float) -> Tuple[List[str], List[str]]:
         """
         生成音频文件
         
@@ -73,6 +77,12 @@ class AudioProcessor:
         Returns:
             (音频文件列表, 字幕文件列表)
         """
+        # 检查是否使用Edge TTS
+        if self.edge_tts_processor.should_use_edge_tts(voice):
+            print(f"🔊 使用Edge TTS进行音频生成，语音: {voice}")
+            return self.edge_tts_processor.generate_audio_files(sentence_files, output_dir, voice, speed)
+        
+        # 使用原有的Kokoro TTS逻辑
         if not self.tts_pipeline:
             print(f"🔊 TTS管道不可用，跳过音频生成")
             return [], []
