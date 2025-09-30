@@ -168,7 +168,7 @@ def process_single_book(input_file: str, args, config: dict, workflow: 'Workflow
     
     # 统计信息收集
     statistics_time = 0
-    if args.stats:
+    if args.meta:
         # 独立收集统计信息
         _, statistics_time = workflow.execute_statistics_collection(sub_chapter_files, audio_files, output_dir, args.verbose)
     
@@ -273,7 +273,7 @@ def process_single_sub_chapter(sub_chapter_file: str, args, config: dict, workfl
             chapter_vocab_files, vocabulary_time = workflow.execute_vocabulary_processing([sub_chapter_file], output_dir, book_name, master_vocab_file, args.verbose)
         
         # 统计信息收集（仅针对单个子章节的统计）
-        if args.stats:
+        if args.meta:
             # 对于单个子章节，只收集当前处理的统计
             _, statistics_time = workflow.execute_statistics_collection([sub_chapter_file], audio_files, output_dir, args.verbose)
         
@@ -397,7 +397,7 @@ def print_book_results(results: list[dict], args, program_start_time: float):
             print(f"  音频压缩: {total_times['compression']:.2f}秒 ({total_times['compression']/total_times['total']*100:.1f}%)")
         if args.vocabulary and total_times['total'] > 0:
             print(f"  词汇处理: {total_times['vocabulary']:.2f}秒 ({total_times['vocabulary']/total_times['total']*100:.1f}%)")
-        if args.stats and total_times['statistics'] > 0:
+        if args.meta and total_times['statistics'] > 0:
             print(f"  统计收集: {total_times['statistics']:.2f}秒 ({total_times['statistics']/total_times['total']*100:.1f}%)")
         print(f"  核心处理总耗时: {total_times['total']:.2f}秒")
         print(f"  程序总耗时: {program_total_time:.2f}秒")
@@ -485,7 +485,7 @@ def main():
     parser.add_argument('--vocabulary', action='store_true', help='启用词汇提取和分级')
     
     # 统计参数
-    parser.add_argument('--stats', action='store_true', help='启用统计信息收集')
+    parser.add_argument('--meta', action='store_true', help='启用统计信息收集')
     args = parser.parse_args()
 
     # 配置路径

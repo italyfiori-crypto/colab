@@ -37,6 +37,15 @@ async function processAnalysisFile(event) {
     throw new Error('缺少必要参数: fileId, bookId, chapterId')
   }
 
+  // 验证参数类型
+  if (typeof chapterId !== 'string' && typeof chapterId !== 'number') {
+    throw new Error('chapterId必须为字符串或数字')
+  }
+  
+  if (typeof bookId !== 'string' && typeof bookId !== 'number') {
+    throw new Error('bookId必须为字符串或数字')
+  }
+
   try {
     // 1. 从云存储下载解析文件
     const downloadResult = await cloud.downloadFile({
@@ -56,6 +65,12 @@ async function processAnalysisFile(event) {
 
       try {
         const analysisData = JSON.parse(line)
+
+        // 验证必要字段
+        if (!analysisData.subtitle_index && analysisData.subtitle_index !== 0) {
+          console.warn(`跳过缺少subtitle_index的记录行 ${i + 1}`)
+          continue
+        }
 
         const record = {
           _id: `${chapterId}-${analysisData.subtitle_index}`,
@@ -143,12 +158,22 @@ async function processAnalysisFile(event) {
     // 批量更新记录
     for (const record of recordsToUpdate) {
       try {
-        await db.collection('analysis').doc(record._id).update({
+        const recordId = record._id;
+        
+        // 验证recordId有效性
+        if (!recordId || recordId === 'undefined' || recordId.includes('undefined')) {
+          console.error(`无效的记录ID: ${recordId}，跳过更新`)
+          failed++
+          continue
+        }
+        
+        delete record._id
+        await db.collection('analysis').doc(recordId).update({
           data: record
         })
         updated++
       } catch (error) {
-        console.error(`更新记录失败 ${record._id}:`, error)
+        console.error(`更新记录失败 ${record._id || 'unknown'}:`, error)
         failed++
       }
     }
