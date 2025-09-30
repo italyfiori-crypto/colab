@@ -205,46 +205,65 @@ class AnalysisService:
 使用以下标记分隔各个段落，每个标记独占一行，内容紧随其后：
 
 [SENTENCE_STRUCTURE]
-句法成分分析（主语+谓语+宾语+状语等）
+严格按句子中词语出现的顺序分析句法成分，不要遗漏任何内容，也不要增加原句中没有的内容
 
 [STRUCTURE_EXPLANATION]  
-句子结构的语法解释（时态、语态、句式等重要语法现象）
+解释句子中的重要语法现象（时态、语态、特殊句式、从句等）
 
 [KEY_WORDS]
-核心词汇，每行一个，格式：单词|词性|含义|音标
-排除the、a、is、Mrs.等常见词
+提取最有意义的核心词汇，忽略the、a、an、is、was、Mrs.、Mr.等常见词，最多不超过5个
+格式：单词|词性|含义|音标
 
 [FIXED_PHRASES]
-固定短语，每行一个，格式：短语|含义
-排除过于简单的组合
+提取真正现实的固定搭配，不是任意短语都作为固定搭配，最多不超过3个
+格式：短语|含义
 
 [COLLOQUIAL_EXPRESSION]
-正式与口语表达对比，每行一组，格式：正式表达|口语表达|用法说明
+将书面或不常用表达用口语表达替代，如果本身很简单或已经是口语化表达则留空
+格式：正式表达|口语表达|用法说明
 
-示例1:
+示例1（复杂句子）:
 输入: "The project that we've been working on for months will be completed soon."
 输出:
 [SENTENCE_STRUCTURE]
 主语(The project) + 定语从句(that we've been working on for months) + 谓语(will be completed) + 时间状语(soon)
 
 [STRUCTURE_EXPLANATION]
-定语从句修饰主语，'that'引导限制性定语从句；主句使用一般将来时的被动语态
+定语从句修饰主语project，that引导限制性定语从句；主句使用一般将来时的被动语态
 
 [KEY_WORDS]
 project|n.|项目|/ˈprɑːdʒekt/
+working|v.|工作，从事|/ˈwɜːrkɪŋ/
 completed|v.|完成|/kəmˈpliːtɪd/
 
 [FIXED_PHRASES]
 work on|从事，致力于
 
 [COLLOQUIAL_EXPRESSION]
-will be completed soon|will be done soon|口语中用'done'替代'completed'更简洁
+will be completed soon|will be done soon|口语中用done替代completed更简洁
+
+示例2（简单句子）:
+输入: "I see a red bird."
+输出:
+[SENTENCE_STRUCTURE]
+主语(I) + 谓语(see) + 宾语(a red bird)
+
+[STRUCTURE_EXPLANATION]
+简单的主谓宾结构，一般现在时
+
+[KEY_WORDS]
+bird|n.|鸟|/bɜːrd/
+
+[FIXED_PHRASES]
+
+[COLLOQUIAL_EXPRESSION]
 
 注意事项:
 1. 严格按标记格式输出，每个标记必须独占一行
-2. 无相关内容时该段落留空，但标记必须保留
-3. 数组字段每行一项，用|分隔各个属性
-4. 不要添加任何解释性文字，只输出标记格式内容"""
+2. 句子结构分析必须按词语在句子中的实际顺序
+3. 关键词最多5个，固定搭配最多3个
+4. 无相关内容时该段落留空，但标记必须保留
+5. 简单或已经口语化的表达不需要口语转换"""
             
             user_prompt = f"请分析以下英语句子: \"{english_text}\""""
             
@@ -270,7 +289,8 @@ will be completed soon|will be done soon|口语中用'done'替代'completed'更�
                     "key_words": analysis_data.get("key_words", []),
                     "fixed_phrases": analysis_data.get("fixed_phrases", []),
                     "structure_explanation": analysis_data.get("structure_explanation", ""),
-                    "colloquial_expression": analysis_data.get("colloquial_expression", [])
+                    "colloquial_expression": analysis_data.get("colloquial_expression", []),
+                    "cultural_context": analysis_data.get("cultural_context", [])
                 }
                 
                 return result
@@ -303,7 +323,8 @@ will be completed soon|will be done soon|口语中用'done'替代'completed'更�
             "structure_explanation": "",
             "key_words": [],
             "fixed_phrases": [],
-            "colloquial_expression": []
+            "colloquial_expression": [],
+            "cultural_context": []
         }
         
         try:

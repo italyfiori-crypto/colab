@@ -12,7 +12,7 @@ from dataclasses import dataclass
 from infra import FileManager
 from infra.config_loader import AppConfig
 from util import OUTPUT_DIRECTORIES
-from .edge_tts_processor import EdgeTTSProcessor
+from infra.edge_tts_client import EdgeTTSClient
 
 # 音频处理依赖
 try:
@@ -49,8 +49,8 @@ class AudioProcessor:
         self.file_manager = FileManager()
         self.audio_config = AudioProcessingConfig()
         
-        # 初始化Edge TTS处理器
-        self.edge_tts_processor = EdgeTTSProcessor(config)
+        # 初始化Edge TTS客户端
+        self.edge_tts_client = EdgeTTSClient()
         
         # 初始化Kokoro TTS
         if AUDIO_AVAILABLE:
@@ -78,12 +78,11 @@ class AudioProcessor:
             (音频文件列表, 字幕文件列表)
         """
         # 检查是否使用Edge TTS
-        if self.edge_tts_processor.should_use_edge_tts(voice):
+        if self.edge_tts_client.should_use_edge_tts(voice):
             print(f"🔊 使用Edge TTS进行音频生成，语音: {voice}")
-            return self.edge_tts_processor.generate_audio_files(sentence_files, output_dir, voice, speed)
         
-        # 使用原有的Kokoro TTS逻辑
-        if not self.tts_pipeline:
+        # 检查TTS管道可用性（对于Kokoro TTS）
+        if not self.edge_tts_client.should_use_edge_tts(voice) and not self.tts_pipeline:
             print(f"🔊 TTS管道不可用，跳过音频生成")
             return [], []
         
@@ -201,20 +200,32 @@ class AudioProcessor:
             temp_audio_file = os.path.join(audio_dir, f"{base_name}_temp_{i:03d}.{self.audio_config.audio_format}")
             
             try:
-                # 生成单句音频
-                if self._generate_sentence_audio(sentence, temp_audio_file):
-                    # 获取实际时长
-                    duration = self._get_audio_duration(temp_audio_file)
+                # 根据voice类型选择不同的生成方法
+                if self.edge_tts_client.should_use_edge_tts(self.audio_config.voice):
+                    # 使用Edge TTS生成
+                    duration = self.edge_tts_client.generate_sentence_audio(
+                        sentence, temp_audio_file, self.audio_config.voice, self.audio_config.speed
+                    )
                     if duration > 0:
                         audio_files.append(temp_audio_file)
                         durations.append(duration)
                     else:
-                        print(f"⚠️ 句子音频时长为0: {sentence[:30]}...")
-                        # 如果获取时长失败，删除临时文件
-                        if os.path.exists(temp_audio_file):
-                            os.remove(temp_audio_file)
+                        print(f"⚠️ Edge TTS句子音频生成失败: {sentence[:30]}...")
                 else:
-                    print(f"⚠️ 句子音频生成失败: {sentence[:30]}...")
+                    # 使用Kokoro TTS生成
+                    if self._generate_sentence_audio(sentence, temp_audio_file):
+                        # 获取实际时长
+                        duration = self._get_audio_duration(temp_audio_file)
+                        if duration > 0:
+                            audio_files.append(temp_audio_file)
+                            durations.append(duration)
+                        else:
+                            print(f"⚠️ Kokoro句子音频时长为0: {sentence[:30]}...")
+                            # 如果获取时长失败，删除临时文件
+                            if os.path.exists(temp_audio_file):
+                                os.remove(temp_audio_file)
+                    else:
+                        print(f"⚠️ Kokoro句子音频生成失败: {sentence[:30]}...")
                     
             except Exception as e:
                 print(f"❌ 处理句子失败 [{i}]: {e}")
